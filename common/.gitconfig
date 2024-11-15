@@ -1,0 +1,9 @@
+[user]
+    name = Georgi Georgiev
+    email = gatanasovgeorgiev@gmail.com
+[fetch]
+	prune = true
+[init]
+	defaultBranch = main
+[push]
+	autoSetupRemote = true
