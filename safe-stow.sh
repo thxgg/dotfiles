@@ -7,8 +7,10 @@ BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 STOW_DIR="."
 TARGET_DIR="$HOME"
 PACKAGE="common"
+STOW_IGNORE_REGEX='\.md$'
 
 typeset -a deploy_paths conflict_paths backup_ok backup_failed
+typeset -i backup_dir_created=0
 
 if ! command -v stow >/dev/null 2>&1; then
     echo "Error: stow is required but not installed."
@@ -21,8 +23,17 @@ if [[ ! -d "$package_root" ]]; then
     exit 1
 fi
 
+ensure_backup_dir() {
+    if [[ $backup_dir_created -eq 0 ]]; then
+        echo "Creating backup directory: $BACKUP_DIR"
+        mkdir -p "$BACKUP_DIR"
+        backup_dir_created=1
+    fi
+}
+
 # Get leaf paths that stow manages (files + symlinks only)
-deploy_paths=("${(@f)$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) | sed 's|^./||')}")
+# Keep this in sync with STOW_IGNORE_REGEX used by stow.
+deploy_paths=("${(@f)$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -name '*.md' | sed 's|^./||')}")
 
 # Function to check if target already resolves to source (managed)
 is_managed_target() {
@@ -52,6 +63,7 @@ backup_target() {
     local backup_target="$BACKUP_DIR/$relative_path"
 
     echo "Backing up: $target to $backup_target"
+    ensure_backup_dir
     mkdir -p "$(dirname "$backup_target")"
 
     if mv "$target" "$backup_target"; then
@@ -62,7 +74,49 @@ backup_target() {
     fi
 }
 
+enforce_ssh_leaf_linking() {
+    local ssh_source_dir="$package_root/.ssh"
+    local ssh_target_dir="$TARGET_DIR/.ssh"
+
+    [[ -d "$ssh_source_dir" ]] || return 0
+
+    if [[ -L "$ssh_target_dir" ]]; then
+        local resolved_target="${ssh_target_dir:A}"
+        local expected_target="${ssh_source_dir:A}"
+
+        if [[ "$resolved_target" != "$expected_target" ]]; then
+            echo "Error: $ssh_target_dir is a symlink to $resolved_target"
+            echo "Refusing to continue because ~/.ssh must be a real directory for local keys."
+            exit 1
+        fi
+
+        echo "Migrating folded ~/.ssh symlink to leaf-linked layout"
+        backup_target "$ssh_target_dir"
+        if [[ ${#backup_failed[@]} -gt 0 ]]; then
+            echo "Failed to migrate ~/.ssh symlink; aborting stow."
+            exit 1
+        fi
+
+        mkdir -p "$ssh_target_dir"
+        chmod 700 "$ssh_target_dir" 2>/dev/null || true
+        return 0
+    fi
+
+    if [[ -e "$ssh_target_dir" && ! -d "$ssh_target_dir" ]]; then
+        echo "Error: $ssh_target_dir exists but is not a directory"
+        exit 1
+    fi
+
+    if [[ ! -d "$ssh_target_dir" ]]; then
+        echo "Creating ~/.ssh directory for leaf-linked stow targets"
+        mkdir -p "$ssh_target_dir"
+        chmod 700 "$ssh_target_dir" 2>/dev/null || true
+    fi
+}
+
 # Check for conflicts and backup if necessary
+enforce_ssh_leaf_linking
+
 for item in "${deploy_paths[@]}"; do
     target_path="$TARGET_DIR/$item"
     source_path="$package_root/$item"
@@ -75,8 +129,7 @@ done
 
 # Create backup directory and perform backups if needed
 if [[ ${#conflict_paths[@]} -gt 0 ]]; then
-    echo "Creating backup directory: $BACKUP_DIR"
-    mkdir -p "$BACKUP_DIR"
+    echo "Found ${#conflict_paths[@]} conflict(s); backing up before stow"
 
     for target_path in "${conflict_paths[@]}"; do
         backup_target "$target_path"
@@ -94,14 +147,16 @@ if [[ ${#conflict_paths[@]} -gt 0 ]]; then
 
     echo "Backup completed successfully"
 else
-    echo "No conflicts found, no backup needed"
+    if [[ ${#backup_ok[@]} -eq 0 ]]; then
+        echo "No conflicts found, no backup needed"
+    fi
 fi
 
 # Perform the stow operation
 echo "Stowing $PACKAGE package..."
-stow --no-folding -t "$TARGET_DIR" -d "$STOW_DIR" "$PACKAGE"
+stow --no-folding --ignore="$STOW_IGNORE_REGEX" -t "$TARGET_DIR" -d "$STOW_DIR" "$PACKAGE"
 
-echo "✅ Stow completed successfully"
-if [[ ${#conflict_paths[@]} -gt 0 ]]; then
+echo "Stow completed successfully"
+if [[ ${#backup_ok[@]} -gt 0 ]]; then
     echo "Your original files were backed up to: $BACKUP_DIR"
 fi
