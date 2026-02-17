@@ -10,6 +10,11 @@ This repository manages shell/editor/system configuration with GNU Stow.
 2. Run `./setup.sh`.
 3. The setup script runs OS-specific package setup, then runs safe stow.
 
+Useful setup flags:
+
+- `--skip-user-dirs`
+- `--skip-network-check`
+
 If you only want stow linking without package installation, run `./safe-stow.sh`.
 
 Validate key symlinks and stow setup health:
@@ -79,6 +84,8 @@ Optional flags:
 
 - `./safe-stow.sh` checks for conflicts in `$HOME`
 - existing non-symlink files are backed up to `~/.dotfiles_backup_<timestamp>/`
+- `~/.ssh` stays a real directory so local keys are preserved
+- only leaf entries like `~/.ssh/config` are symlinked from `common/`
 - stow then links the `common` package into `$HOME`
 
 To remove links:

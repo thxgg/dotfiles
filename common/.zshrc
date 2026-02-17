@@ -1,6 +1,8 @@
 export VISUAL=nvim
 export EDITOR=nvim
-export PATH="$HOME/.local/bin:$PATH:$(go env GOBIN):$(go env GOPATH)/bin"
+export GOPATH="${GOPATH:-$HOME/go}"
+export GOBIN="${GOBIN:-$GOPATH/bin}"
+export PATH="$HOME/.local/bin:$PATH:$GOBIN"
 export ZSH="$HOME/.oh-my-zsh"
 # source $HOME/.zsh/catppuccin_latte-zsh-syntax-highlighting.zsh
 source $HOME/.zsh/catppuccin_mocha-zsh-syntax-highlighting.zsh
@@ -9,6 +11,8 @@ source $HOME/.zsh/catppuccin_mocha-zsh-syntax-highlighting.zsh
 # Uncomment the following line if pasting URLs and other text is messed up.
 # DISABLE_MAGIC_FUNCTIONS="true"
 DISABLE_UNTRACKED_FILES_DIRTY="true"
+DISABLE_COMPFIX=true
+export skip_global_compinit=1
 HIST_STAMPS="dd/mm/yyyy"
 
 plugins=(
@@ -31,10 +35,6 @@ alias oc=opencode
 # -------------------------------- #
 # Git
 # -------------------------------- #
-
-# Homebrew completion
-autoload -Uz compinit
-compinit
 
 # Lazygit
 alias lg='lazygit'
@@ -119,7 +119,7 @@ esac
 # pnpm end
 
 # java
-export JAVA_HOME=`/usr/libexec/java_home -v 21`
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"
 
 # Added by LM Studio CLI (lms)
@@ -133,15 +133,38 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # heroku autocomplete setup
-HEROKU_AC_ZSH_SETUP_PATH=$HOME/Library/Caches/heroku/autocomplete/zsh_setup && test -f $HEROKU_AC_ZSH_SETUP_PATH && source $HEROKU_AC_ZSH_SETUP_PATH;
+HEROKU_AC_ZSH_SETUP_PATH="$HOME/Library/Caches/heroku/autocomplete/zsh_setup" && test -f $HEROKU_AC_ZSH_SETUP_PATH && source $HEROKU_AC_ZSH_SETUP_PATH;
 
 export PATH=$HOME/development/flutter/bin:$PATH
 
-# The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=($HOME/.docker/completions $fpath)
+trim_path() {
+  local old_ifs="$IFS"
+  local -a path_parts deduped
+  local -A seen
+
+  IFS=':' path_parts=($PATH)
+  IFS="$old_ifs"
+
+  for path_entry in "${path_parts[@]}"; do
+    [[ -z "$path_entry" ]] && continue
+    if [[ -z "${seen[$path_entry]-}" ]]; then
+      deduped+=("$path_entry")
+      seen[$path_entry]=1
+    fi
+  done
+
+  PATH="${(j/:/)deduped}"
+  export PATH
+}
+
+trim_path
+export RIPGREP_CONFIG_PATH="$HOME/.ripgreprc"
+
+# Initialize completions once after all fpath updates.
+fpath=("$HOME/.docker/completions" $fpath)
 autoload -Uz compinit
 compinit
-# End of Docker CLI completions
+
 #compdef opencode
 ###-begin-opencode-completions-###
 #

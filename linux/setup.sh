@@ -7,7 +7,47 @@ PACKAGES_DIR="$SCRIPT_DIR/packages"
 
 DRY_RUN=0
 WITH_VIRTUALIZATION=0
+SKIP_NETWORK_CHECK="${SKIP_NETWORK_CHECK:-0}"
 PROFILES=()
+
+info() {
+	printf '[INFO] %s\n' "$1"
+}
+
+success() {
+	printf '[OK] %s\n' "$1"
+}
+
+warn() {
+	printf '[WARN] %s\n' "$1"
+}
+
+error() {
+	printf '[ERROR] %s\n' "$1" >&2
+}
+
+ret=0
+trap 'ret=$?; if [[ $ret -ne 0 ]]; then error "Linux setup failed"; fi; exit $ret' EXIT
+
+check_network() {
+	if [[ "$SKIP_NETWORK_CHECK" == "1" ]]; then
+		warn "Skipping network check"
+		return
+	fi
+
+	if ! command -v curl >/dev/null 2>&1; then
+		warn "curl not found; skipping network check"
+		return
+	fi
+
+	if curl --silent --show-error --fail --head --max-time 5 https://github.com >/dev/null 2>&1; then
+		success "Network check passed"
+	else
+		error "Network check failed (https://github.com unreachable)"
+		error "Use --skip-network-check to bypass"
+		exit 1
+	fi
+}
 
 usage() {
 	cat <<'EOF'
@@ -17,6 +57,7 @@ Options:
   --dry-run                Print install commands only
   --with-virtualization    Include virtualization profile
   --profiles a,b,c         Override profiles to install
+  --skip-network-check     Skip connectivity preflight check
   --help                   Show this help
 
 Default profiles:
@@ -36,18 +77,22 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--profiles)
 			if [[ $# -lt 2 ]]; then
-				echo "Missing value for --profiles"
+				error "Missing value for --profiles"
 				exit 1
 			fi
 			PROFILES=("${(@s:,:)2}")
 			shift 2
+			;;
+		--skip-network-check)
+			SKIP_NETWORK_CHECK=1
+			shift
 			;;
 		--help)
 			usage
 			exit 0
 			;;
 		*)
-			echo "Unknown option: $1"
+			error "Unknown option: $1"
 			usage
 			exit 1
 			;;
@@ -55,13 +100,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -f /etc/arch-release ]]; then
-	echo "This setup only supports Arch Linux."
+	error "This setup only supports Arch Linux"
 	exit 1
 fi
 
 if ! command -v yay &>/dev/null; then
-	echo "yay is required but was not found in PATH."
+	error "yay is required but was not found in PATH"
 	exit 1
+fi
+
+if [[ ! -d "$PACKAGES_DIR" ]]; then
+	error "Packages directory not found: $PACKAGES_DIR"
+	exit 1
+fi
+
+if [[ $DRY_RUN -eq 0 ]]; then
+	check_network
 fi
 
 if [[ ${#PROFILES[@]} -eq 0 ]]; then
@@ -75,7 +129,7 @@ packages=()
 for profile in "${PROFILES[@]}"; do
 	profile_file="$PACKAGES_DIR/$profile.txt"
 	if [[ ! -f "$profile_file" ]]; then
-		echo "Profile file not found: $profile_file"
+		error "Profile file not found: $profile_file"
 		exit 1
 	fi
 
@@ -91,37 +145,38 @@ done
 unique_packages=(${(u)packages})
 
 if [[ ${#unique_packages[@]} -eq 0 ]]; then
-	echo "No packages resolved from selected profiles."
+	error "No packages resolved from selected profiles"
 	exit 1
 fi
 
-echo "Resolved profiles: ${PROFILES[*]}"
-echo "Resolved package count: ${#unique_packages[@]}"
+info "Resolved profiles: ${PROFILES[*]}"
+info "Resolved package count: ${#unique_packages[@]}"
 
 if [[ $DRY_RUN -eq 1 ]]; then
-	echo "Dry run package list:"
+	info "Dry run package list:"
 	printf ' - %s\n' "${unique_packages[@]}"
-	echo "Dry run command:"
+	info "Dry run command:"
 	printf 'yay -S --needed --noconfirm'
 	printf ' %q' "${unique_packages[@]}"
 	printf '\n'
+	success "Dry run complete"
 	exit 0
 fi
 
-echo "Installing packages with yay..."
+info "Installing packages with yay"
 yay -S --needed --noconfirm "${unique_packages[@]}"
 
 enable_service() {
 	local service="$1"
 	if [[ -n "$(systemctl list-unit-files "$service" --no-legend 2>/dev/null)" ]]; then
-		echo "Enabling service: $service"
+		info "Enabling service: $service"
 		sudo systemctl enable --now "$service"
 	else
-		echo "Service not found, skipping: $service"
+		warn "Service not found, skipping: $service"
 	fi
 }
 
-echo "Running post-install service setup..."
+info "Running post-install service setup"
 enable_service docker.service
 enable_service redis.service
 enable_service tailscaled.service
@@ -129,7 +184,7 @@ enable_service postgresql18.service
 enable_service postgresql.service
 
 if command -v fnm &>/dev/null; then
-	echo "Setting up Node.js versions with fnm..."
+	info "Setting up Node.js versions with fnm"
 	eval "$(fnm env --use-on-cd)"
 	fnm install 14
 	fnm install 17
@@ -138,8 +193,8 @@ if command -v fnm &>/dev/null; then
 fi
 
 if command -v pipx &>/dev/null; then
-	echo "Setting up pipx path..."
+	info "Ensuring pipx path setup"
 	pipx ensurepath
 fi
 
-echo "Linux setup complete."
+success "Linux setup complete"
