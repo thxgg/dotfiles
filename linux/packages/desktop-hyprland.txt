@@ -1,0 +1,15 @@
+hyprland
+hypridle
+hyprlock
+hyprpolkitagent
+ags-hyprpanel-git
+swaync
+swww
+wofi
+grim
+nwg-displays
+xdg-desktop-portal-hyprland
+xwaylandvideobridge
+brightnessctl
+playerctl
+hyprsome-git

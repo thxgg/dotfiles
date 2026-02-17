@@ -1,0 +1,5 @@
+qemu-full
+libvirt
+libvirt-dbus
+virt-manager
+edk2-ovmf

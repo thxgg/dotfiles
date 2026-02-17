@@ -1,0 +1,11 @@
+.DS_Store
+
+# Runtime logs/state
+common/.config/btop/btop.log
+
+# Dependency directories
+common/.config/opencode/node_modules/
+
+# Safety guardrails for nested repos
+common/.config/nvim/.git/
+common/.config/opencode/.git/

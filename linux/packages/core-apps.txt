@@ -1,0 +1,8 @@
+ghostty
+dropbox
+discord
+obsidian
+slack-desktop
+google-chrome
+helium-browser-bin
+qbittorrent

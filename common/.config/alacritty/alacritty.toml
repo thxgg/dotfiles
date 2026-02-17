@@ -1,0 +1,30 @@
+[font]
+size = 14.0
+
+[font.bold]
+family = "BerkeleyMonoVariable Nerd Font"
+style = "Bold"
+
+[font.bold_italic]
+family = "BerkeleyMonoVariable Nerd Font"
+style = "Bold Italic"
+
+[font.italic]
+family = "BerkeleyMonoVariable Nerd Font"
+style = "Italic"
+
+[font.normal]
+family = "BerkeleyMonoVariable Nerd Font"
+style = "Regular"
+
+[keyboard]
+bindings = [
+  { action = "ToggleFullscreen", key = "F11" },
+  { action = "Copy", key = "F7" }
+]
+
+[window]
+decorations = "Buttonless"
+
+[general]
+import = ["catppuccin-mocha.toml"]
