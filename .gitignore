@@ -1,10 +1,20 @@
 .DS_Store
+.vscode/
 
 # Runtime logs/state
 common/.config/btop/btop.log
+common/.config/opencode/worktrees/
+common/.config/opencode/package-lock.json
+common/.config/zed/prompts/
+common/.config/atuin/atuin-receipt.json
+.claude/settings.local.json
 
 # Dependency directories
 common/.config/opencode/node_modules/
+
+# SSH safety: keep config tracked, ignore private key material
+common/.ssh/*
+!common/.ssh/config
 
 # Safety guardrails for nested repos
 common/.config/nvim/.git/

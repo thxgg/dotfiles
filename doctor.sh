@@ -47,10 +47,32 @@ expected_paths=(
     ".zprofile"
     ".zshenv"
     ".psqlrc"
-    ".ssh"
+    ".ssh/config"
     ".config"
     "Library/Application Support/com.mitchellh.ghostty/config"
 )
+
+check_ssh_directory() {
+    local ssh_target_dir="$TARGET_ROOT/.ssh"
+
+    if [[ -L "$ssh_target_dir" ]]; then
+        print_status FAIL ".ssh is a symlink; expected a real directory for local keys"
+        return
+    fi
+
+    if [[ -d "$ssh_target_dir" ]]; then
+        print_status OK ".ssh directory exists for local keys"
+        return
+    fi
+
+    if [[ -e "$ssh_target_dir" ]]; then
+        print_status FAIL ".ssh exists but is not a directory"
+    else
+        print_status FAIL ".ssh directory is missing"
+    fi
+}
+
+check_ssh_directory
 
 for relative_path in "${expected_paths[@]}"; do
     source_path="$PACKAGE_ROOT/$relative_path"
