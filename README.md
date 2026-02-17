@@ -12,6 +12,18 @@ This repository manages shell/editor/system configuration with GNU Stow.
 
 If you only want stow linking without package installation, run `./safe-stow.sh`.
 
+## Git Hooks
+
+This repo includes a `gitleaks` pre-commit hook at `.githooks/pre-commit`.
+
+Enable it once per clone:
+
+- `git config core.hooksPath .githooks`
+
+Optional bypass for emergency local commits:
+
+- `SKIP_GITLEAKS=1 git commit ...`
+
 ## Repository Structure
 
 - `common/`: source-of-truth dotfiles and app configs
