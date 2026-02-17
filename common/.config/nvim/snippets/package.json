@@ -1,0 +1,31 @@
+{
+    "name": "snippets",
+    "contributes": {
+        "snippets": [
+            {
+                "language": [
+                    "vue"
+                ],
+                "path": "vue.json"
+            },
+            {
+                "language": [
+                    "vue"
+                ],
+                "path": "vue-router.json"
+            },
+            {
+                "language": [
+                    "vue"
+                ],
+                "path": "pinia.json"
+            },
+            {
+                "language": [
+                    "vue"
+                ],
+                "path": "nuxt.json"
+            }
+        ]
+    }
+}

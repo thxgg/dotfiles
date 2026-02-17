@@ -1,0 +1,6 @@
+require("user.edit_text")
+require("user.highlight_yank")
+require("user.resize_windows")
+require("user.rotate_windows")
+require("user.vertical_help")
+require("user.search_highlight")
