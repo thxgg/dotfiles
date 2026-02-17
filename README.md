@@ -12,6 +12,10 @@ This repository manages shell/editor/system configuration with GNU Stow.
 
 If you only want stow linking without package installation, run `./safe-stow.sh`.
 
+Validate key symlinks and stow setup health:
+
+- `./doctor.sh`
+
 ## Git Hooks
 
 This repo includes a `gitleaks` pre-commit hook at `.githooks/pre-commit`.
@@ -32,6 +36,7 @@ Optional bypass for emergency local commits:
 - `setup.sh`: top-level setup entrypoint
 - `safe-stow.sh`: conflict-aware stow with automatic backups
 - `unstow.sh`: remove stow links for `common`
+- `doctor.sh`: verifies key managed paths are symlinked correctly
 
 ## macOS Setup
 
