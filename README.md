@@ -94,13 +94,6 @@ Tracked in this repo:
 - neovim config
 - selected app configs under `.config/`
 
-Intentionally not managed as dotfiles source-of-truth:
-
-- Podman runtime state
-- GitHub Copilot local state
-- Claude Code local state
-- tmux config
-
 ## Secret Hygiene Before Public Repo
 
 Before making this repository public, remove or refactor all hardcoded secrets to env vars or local untracked files.
