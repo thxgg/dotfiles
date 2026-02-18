@@ -268,11 +268,6 @@
             // Shell
             "omz *": "allow"
         },
-        "skill": {
-            "prd": "deny",
-            "prd-task": "deny",
-            "complete-next-task": "deny"
-        }
     },
     "plugin": ["@franlol/opencode-md-table-formatter@0.0.3"]
 }
