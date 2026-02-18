@@ -120,6 +120,12 @@ Recommended pattern:
 - use env placeholders in tracked config
 - re-scan with `rg -n "(api[_-]?key|token|secret|password|github_pat_|sk-)" common`
 
+## Third-Party Sounds
+
+The MP3 files in `common/.config/opencode/sounds/` are third-party assets and are not owned by this repository author.
+
+These files are not covered by this repository's MIT license. All rights remain with their respective owners.
+
 ## Nerd Font Helper
 
 Due to font licensing, fetch source font files manually, then use `patch-nerdfont.sh`.
