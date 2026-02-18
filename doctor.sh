@@ -4,9 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 TARGET_ROOT="$HOME"
-COMMON_ROOT="common"
-MACOS_ROOT="macos/home"
-LINUX_ROOT="linux/home"
+STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
 
 typeset -a package_roots expected_paths config_children ssh_source_dirs config_source_dirs
 typeset -A expected_sources config_child_sources
@@ -36,28 +34,13 @@ print_status() {
     esac
 }
 
-resolve_package_roots() {
-    package_roots=("$COMMON_ROOT")
+if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
+    print_status FAIL "Stow roots helper not found: $STOW_ROOTS_HELPER"
+    printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+    exit 1
+fi
 
-    case "$OSTYPE" in
-        darwin*)
-            [[ -d "$SCRIPT_DIR/$MACOS_ROOT" ]] && package_roots+=("$MACOS_ROOT")
-            ;;
-        linux-gnu*)
-            [[ -d "$SCRIPT_DIR/$LINUX_ROOT" ]] && package_roots+=("$LINUX_ROOT")
-            ;;
-        *)
-            print_status WARN "Unsupported operating system for OS-specific roots: $OSTYPE"
-            ;;
-    esac
-
-    local root
-    for root in "${package_roots[@]}"; do
-        if [[ ! -d "$SCRIPT_DIR/$root" ]]; then
-            print_status FAIL "Package root missing: $SCRIPT_DIR/$root"
-        fi
-    done
-}
+source "$STOW_ROOTS_HELPER"
 
 collect_expected_entries() {
     local root="$1"
@@ -229,24 +212,32 @@ else
     print_status OK "stow is installed"
 fi
 
-resolve_package_roots
+if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" warn; then
+    print_status FAIL "$DOTFILES_STOW_RESOLVE_ERROR"
+else
+    package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 
-for root in "${package_roots[@]}"; do
-    collect_expected_entries "$root"
-done
+    if [[ -n "$DOTFILES_STOW_RESOLVE_WARNING" ]]; then
+        print_status WARN "$DOTFILES_STOW_RESOLVE_WARNING"
+    fi
 
-collect_special_source_dirs
+    for root in "${package_roots[@]}"; do
+        collect_expected_entries "$root"
+    done
 
-print_status OK "Active stow roots: ${package_roots[*]}"
+    collect_special_source_dirs
 
-if [[ $duplicate_count -gt 0 ]]; then
-    print_status FAIL "Found $duplicate_count duplicate stow target(s); fix overlap before deploying"
+    print_status OK "Active stow roots: ${package_roots[*]}"
+
+    if [[ $duplicate_count -gt 0 ]]; then
+        print_status FAIL "Found $duplicate_count duplicate stow target(s); fix overlap before deploying"
+    fi
+
+    check_ssh_directory
+    check_config_directory
+    check_config_child_links
+    check_expected_paths
 fi
-
-check_ssh_directory
-check_config_directory
-check_config_child_links
-check_expected_paths
 
 printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
 

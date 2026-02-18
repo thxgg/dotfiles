@@ -6,10 +6,8 @@ set -euo pipefail
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-COMMON_ROOT="common"
-MACOS_ROOT="macos/home"
-LINUX_ROOT="linux/home"
 STOW_IGNORE_REGEX='^\.config(/|$)|\.md$'
+STOW_ROOTS_HELPER="$STOW_DIR/scripts/lib/stow-roots.zsh"
 
 typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children
 typeset -a ssh_source_dirs config_source_dirs
@@ -21,30 +19,12 @@ if ! command -v stow >/dev/null 2>&1; then
     exit 1
 fi
 
-resolve_package_roots() {
-    package_roots=("$COMMON_ROOT")
+if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
+    echo "Error: stow roots helper not found: $STOW_ROOTS_HELPER"
+    exit 1
+fi
 
-    case "$OSTYPE" in
-        darwin*)
-            [[ -d "$STOW_DIR/$MACOS_ROOT" ]] && package_roots+=("$MACOS_ROOT")
-            ;;
-        linux-gnu*)
-            [[ -d "$STOW_DIR/$LINUX_ROOT" ]] && package_roots+=("$LINUX_ROOT")
-            ;;
-        *)
-            echo "Error: unsupported operating system: $OSTYPE"
-            exit 1
-            ;;
-    esac
-
-    local root
-    for root in "${package_roots[@]}"; do
-        if [[ ! -d "$STOW_DIR/$root" ]]; then
-            echo "Error: package directory not found: $STOW_DIR/$root"
-            exit 1
-        fi
-    done
-}
+source "$STOW_ROOTS_HELPER"
 
 collect_package_entries() {
     local root="$1"
@@ -106,6 +86,43 @@ path_matches_any() {
         if [[ "$candidate" == "${expected:A}" ]]; then
             return 0
         fi
+    done
+
+    return 1
+}
+
+record_conflict_path() {
+    local candidate="$1"
+    local existing
+
+    for existing in "${conflict_paths[@]}"; do
+        [[ "$existing" == "$candidate" ]] && return 1
+    done
+
+    conflict_paths+=("$candidate")
+    return 0
+}
+
+find_ancestor_symlink_conflict() {
+    local target="$1"
+    local source="$2"
+    local current_target="${target:h}"
+    local current_source="${source:h}"
+    local resolved_target expected_target
+
+    while [[ "$current_target" != "$TARGET_DIR" && "$current_target" != "/" ]]; do
+        if [[ -L "$current_target" ]]; then
+            resolved_target="${current_target:A}"
+            expected_target="${current_source:A}"
+
+            if [[ "$resolved_target" != "$expected_target" ]]; then
+                printf '%s\n' "$current_target"
+                return 0
+            fi
+        fi
+
+        current_target="${current_target:h}"
+        current_source="${current_source:h}"
     done
 
     return 1
@@ -278,7 +295,12 @@ stow_root() {
     stow --no-folding --ignore="$STOW_IGNORE_REGEX" -t "$TARGET_DIR" -d "$stow_dir" "$stow_package"
 }
 
-resolve_package_roots
+if ! dotfiles_resolve_active_roots "$STOW_DIR" strict; then
+    echo "Error: $DOTFILES_STOW_RESOLVE_ERROR"
+    exit 1
+fi
+
+package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 
 for root in "${package_roots[@]}"; do
     collect_package_entries "$root"
@@ -293,24 +315,44 @@ enforce_config_leaf_linking
 enforce_ssh_leaf_linking
 
 for item in "${deploy_paths[@]}"; do
+    ancestor_conflict=""
     source_root="${deploy_sources[$item]}"
     target_path="$TARGET_DIR/$item"
     source_path="$STOW_DIR/$source_root/$item"
 
+    ancestor_conflict="$(find_ancestor_symlink_conflict "$target_path" "$source_path" || true)"
+    if [[ -n "$ancestor_conflict" ]]; then
+        if record_conflict_path "$ancestor_conflict"; then
+            echo "Found conflict: $ancestor_conflict"
+        fi
+        continue
+    fi
+
     if needs_backup "$target_path" "$source_path"; then
-        conflict_paths+=("$target_path")
-        echo "Found conflict: $target_path"
+        if record_conflict_path "$target_path"; then
+            echo "Found conflict: $target_path"
+        fi
     fi
 done
 
 for child in "${config_children[@]}"; do
+    ancestor_conflict=""
     source_root="${config_child_sources[$child]}"
     target_path="$TARGET_DIR/.config/$child"
     source_path="$STOW_DIR/$source_root/.config/$child"
 
+    ancestor_conflict="$(find_ancestor_symlink_conflict "$target_path" "$source_path" || true)"
+    if [[ -n "$ancestor_conflict" ]]; then
+        if record_conflict_path "$ancestor_conflict"; then
+            echo "Found conflict: $ancestor_conflict"
+        fi
+        continue
+    fi
+
     if needs_config_child_backup "$target_path" "$source_path"; then
-        conflict_paths+=("$target_path")
-        echo "Found conflict: $target_path"
+        if record_conflict_path "$target_path"; then
+            echo "Found conflict: $target_path"
+        fi
     fi
 done
 
