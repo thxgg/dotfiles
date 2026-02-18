@@ -5,14 +5,65 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 TARGET_ROOT="$HOME"
 STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
+LIST_CONFIG_ONLY=0
+ONLY_CONFIG_CSV=""
+CONFIG_ONLY_MODE=0
 
 typeset -a package_roots expected_paths config_children ssh_source_dirs config_source_dirs
+typeset -a requested_config_children invalid_config_children
 typeset -A expected_sources config_child_sources
 
 typeset -i ok_count=0
 typeset -i warn_count=0
 typeset -i fail_count=0
 typeset -i duplicate_count=0
+
+usage() {
+    cat <<'EOF'
+Usage: ./doctor.sh [options]
+
+Options:
+  --only-config <csv>  Check only selected ~/.config children (e.g. nvim,ghostty)
+  --list-config        List available ~/.config components and exit
+  --help               Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --only-config)
+            if [[ $# -lt 2 ]]; then
+                printf '[FAIL] %s\n' "--only-config requires a comma-separated value"
+                usage
+                exit 1
+            fi
+            ONLY_CONFIG_CSV="$2"
+            shift 2
+            ;;
+        --list-config)
+            LIST_CONFIG_ONLY=1
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            printf '[FAIL] %s\n' "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -n "$ONLY_CONFIG_CSV" ]]; then
+    CONFIG_ONLY_MODE=1
+fi
+
+if [[ $LIST_CONFIG_ONLY -eq 1 && $CONFIG_ONLY_MODE -eq 1 ]]; then
+    printf '[FAIL] %s\n' "--list-config cannot be combined with --only-config"
+    exit 1
+fi
 
 print_status() {
     local level="$1"
@@ -79,6 +130,65 @@ collect_expected_entries() {
             config_children+=("$child")
         done
     fi
+}
+
+print_available_config_children() {
+    local child
+
+    if [[ ${#config_children[@]} -eq 0 ]]; then
+        echo "No ~/.config components are available in active stow roots."
+        return
+    fi
+
+    echo "Available ~/.config components:"
+    for child in "${config_children[@]}"; do
+        echo " - $child (from ${config_child_sources[$child]})"
+    done
+}
+
+filter_config_children() {
+    local raw component
+    local -a selected_config_children
+    local -A requested_seen
+
+    requested_config_children=()
+    invalid_config_children=()
+
+    for raw in ${(s:,:)ONLY_CONFIG_CSV}; do
+        component="${raw//[[:space:]]/}"
+        [[ -n "$component" ]] || continue
+
+        if [[ -n "${requested_seen[$component]-}" ]]; then
+            continue
+        fi
+
+        requested_seen[$component]=1
+        requested_config_children+=("$component")
+    done
+
+    if [[ ${#requested_config_children[@]} -eq 0 ]]; then
+        print_status FAIL "--only-config requires at least one component name"
+        printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+        exit 1
+    fi
+
+    selected_config_children=()
+    for component in "${requested_config_children[@]}"; do
+        if [[ -n "${config_child_sources[$component]-}" ]]; then
+            selected_config_children+=("$component")
+        else
+            invalid_config_children+=("$component")
+        fi
+    done
+
+    if [[ ${#invalid_config_children[@]} -gt 0 ]]; then
+        print_status FAIL "Unknown ~/.config component(s): ${invalid_config_children[*]}"
+        print_available_config_children
+        printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+        exit 1
+    fi
+
+    config_children=("${selected_config_children[@]}")
 }
 
 collect_special_source_dirs() {
@@ -210,10 +320,12 @@ check_expected_paths() {
     done
 }
 
-if ! command -v stow >/dev/null 2>&1; then
-    print_status WARN "stow not found in PATH"
-else
-    print_status OK "stow is installed"
+if [[ $LIST_CONFIG_ONLY -eq 0 ]]; then
+    if ! command -v stow >/dev/null 2>&1; then
+        print_status WARN "stow not found in PATH"
+    else
+        print_status OK "stow is installed"
+    fi
 fi
 
 if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" warn; then
@@ -231,16 +343,32 @@ else
 
     collect_special_source_dirs
 
+    if [[ $LIST_CONFIG_ONLY -eq 1 ]]; then
+        print_available_config_children
+        exit 0
+    fi
+
+    if [[ $CONFIG_ONLY_MODE -eq 1 ]]; then
+        filter_config_children
+    fi
+
     print_status OK "Active stow roots: ${package_roots[*]}"
+    if [[ $CONFIG_ONLY_MODE -eq 1 ]]; then
+        print_status OK "Selected ~/.config components: ${config_children[*]}"
+    fi
 
     if [[ $duplicate_count -gt 0 ]]; then
         print_status FAIL "Found $duplicate_count duplicate stow target(s); fix overlap before deploying"
     fi
 
-    check_ssh_directory
+    if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
+        check_ssh_directory
+    fi
     check_config_directory
     check_config_child_links
-    check_expected_paths
+    if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
+        check_expected_paths
+    fi
 fi
 
 printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
