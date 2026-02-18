@@ -2,17 +2,19 @@
 
 ## Purpose & Scope
 Arch-only machine bootstrap using `yay` with profile-based package manifests.
-This area owns Linux package selection and post-install service/runtime setup.
+This area owns Linux package selection, post-install service/runtime setup, and Linux-only stow payload.
 
 ## Entry Points & Contracts
 - Entrypoint: `linux/setup.sh`.
 - Supported platform contract: requires `/etc/arch-release` and `yay` in PATH.
 - Package source of truth: `linux/packages/*.txt`.
+- Dotfile payload root: `linux/home/` (mirrors `$HOME` for Linux-only files).
 - Default profiles: `core-cli`, `core-apps`, `desktop-hyprland`.
 
 ## Usage Patterns
 - Add CLI/dev packages in `packages/core-cli.txt`.
 - Add GUI apps in `packages/core-apps.txt`.
+- Keep Linux-only dotfiles in `linux/home/` and out of `common/`.
 - Keep optional stacks isolated (`desktop-hyprland.txt`, `virtualization.txt`).
 - Validate without install:
 ```bash

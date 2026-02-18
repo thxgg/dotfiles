@@ -4,12 +4,16 @@ set -euo pipefail
 
 # Define backup directory with timestamp
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
-STOW_DIR="."
+STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-PACKAGE="common"
-STOW_IGNORE_REGEX='\.md$'
+COMMON_ROOT="common"
+MACOS_ROOT="macos/home"
+LINUX_ROOT="linux/home"
+STOW_IGNORE_REGEX='^\.config(/|$)|\.md$'
 
-typeset -a deploy_paths conflict_paths backup_ok backup_failed
+typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children
+typeset -a ssh_source_dirs config_source_dirs
+typeset -A deploy_sources config_child_sources
 typeset -i backup_dir_created=0
 
 if ! command -v stow >/dev/null 2>&1; then
@@ -17,11 +21,95 @@ if ! command -v stow >/dev/null 2>&1; then
     exit 1
 fi
 
-package_root="$STOW_DIR/$PACKAGE"
-if [[ ! -d "$package_root" ]]; then
-    echo "Error: package directory not found: $package_root"
-    exit 1
-fi
+resolve_package_roots() {
+    package_roots=("$COMMON_ROOT")
+
+    case "$OSTYPE" in
+        darwin*)
+            [[ -d "$STOW_DIR/$MACOS_ROOT" ]] && package_roots+=("$MACOS_ROOT")
+            ;;
+        linux-gnu*)
+            [[ -d "$STOW_DIR/$LINUX_ROOT" ]] && package_roots+=("$LINUX_ROOT")
+            ;;
+        *)
+            echo "Error: unsupported operating system: $OSTYPE"
+            exit 1
+            ;;
+    esac
+
+    local root
+    for root in "${package_roots[@]}"; do
+        if [[ ! -d "$STOW_DIR/$root" ]]; then
+            echo "Error: package directory not found: $STOW_DIR/$root"
+            exit 1
+        fi
+    done
+}
+
+collect_package_entries() {
+    local root="$1"
+    local package_root="$STOW_DIR/$root"
+    local item child
+    local root_deploy_paths root_config_children
+
+    root_deploy_paths=("${(@f)$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')}")
+
+    for item in "${root_deploy_paths[@]}"; do
+        if [[ -n "${deploy_sources[$item]-}" ]]; then
+            echo "Error: duplicate target path detected: $item"
+            echo " - from: ${deploy_sources[$item]}"
+            echo " - from: $root"
+            echo "Refusing to continue. Shared and OS-specific roots must not overlap."
+            exit 1
+        fi
+
+        deploy_sources[$item]="$root"
+        deploy_paths+=("$item")
+    done
+
+    if [[ -d "$package_root/.config" ]]; then
+        root_config_children=("${(@f)$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')}")
+
+        for child in "${root_config_children[@]}"; do
+            if [[ -n "${config_child_sources[$child]-}" ]]; then
+                echo "Error: duplicate ~/.config child detected: .config/$child"
+                echo " - from: ${config_child_sources[$child]}"
+                echo " - from: $root"
+                echo "Refusing to continue. Shared and OS-specific roots must not overlap."
+                exit 1
+            fi
+
+            config_child_sources[$child]="$root"
+            config_children+=("$child")
+        done
+    fi
+}
+
+collect_special_source_dirs() {
+    local root
+
+    ssh_source_dirs=()
+    config_source_dirs=()
+
+    for root in "${package_roots[@]}"; do
+        [[ -d "$STOW_DIR/$root/.ssh" ]] && ssh_source_dirs+=("$STOW_DIR/$root/.ssh")
+        [[ -d "$STOW_DIR/$root/.config" ]] && config_source_dirs+=("$STOW_DIR/$root/.config")
+    done
+}
+
+path_matches_any() {
+    local candidate="$1"
+    shift
+
+    local expected
+    for expected in "$@"; do
+        if [[ "$candidate" == "${expected:A}" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
 
 ensure_backup_dir() {
     if [[ $backup_dir_created -eq 0 ]]; then
@@ -30,10 +118,6 @@ ensure_backup_dir() {
         backup_dir_created=1
     fi
 }
-
-# Get leaf paths that stow manages (files + symlinks only)
-# Keep this in sync with STOW_IGNORE_REGEX used by stow.
-deploy_paths=("${(@f)$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -name '*.md' | sed 's|^./||')}")
 
 # Function to check if target already resolves to source (managed)
 is_managed_target() {
@@ -75,16 +159,15 @@ backup_target() {
 }
 
 enforce_ssh_leaf_linking() {
-    local ssh_source_dir="$package_root/.ssh"
     local ssh_target_dir="$TARGET_DIR/.ssh"
+    local resolved_target
 
-    [[ -d "$ssh_source_dir" ]] || return 0
+    [[ ${#ssh_source_dirs[@]} -gt 0 ]] || return 0
 
     if [[ -L "$ssh_target_dir" ]]; then
-        local resolved_target="${ssh_target_dir:A}"
-        local expected_target="${ssh_source_dir:A}"
+        resolved_target="${ssh_target_dir:A}"
 
-        if [[ "$resolved_target" != "$expected_target" ]]; then
+        if ! path_matches_any "$resolved_target" "${ssh_source_dirs[@]}"; then
             echo "Error: $ssh_target_dir is a symlink to $resolved_target"
             echo "Refusing to continue because ~/.ssh must be a real directory for local keys."
             exit 1
@@ -115,22 +198,21 @@ enforce_ssh_leaf_linking() {
 }
 
 enforce_config_leaf_linking() {
-    local config_source_dir="$package_root/.config"
     local config_target_dir="$TARGET_DIR/.config"
+    local resolved_target
 
-    [[ -d "$config_source_dir" ]] || return 0
+    [[ ${#config_source_dirs[@]} -gt 0 ]] || return 0
 
     if [[ -L "$config_target_dir" ]]; then
-        local resolved_target="${config_target_dir:A}"
-        local expected_target="${config_source_dir:A}"
+        resolved_target="${config_target_dir:A}"
 
-        if [[ "$resolved_target" != "$expected_target" ]]; then
+        if ! path_matches_any "$resolved_target" "${config_source_dirs[@]}"; then
             echo "Error: $config_target_dir is a symlink to $resolved_target"
-            echo "Refusing to continue because ~/.config must be a real directory for leaf-linked stow targets."
+            echo "Refusing to continue because ~/.config must be a real directory for child-linked stow targets."
             exit 1
         fi
 
-        echo "Migrating folded ~/.config symlink to leaf-linked layout"
+        echo "Migrating folded ~/.config symlink to child-linked layout"
         backup_target "$config_target_dir"
         if [[ ${#backup_failed[@]} -gt 0 ]]; then
             echo "Failed to migrate ~/.config symlink; aborting stow."
@@ -147,20 +229,86 @@ enforce_config_leaf_linking() {
     fi
 
     if [[ ! -d "$config_target_dir" ]]; then
-        echo "Creating ~/.config directory for leaf-linked stow targets"
+        echo "Creating ~/.config directory for child-linked stow targets"
         mkdir -p "$config_target_dir"
     fi
 }
+
+needs_config_child_backup() {
+    local target="$1"
+    local source="$2"
+
+    [[ -e "$target" || -L "$target" ]] || return 1
+    is_managed_target "$target" "$source" && return 1
+
+    return 0
+}
+
+link_config_children() {
+    local config_target_dir="$TARGET_DIR/.config"
+    local child source_root source_path source_path_abs target_path
+
+    for child in "${config_children[@]}"; do
+        source_root="${config_child_sources[$child]}"
+        source_path="$STOW_DIR/$source_root/.config/$child"
+        source_path_abs="${source_path:A}"
+        target_path="$config_target_dir/$child"
+
+        if is_managed_target "$target_path" "$source_path_abs"; then
+            continue
+        fi
+
+        if [[ -e "$target_path" || -L "$target_path" ]]; then
+            echo "Error: $target_path still exists after conflict handling"
+            echo "Refusing to overwrite unknown content while linking ~/.config children."
+            exit 1
+        fi
+
+        ln -s "$source_path_abs" "$target_path"
+    done
+}
+
+stow_root() {
+    local root="$1"
+    local package_dir="$STOW_DIR/$root"
+    local stow_dir="${package_dir:h}"
+    local stow_package="${package_dir:t}"
+
+    echo "Stowing $root package..."
+    stow --no-folding --ignore="$STOW_IGNORE_REGEX" -t "$TARGET_DIR" -d "$stow_dir" "$stow_package"
+}
+
+resolve_package_roots
+
+for root in "${package_roots[@]}"; do
+    collect_package_entries "$root"
+done
+
+collect_special_source_dirs
+
+echo "Active stow roots: ${package_roots[*]}"
 
 # Check for conflicts and backup if necessary
 enforce_config_leaf_linking
 enforce_ssh_leaf_linking
 
 for item in "${deploy_paths[@]}"; do
+    source_root="${deploy_sources[$item]}"
     target_path="$TARGET_DIR/$item"
-    source_path="$package_root/$item"
+    source_path="$STOW_DIR/$source_root/$item"
 
     if needs_backup "$target_path" "$source_path"; then
+        conflict_paths+=("$target_path")
+        echo "Found conflict: $target_path"
+    fi
+done
+
+for child in "${config_children[@]}"; do
+    source_root="${config_child_sources[$child]}"
+    target_path="$TARGET_DIR/.config/$child"
+    source_path="$STOW_DIR/$source_root/.config/$child"
+
+    if needs_config_child_backup "$target_path" "$source_path"; then
         conflict_paths+=("$target_path")
         echo "Found conflict: $target_path"
     fi
@@ -192,8 +340,11 @@ else
 fi
 
 # Perform the stow operation
-echo "Stowing $PACKAGE package..."
-stow --no-folding --ignore="$STOW_IGNORE_REGEX" -t "$TARGET_DIR" -d "$STOW_DIR" "$PACKAGE"
+for root in "${package_roots[@]}"; do
+    stow_root "$root"
+done
+
+link_config_children
 
 echo "Stow completed successfully"
 if [[ ${#backup_ok[@]} -gt 0 ]]; then
