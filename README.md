@@ -21,6 +21,15 @@ Useful setup flags:
 
 If you only want stow linking without package installation, run `./safe-stow.sh`.
 
+If you only want specific app config components under `~/.config`, you can use scoped mode:
+
+- `./safe-stow.sh --list-config`
+- `./safe-stow.sh --only-config nvim`
+- `./doctor.sh --only-config nvim`
+- `./unstow.sh --only-config nvim`
+
+This is useful for sharing one part of your setup (for example just Neovim) without installing shell/system dotfiles.
+
 Validate key symlinks and stow setup health:
 
 - `./doctor.sh`
