@@ -1,22 +1,23 @@
 # Common Home Tree
 
 ## Purpose & Scope
-`common/` is the stow package that mirrors `$HOME`.
-Anything committed here is expected to be deployed directly to the machine by `safe-stow.sh`.
+`common/` is the shared stow payload that mirrors `$HOME` across macOS and Linux.
+OS-specific payload lives in `macos/home/` and `linux/home/`.
 
 ## Entry Points & Contracts
 - Deployment target: repo root scripts `safe-stow.sh` and `unstow.sh`.
-- Contract: paths in `common/` map 1:1 to `$HOME` relative paths.
+- Contract: paths in `common/` map 1:1 to `$HOME` relative paths and must be cross-platform safe.
 - Health checks: `doctor.sh` validates key symlinked paths.
 
 ## Usage Patterns
-- **Add a new dotfile**: create path under `common/` first, then run `./safe-stow.sh`.
+- **Add a shared dotfile**: create path under `common/`, then run `./safe-stow.sh`.
+- **Add an OS-specific dotfile**: create path under `macos/home/` or `linux/home/`.
 - **Update existing config**: edit tracked file in `common/`, not the live file in `$HOME`.
 - **Machine secrets**: keep only references in tracked shell config; values live in `~/.env.secrets`.
 
 ## Anti-Patterns
 - Editing `$HOME/.zshrc`, `$HOME/.gitconfig`, or `$HOME/.config/*` directly and not syncing back.
-- Stowing from a different package root (this repo expects `common` only).
+- Defining the same target path in `common/` and an OS-specific stow root.
 - Tracking generated dependency trees except where explicitly intentional.
 
 ## Dependencies & Edges
@@ -25,6 +26,6 @@ Anything committed here is expected to be deployed directly to the machine by `s
   - [Config Tree](./.config/AGENTS.md)
 
 ## Patterns & Pitfalls
-- `common/Library/Application Support/...` entries are valid stow targets but can hit macOS permission boundaries on parent directories.
-- Leaf-link deployment keeps `~/.config` as a real directory; managed entries inside it are symlinks from `common/.config`.
+- macOS-only targets like `~/Library/...` belong in `macos/home/`, not `common/`.
+- Child-link deployment keeps `~/.config` as a real directory; each direct child is symlinked from active roots.
 - Empty directories are not meaningful stow artifacts; manage concrete files/symlinks instead.

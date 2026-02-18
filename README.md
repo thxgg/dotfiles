@@ -2,7 +2,11 @@
 
 This repository manages shell/editor/system configuration with GNU Stow.
 
-`common/` is the stow package root that mirrors your home directory layout.
+Stow payload is split into shared + OS-specific roots:
+
+- `common/` for cross-platform dotfiles
+- `macos/home/` for macOS-only dotfiles
+- `linux/home/` for Linux-only dotfiles
 
 ## Quick Start
 
@@ -35,12 +39,14 @@ Optional bypass for emergency local commits:
 
 ## Repository Structure
 
-- `common/`: source-of-truth dotfiles and app configs
+- `common/`: shared dotfiles and app configs
 - `macos/`: Homebrew setup (`Brewfile`, `setup.sh`)
+- `macos/home/`: macOS-only stow payload mirrored to `$HOME`
 - `linux/`: Arch Linux setup (`yay` package profiles, `setup.sh`)
+- `linux/home/`: Linux-only stow payload mirrored to `$HOME`
 - `setup.sh`: top-level setup entrypoint
 - `safe-stow.sh`: conflict-aware stow with automatic backups
-- `unstow.sh`: remove stow links for `common`
+- `unstow.sh`: remove stow links for active roots on current OS
 - `doctor.sh`: verifies key managed paths are symlinked correctly
 
 ## macOS Setup
@@ -82,12 +88,14 @@ Optional flags:
 
 ## Stow Workflow
 
-- `./safe-stow.sh` checks for conflicts in `$HOME`
+- `./safe-stow.sh` resolves active stow roots by OS (`common` + `macos/home` on macOS, `common` + `linux/home` on Linux)
+- it checks for conflicts in `$HOME`
 - existing non-symlink files are backed up to `~/.dotfiles_backup_<timestamp>/`
 - `~/.ssh` stays a real directory so local keys are preserved
-- `~/.config` stays a real directory and managed entries inside it are leaf symlinks
-- only leaf entries like `~/.ssh/config` are symlinked from `common/`
-- stow then links the `common` package into `$HOME`
+- `~/.config` stays a real directory and each direct child is symlinked from the active roots
+- only leaf entries like `~/.ssh/config` are symlinked from active roots
+- duplicate target paths across roots are rejected before deploy
+- stow then links all active roots into `$HOME`
 
 To remove links:
 
