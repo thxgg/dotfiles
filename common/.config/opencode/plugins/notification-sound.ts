@@ -3,76 +3,227 @@ import { homedir } from "os";
 import { join } from "path";
 
 export const NotificationSound: Plugin = async ({ $, client }) => {
-  if (process.platform !== "darwin") {
-    return {};
-  }
-
-  const soundPath = join(
-    homedir(),
-    ".config/opencode/sounds/gow_active_reload.mp3",
-  );
-  const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  const clearIdleTimer = (sessionID: string): void => {
-    const timer = idleTimers.get(sessionID);
-    if (timer) {
-      clearTimeout(timer);
-      idleTimers.delete(sessionID);
+    if (process.platform !== "darwin") {
+        return {};
     }
-  };
 
-  const playSound = async (): Promise<void> => {
-    await $`afplay ${soundPath}`.quiet().nothrow();
-  };
+    const completionSoundPath = join(
+        homedir(),
+        ".config/opencode/sounds/wow_quest_complete.mp3",
+    );
+    const inputRequiredSoundPath = join(
+        homedir(),
+        ".config/opencode/sounds/wow_quest_active.mp3",
+    );
+    const playbackVolume = 0.25;
+    const completionDelayMs = 3000;
 
-  const isMainSession = async (sessionID: string): Promise<boolean> => {
-    try {
-      const result = await client.session.get({ path: { id: sessionID } });
-      const session = (result as any).data ?? result;
-      return !session.parentID;
-    } catch {
-      return true;
-    }
-  };
+    const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    const interruptedSessions = new Set<string>();
+    const awaitingInputSessions = new Set<string>();
+    const busySessions = new Set<string>();
+    const mainSessionCache = new Map<string, boolean>();
 
-  process.on("exit", () => {
-    for (const timer of idleTimers.values()) {
-      clearTimeout(timer);
-    }
-    idleTimers.clear();
-  });
+    const clearIdleTimer = (sessionID: string): void => {
+        const timer = idleTimers.get(sessionID);
+        if (timer) {
+            clearTimeout(timer);
+            idleTimers.delete(sessionID);
+        }
+    };
 
-  return {
-    event: async ({ event }) => {
-      const eventType = (event as { type: string }).type;
-      const properties = (event as any).properties ?? {};
+    const playCompletionNotificationSound = async (): Promise<void> => {
+        await $`afplay -v ${playbackVolume} ${completionSoundPath}`
+            .quiet()
+            .nothrow();
+    };
 
-      if (eventType === "session.busy") {
-        clearIdleTimer(properties.sessionID);
-        return;
-      }
+    const playInputRequiredNotificationSound = async (): Promise<void> => {
+        await $`afplay -v ${playbackVolume} ${inputRequiredSoundPath}`
+            .quiet()
+            .nothrow();
+    };
 
-      if (eventType === "session.idle") {
-        const sessionID = properties.sessionID;
-        if (!sessionID) return;
+    const isMainSession = async (sessionID: string): Promise<boolean> => {
+        const cached = mainSessionCache.get(sessionID);
+        if (cached !== undefined) {
+            return cached;
+        }
 
+        try {
+            const result = await client.session.get({ path: { id: sessionID } });
+            const session = (result as any).data ?? result;
+            const isMain = !session.parentID;
+            mainSessionCache.set(sessionID, isMain);
+            return isMain;
+        } catch {
+            return true;
+        }
+    };
+
+    const markSessionInterrupted = (sessionID: string): void => {
+        interruptedSessions.add(sessionID);
+        busySessions.delete(sessionID);
         clearIdleTimer(sessionID);
+    };
 
-        if (!(await isMainSession(sessionID))) return;
+    const sessionIDFromProperties = (
+        properties: Record<string, unknown>,
+    ): string | undefined => {
+        const sessionID = properties.sessionID;
+        if (typeof sessionID !== "string" || sessionID.length === 0) {
+            return undefined;
+        }
+        return sessionID;
+    };
+
+    const handleSessionBusy = (sessionID: string): void => {
+        clearIdleTimer(sessionID);
+        busySessions.add(sessionID);
+        awaitingInputSessions.delete(sessionID);
+        interruptedSessions.delete(sessionID);
+    };
+
+    const handleSessionIdle = async (sessionID: string): Promise<void> => {
+        clearIdleTimer(sessionID);
+        busySessions.delete(sessionID);
+
+        if (!(await isMainSession(sessionID))) {
+            return;
+        }
 
         idleTimers.set(
-          sessionID,
-          setTimeout(async () => {
-            idleTimers.delete(sessionID);
-            await playSound();
-          }, 3000),
-        );
-        return;
-      }
+            sessionID,
+            setTimeout(async () => {
+                idleTimers.delete(sessionID);
 
-      if (eventType === "permission.asked") {
-        await playSound();
-      }
-    },
-  };
+                if (interruptedSessions.delete(sessionID)) {
+                    return;
+                }
+
+                if (awaitingInputSessions.has(sessionID)) {
+                    return;
+                }
+
+                await playCompletionNotificationSound();
+            }, completionDelayMs),
+        );
+    };
+
+    const handleQuestionAsked = async (sessionID: string): Promise<void> => {
+        clearIdleTimer(sessionID);
+        awaitingInputSessions.add(sessionID);
+
+        if (!(await isMainSession(sessionID))) {
+            return;
+        }
+
+        await playInputRequiredNotificationSound();
+    };
+
+    process.on("exit", () => {
+        for (const timer of idleTimers.values()) {
+            clearTimeout(timer);
+        }
+        idleTimers.clear();
+        interruptedSessions.clear();
+        awaitingInputSessions.clear();
+        busySessions.clear();
+        mainSessionCache.clear();
+    });
+
+    return {
+        event: async ({ event }) => {
+            const eventType = (event as { type: string }).type;
+            const properties = (event as any).properties ?? {};
+            const sessionID = sessionIDFromProperties(properties);
+
+            if (eventType === "session.deleted") {
+                const deletedSessionID = properties.info?.id;
+                if (typeof deletedSessionID === "string") {
+                    clearIdleTimer(deletedSessionID);
+                    interruptedSessions.delete(deletedSessionID);
+                    awaitingInputSessions.delete(deletedSessionID);
+                    busySessions.delete(deletedSessionID);
+                    mainSessionCache.delete(deletedSessionID);
+                }
+                return;
+            }
+
+            if (eventType === "tui.command.execute") {
+                const command = properties.command;
+                if (command === "session.interrupt") {
+                    for (const busySessionID of busySessions) {
+                        markSessionInterrupted(busySessionID);
+                    }
+                }
+                return;
+            }
+
+            if (eventType === "message.updated") {
+                const info = properties.info;
+                const errorName = info?.error?.name;
+                if (
+                    info?.role === "assistant"
+                    && typeof info.sessionID === "string"
+                    && errorName === "MessageAbortedError"
+                ) {
+                    markSessionInterrupted(info.sessionID);
+                }
+                return;
+            }
+
+            if (eventType === "session.error") {
+                const errorName = properties.error?.name;
+                if (sessionID && errorName === "MessageAbortedError") {
+                    markSessionInterrupted(sessionID);
+                }
+                return;
+            }
+
+            if (eventType === "question.asked") {
+                if (!sessionID) return;
+                await handleQuestionAsked(sessionID);
+                return;
+            }
+
+            if (
+                eventType === "question.replied"
+                || eventType === "question.rejected"
+            ) {
+                if (!sessionID) return;
+                awaitingInputSessions.delete(sessionID);
+                return;
+            }
+
+            if (eventType === "session.status") {
+                const statusType = properties.status?.type;
+                if (!sessionID || typeof statusType !== "string") return;
+
+                if (statusType === "busy") {
+                    handleSessionBusy(sessionID);
+                    return;
+                }
+
+                if (statusType === "idle") {
+                    await handleSessionIdle(sessionID);
+                    return;
+                }
+
+                return;
+            }
+
+            if (eventType === "session.busy") {
+                if (!sessionID) return;
+                handleSessionBusy(sessionID);
+                return;
+            }
+
+            if (eventType === "session.idle") {
+                if (!sessionID) return;
+                await handleSessionIdle(sessionID);
+                return;
+            }
+        },
+    };
 };
