@@ -1,7 +1,8 @@
 export VISUAL=nvim
 export EDITOR=nvim
-export GOPATH="${GOPATH:-$HOME/go}"
+export GOPATH="${GOPATH:-$HOME/.local/share/go}"
 export GOBIN="${GOBIN:-$GOPATH/bin}"
+export FVM_CACHE_PATH="${FVM_CACHE_PATH:-$HOME/.local/share/fvm}"
 export PATH="$HOME/.local/bin:$PATH:$GOBIN"
 export ZSH="$HOME/.oh-my-zsh"
 # source $HOME/.zsh/catppuccin_latte-zsh-syntax-highlighting.zsh
