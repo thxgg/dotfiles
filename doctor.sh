@@ -50,8 +50,10 @@ collect_expected_entries() {
 
     [[ -d "$package_root" ]] || return
 
-    root_paths=("${(@f)$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')}")
+    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')"})
     for item in "${root_paths[@]}"; do
+        [[ -n "$item" ]] || continue
+
         if [[ -n "${expected_sources[$item]-}" ]]; then
             print_status FAIL "Duplicate target path detected: $item (from ${expected_sources[$item]} and $root)"
             duplicate_count+=1
@@ -63,8 +65,10 @@ collect_expected_entries() {
     done
 
     if [[ -d "$package_root/.config" ]]; then
-        root_config_children=("${(@f)$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')}")
+        root_config_children=(${(@f)"$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')"})
         for child in "${root_config_children[@]}"; do
+            [[ -n "$child" ]] || continue
+
             if [[ -n "${config_child_sources[$child]-}" ]]; then
                 print_status FAIL "Duplicate .config child detected: .config/$child (from ${config_child_sources[$child]} and $root)"
                 duplicate_count+=1
