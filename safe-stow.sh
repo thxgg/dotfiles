@@ -8,13 +8,68 @@ STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
 STOW_IGNORE_REGEX='^\.config(/|$)|\.md$'
 STOW_ROOTS_HELPER="$STOW_DIR/scripts/lib/stow-roots.zsh"
+LIST_CONFIG_ONLY=0
+ONLY_CONFIG_CSV=""
+CONFIG_ONLY_MODE=0
 
 typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children
-typeset -a ssh_source_dirs config_source_dirs
+typeset -a ssh_source_dirs config_source_dirs requested_config_children invalid_config_children
 typeset -A deploy_sources config_child_sources
 typeset -i backup_dir_created=0
+typeset -i include_deploy_paths=1
 
-if ! command -v stow >/dev/null 2>&1; then
+usage() {
+    cat <<'EOF'
+Usage: ./safe-stow.sh [options]
+
+Options:
+  --only-config <csv>  Link only selected ~/.config children (e.g. nvim,ghostty)
+  --list-config        List available ~/.config components and exit
+  --help               Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --only-config)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --only-config requires a comma-separated value"
+                usage
+                exit 1
+            fi
+            ONLY_CONFIG_CSV="$2"
+            shift 2
+            ;;
+        --list-config)
+            LIST_CONFIG_ONLY=1
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Error: Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -n "$ONLY_CONFIG_CSV" ]]; then
+    CONFIG_ONLY_MODE=1
+fi
+
+if [[ $LIST_CONFIG_ONLY -eq 1 && $CONFIG_ONLY_MODE -eq 1 ]]; then
+    echo "Error: --list-config cannot be combined with --only-config"
+    exit 1
+fi
+
+if [[ $CONFIG_ONLY_MODE -eq 1 || $LIST_CONFIG_ONLY -eq 1 ]]; then
+    include_deploy_paths=0
+fi
+
+if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 ]] && ! command -v stow >/dev/null 2>&1; then
     echo "Error: stow is required but not installed."
     exit 1
 fi
@@ -32,22 +87,24 @@ collect_package_entries() {
     local item child
     local root_deploy_paths root_config_children
 
-    root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')"})
+    if [[ $include_deploy_paths -eq 1 ]]; then
+        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')"})
 
-    for item in "${root_deploy_paths[@]}"; do
-        [[ -n "$item" ]] || continue
+        for item in "${root_deploy_paths[@]}"; do
+            [[ -n "$item" ]] || continue
 
-        if [[ -n "${deploy_sources[$item]-}" ]]; then
-            echo "Error: duplicate target path detected: $item"
-            echo " - from: ${deploy_sources[$item]}"
-            echo " - from: $root"
-            echo "Refusing to continue. Shared and OS-specific roots must not overlap."
-            exit 1
-        fi
+            if [[ -n "${deploy_sources[$item]-}" ]]; then
+                echo "Error: duplicate target path detected: $item"
+                echo " - from: ${deploy_sources[$item]}"
+                echo " - from: $root"
+                echo "Refusing to continue. Shared and OS-specific roots must not overlap."
+                exit 1
+            fi
 
-        deploy_sources[$item]="$root"
-        deploy_paths+=("$item")
-    done
+            deploy_sources[$item]="$root"
+            deploy_paths+=("$item")
+        done
+    fi
 
     if [[ -d "$package_root/.config" ]]; then
         root_config_children=(${(@f)"$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')"})
@@ -67,6 +124,63 @@ collect_package_entries() {
             config_children+=("$child")
         done
     fi
+}
+
+print_available_config_children() {
+    local child
+
+    if [[ ${#config_children[@]} -eq 0 ]]; then
+        echo "No ~/.config components are available in active stow roots."
+        return
+    fi
+
+    echo "Available ~/.config components:"
+    for child in "${config_children[@]}"; do
+        echo " - $child (from ${config_child_sources[$child]})"
+    done
+}
+
+filter_config_children() {
+    local raw component
+    local -a selected_config_children
+    local -A requested_seen
+
+    requested_config_children=()
+    invalid_config_children=()
+
+    for raw in ${(s:,:)ONLY_CONFIG_CSV}; do
+        component="${raw//[[:space:]]/}"
+        [[ -n "$component" ]] || continue
+
+        if [[ -n "${requested_seen[$component]-}" ]]; then
+            continue
+        fi
+
+        requested_seen[$component]=1
+        requested_config_children+=("$component")
+    done
+
+    if [[ ${#requested_config_children[@]} -eq 0 ]]; then
+        echo "Error: --only-config requires at least one component name"
+        exit 1
+    fi
+
+    selected_config_children=()
+    for component in "${requested_config_children[@]}"; do
+        if [[ -n "${config_child_sources[$component]-}" ]]; then
+            selected_config_children+=("$component")
+        else
+            invalid_config_children+=("$component")
+        fi
+    done
+
+    if [[ ${#invalid_config_children[@]} -gt 0 ]]; then
+        echo "Error: Unknown ~/.config component(s): ${invalid_config_children[*]}"
+        print_available_config_children
+        exit 1
+    fi
+
+    config_children=("${selected_config_children[@]}")
 }
 
 collect_special_source_dirs() {
@@ -324,11 +438,25 @@ done
 
 collect_special_source_dirs
 
+if [[ $LIST_CONFIG_ONLY -eq 1 ]]; then
+    print_available_config_children
+    exit 0
+fi
+
+if [[ $CONFIG_ONLY_MODE -eq 1 ]]; then
+    filter_config_children
+fi
+
 echo "Active stow roots: ${package_roots[*]}"
+if [[ $CONFIG_ONLY_MODE -eq 1 ]]; then
+    echo "Selected ~/.config components: ${config_children[*]}"
+fi
 
 # Check for conflicts and backup if necessary
 enforce_config_leaf_linking
-enforce_ssh_leaf_linking
+if [[ $include_deploy_paths -eq 1 ]]; then
+    enforce_ssh_leaf_linking
+fi
 
 for item in "${deploy_paths[@]}"; do
     ancestor_conflict=""
@@ -398,9 +526,11 @@ else
 fi
 
 # Perform the stow operation
-for root in "${package_roots[@]}"; do
-    stow_root "$root"
-done
+if [[ $include_deploy_paths -eq 1 ]]; then
+    for root in "${package_roots[@]}"; do
+        stow_root "$root"
+    done
+fi
 
 link_config_children
 
