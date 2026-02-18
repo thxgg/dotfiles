@@ -26,7 +26,9 @@ plugins=(
 export ZSH_COMPDUMP=$ZSH/cache/.zcompdump-$HOST
 source $ZSH/oh-my-zsh.sh
 
-alias ghosttyrc="cd $HOME/Library/Application\ Support/com.mitchellh.ghostty; $EDITOR config; cd -"
+if [[ "$OSTYPE" == darwin* ]]; then
+  alias ghosttyrc='cd "$HOME/Library/Application Support/com.mitchellh.ghostty" && $EDITOR config && cd -'
+fi
 alias zshrc="$EDITOR $HOME/.zshrc"
 alias nvimrc="cd $HOME/.config/nvim; $EDITOR; cd -"
 
@@ -84,7 +86,30 @@ alias gfrb='git fetch origin && git rebase origin/master'
 alias gxn='git clean -dn'
 alias gx='git clean -df'
 
-alias gsha='git rev-parse HEAD | pbcopy'
+function gsha() {
+  local sha
+  sha="$(git rev-parse HEAD)" || return 1
+
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s' "$sha" | pbcopy
+    printf '%s\n' "$sha"
+    return 0
+  fi
+
+  if command -v wl-copy >/dev/null 2>&1; then
+    printf '%s' "$sha" | wl-copy
+    printf '%s\n' "$sha"
+    return 0
+  fi
+
+  if command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$sha" | xclip -selection clipboard
+    printf '%s\n' "$sha"
+    return 0
+  fi
+
+  printf '%s\n' "$sha"
+}
 
 alias ghci='gh run list -L 1'
 
@@ -157,8 +182,14 @@ esac
 # pnpm end
 
 # java
-export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
-export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"
+if [[ -z "$JAVA_HOME" && "$OSTYPE" == darwin* && -x /usr/libexec/java_home ]]; then
+  JAVA_HOME="$("/usr/libexec/java_home" -v 21 2>/dev/null)"
+  [[ -n "$JAVA_HOME" ]] && export JAVA_HOME
+fi
+
+if [[ "$OSTYPE" == darwin* && -d /opt/homebrew/opt/postgresql@18/bin ]]; then
+  export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"
+fi
 
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:$HOME/.lmstudio/bin"
@@ -171,7 +202,15 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # heroku autocomplete setup
-HEROKU_AC_ZSH_SETUP_PATH="$HOME/Library/Caches/heroku/autocomplete/zsh_setup" && test -f $HEROKU_AC_ZSH_SETUP_PATH && source $HEROKU_AC_ZSH_SETUP_PATH;
+if [[ "$OSTYPE" == darwin* ]]; then
+  HEROKU_AC_ZSH_SETUP_PATH="$HOME/Library/Caches/heroku/autocomplete/zsh_setup"
+elif [[ "$OSTYPE" == linux-gnu* ]]; then
+  HEROKU_AC_ZSH_SETUP_PATH="$HOME/.cache/heroku/autocomplete/zsh_setup"
+else
+  HEROKU_AC_ZSH_SETUP_PATH=""
+fi
+
+[[ -n "$HEROKU_AC_ZSH_SETUP_PATH" && -f "$HEROKU_AC_ZSH_SETUP_PATH" ]] && source "$HEROKU_AC_ZSH_SETUP_PATH"
 
 export PATH=$HOME/development/flutter/bin:$PATH
 
