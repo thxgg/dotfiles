@@ -85,6 +85,7 @@ Optional flags:
 - `./safe-stow.sh` checks for conflicts in `$HOME`
 - existing non-symlink files are backed up to `~/.dotfiles_backup_<timestamp>/`
 - `~/.ssh` stays a real directory so local keys are preserved
+- `~/.config` stays a real directory and managed entries inside it are leaf symlinks
 - only leaf entries like `~/.ssh/config` are symlinked from `common/`
 - stow then links the `common` package into `$HOME`
 
