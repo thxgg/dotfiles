@@ -5,6 +5,56 @@ local map = function(mode, lhs, rhs, opts)
 	vim.keymap.set(mode, lhs, rhs, opts)
 end
 
+local function resolve_java_home()
+	if vim.env.JAVA_HOME and vim.env.JAVA_HOME ~= "" then
+		return vim.env.JAVA_HOME
+	end
+
+	if vim.fn.has("mac") == 1 and vim.fn.executable("/usr/libexec/java_home") == 1 then
+		local output = vim.fn.system({ "/usr/libexec/java_home", "-v", "21" })
+		if vim.v.shell_error == 0 then
+			local home = vim.trim(output)
+			if home ~= "" then
+				return home
+			end
+		end
+	end
+end
+
+local vue_ts_plugin_path =
+	vim.fn.stdpath("data") .. "/mason/packages/vue-language-server/node_modules/@vue/language-server"
+
+local jdtls_cache_dir = vim.fn.stdpath("cache") .. "/jdtls"
+local jdtls_config_dir = jdtls_cache_dir .. "/config"
+local jdtls_workspace_dir = jdtls_cache_dir .. "/workspace"
+local jdtls_lombok_jar = vim.fn.stdpath("data") .. "/mason/share/jdtls/lombok.jar"
+
+local java_configuration = {
+	updateBuildConfiguration = "interactive",
+}
+
+local java_home = resolve_java_home()
+if java_home then
+	java_configuration.runtimes = {
+		{
+			name = "JavaSE-21",
+			path = java_home,
+		},
+	}
+end
+
+local jdtls_cmd = {
+	"jdtls",
+	"-configuration",
+	jdtls_config_dir,
+	"-data",
+	jdtls_workspace_dir,
+}
+
+if vim.fn.filereadable(jdtls_lombok_jar) == 1 then
+	table.insert(jdtls_cmd, "--jvm-arg=-javaagent:" .. jdtls_lombok_jar)
+end
+
 vim.api.nvim_create_autocmd("LspAttach", {
 	desc = "LSP actions",
 	callback = function(args)
@@ -99,8 +149,7 @@ vim.lsp.config('ts_ls', {
 		plugins = {
 			{
 				name = "@vue/typescript-plugin",
-				location =
-				"$HOME/.local/share/nvim/mason/packages/vue-language-server/node_modules/@vue/language-server",
+				location = vue_ts_plugin_path,
 				languages = { "vue" },
 			},
 		},
@@ -139,30 +188,13 @@ end, {})
 
 -- Java
 vim.lsp.config('jdtls', {
-	cmd = {
-		"jdtls",
-		"-configuration",
-		"$HOME/.cache/jdtls/config",
-		"-data",
-		"$HOME/.cache/jdtls/workspace",
-		'--jvm-arg=-javaagent:$HOME/.local/share/nvim/mason/share/jdtls/lombok.jar'
-	},
+	cmd = jdtls_cmd,
 	settings = {
 		java = {
 			eclipse = {
 				downloadSources = true,
 			},
-			configuration = {
-				updateBuildConfiguration = "interactive",
-				runtimes = {
-					{
-						name = "JavaSE-21",
-						path = vim.fn.expand(
-							"$HOME/Library/Java/JavaVirtualMachines/corretto-21.0.6/Contents/Home"
-						),
-					},
-				},
-			},
+			configuration = java_configuration,
 			maven = {
 				downloadSources = true,
 			},
