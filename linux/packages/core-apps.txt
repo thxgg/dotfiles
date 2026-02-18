@@ -5,4 +5,3 @@ obsidian
 slack-desktop
 google-chrome
 helium-browser-bin
-qbittorrent
