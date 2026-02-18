@@ -44,6 +44,14 @@
             },
             "enabled": true
         },
+        "overseer": {
+            "type": "local",
+            "command": ["npx", "-y", "@dmmulroy/overseer@0.11.0", "mcp"],
+            "environment": {
+                "OVERSEER_DB_PATH": "{env:HOME}/.local/share/opencode/overseer/tasks.db"
+            },
+            "enabled": false
+        }
     },
     "agent": {
         "plan": {
