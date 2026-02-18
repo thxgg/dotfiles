@@ -119,7 +119,6 @@ if command -v fnm &>/dev/null; then
 	info "Setting up Node.js versions with fnm"
 	eval "$(fnm env --use-on-cd)"
 	fnm install 14
-	fnm install 17
 	fnm install lts
 	fnm default lts-latest
 fi
