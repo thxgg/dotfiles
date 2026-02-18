@@ -109,6 +109,43 @@ function gdc() {
 }
 
 eval "$(fnm env --use-on-cd)"
+
+typeset -g _prompt_newline_after_first=0
+typeset -g _prompt_skip_newline_once=0
+
+_prompt_newline_preexec() {
+  local -a cmd_words
+  local cmd subcmd
+
+  cmd_words=(${(z)1})
+  cmd=${cmd_words[1]:-}
+  subcmd=${cmd_words[2]:-}
+
+  if [[ "$cmd" == "clear" || "$cmd" == "reset" ]]; then
+    _prompt_skip_newline_once=1
+  elif [[ "$cmd" == "command" && ( "$subcmd" == "clear" || "$subcmd" == "reset" ) ]]; then
+    _prompt_skip_newline_once=1
+  fi
+}
+
+_prompt_newline_precmd() {
+  if (( ! _prompt_newline_after_first )); then
+    _prompt_newline_after_first=1
+    return
+  fi
+
+  if (( _prompt_skip_newline_once )); then
+    _prompt_skip_newline_once=0
+    return
+  fi
+
+  print ""
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _prompt_newline_preexec
+add-zsh-hook precmd _prompt_newline_precmd
+
 eval "$(starship init zsh)"
 
 # pnpm
