@@ -32,9 +32,11 @@ collect_package_entries() {
     local item child
     local root_deploy_paths root_config_children
 
-    root_deploy_paths=("${(@f)$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')}")
+    root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')"})
 
     for item in "${root_deploy_paths[@]}"; do
+        [[ -n "$item" ]] || continue
+
         if [[ -n "${deploy_sources[$item]-}" ]]; then
             echo "Error: duplicate target path detected: $item"
             echo " - from: ${deploy_sources[$item]}"
@@ -48,9 +50,11 @@ collect_package_entries() {
     done
 
     if [[ -d "$package_root/.config" ]]; then
-        root_config_children=("${(@f)$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')}")
+        root_config_children=(${(@f)"$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')"})
 
         for child in "${root_config_children[@]}"; do
+            [[ -n "$child" ]] || continue
+
             if [[ -n "${config_child_sources[$child]-}" ]]; then
                 echo "Error: duplicate ~/.config child detected: .config/$child"
                 echo " - from: ${config_child_sources[$child]}"
@@ -162,6 +166,18 @@ backup_target() {
     local target="$1"
     local relative_path="${target#$TARGET_DIR/}"
     local backup_target="$BACKUP_DIR/$relative_path"
+
+    if [[ "$target" == "$TARGET_DIR" || "$target" == "$TARGET_DIR/" || "${target:A}" == "${TARGET_DIR:A}" ]]; then
+        backup_failed+=("$target")
+        echo "Refusing to backup home directory root: $target"
+        return 1
+    fi
+
+    if [[ -z "$relative_path" || "$relative_path" == /* ]]; then
+        backup_failed+=("$target")
+        echo "Refusing to backup unsafe path: $target"
+        return 1
+    fi
 
     echo "Backing up: $target to $backup_target"
     ensure_backup_dir

@@ -30,9 +30,11 @@ collect_config_children() {
 
     [[ -d "$package_root/.config" ]] || return
 
-    root_config_children=("${(@f)$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')}")
+    root_config_children=(${(@f)"$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')"})
 
     for child in "${root_config_children[@]}"; do
+        [[ -n "$child" ]] || continue
+
         if [[ -n "${config_child_sources[$child]-}" ]]; then
             echo "Error: duplicate .config child detected: .config/$child"
             echo " - from: ${config_child_sources[$child]}"
