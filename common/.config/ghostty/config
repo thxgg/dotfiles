@@ -1,0 +1,14 @@
+font-family = BerkeleyMonoVariable Nerd Font
+theme = Catppuccin Mocha
+font-size = 16
+# macos-titlebar-style = hidden
+quit-after-last-window-closed = true
+keybind = shift+enter=text:\n
+maximize = true
+shell-integration = zsh
+unfocused-split-opacity = 0.97
+macos-option-as-alt = true
+macos-titlebar-proxy-icon = hidden
+clipboard-read = allow
+clipboard-write = allow
+title = ghostty
