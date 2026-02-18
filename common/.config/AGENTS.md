@@ -6,7 +6,7 @@ This node covers shared layout and ownership boundaries across apps.
 
 ## Entry Points & Contracts
 - Canonical location for app config: `common/.config/<tool>/...`.
-- Top-level deployment path is managed via parent symlink (`$HOME/.config`).
+- Top-level deployment path is a real `$HOME/.config` directory with leaf-linked managed entries.
 - Heavy domains are split into child intent nodes.
 
 ## Usage Patterns

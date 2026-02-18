@@ -48,7 +48,8 @@ expected_paths=(
     ".zshenv"
     ".psqlrc"
     ".ssh/config"
-    ".config"
+    ".config/starship.toml"
+    ".config/opencode/opencode.jsonc"
     "Library/Application Support/com.mitchellh.ghostty/config"
 )
 
@@ -72,7 +73,28 @@ check_ssh_directory() {
     fi
 }
 
+check_config_directory() {
+    local config_target_dir="$TARGET_ROOT/.config"
+
+    if [[ -L "$config_target_dir" ]]; then
+        print_status FAIL ".config is a symlink; expected a real directory for leaf-linked stow targets"
+        return
+    fi
+
+    if [[ -d "$config_target_dir" ]]; then
+        print_status OK ".config directory exists for leaf-linked stow targets"
+        return
+    fi
+
+    if [[ -e "$config_target_dir" ]]; then
+        print_status FAIL ".config exists but is not a directory"
+    else
+        print_status FAIL ".config directory is missing"
+    fi
+}
+
 check_ssh_directory
+check_config_directory
 
 for relative_path in "${expected_paths[@]}"; do
     source_path="$PACKAGE_ROOT/$relative_path"
