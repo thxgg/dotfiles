@@ -2,16 +2,18 @@
 
 ## Purpose & Scope
 macOS bootstrap based on Homebrew plus post-install runtime initialization.
-This area owns package manifests and mac-specific service/tool setup.
+This area owns package manifests, mac-specific service/tool setup, and macOS-only stow payload.
 
 ## Entry Points & Contracts
 - Entrypoint: `macos/setup.sh`.
 - Package source of truth: `macos/Brewfile`.
+- Dotfile payload root: `macos/home/` (mirrors `$HOME` for macOS-only files).
 - Install flow: ensure Homebrew -> update/upgrade -> `brew bundle` -> service/tool setup.
 - Current pinned database formula: `postgresql@18`.
 
 ## Usage Patterns
 - Add/remove formulae/casks in `Brewfile` first.
+- Keep macOS-only dotfiles in `macos/home/` and out of `common/`.
 - Keep `setup.sh` focused on orchestration and post-install initialization.
 - Validate state without installing new packages:
 ```bash
