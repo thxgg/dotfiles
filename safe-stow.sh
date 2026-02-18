@@ -114,7 +114,46 @@ enforce_ssh_leaf_linking() {
     fi
 }
 
+enforce_config_leaf_linking() {
+    local config_source_dir="$package_root/.config"
+    local config_target_dir="$TARGET_DIR/.config"
+
+    [[ -d "$config_source_dir" ]] || return 0
+
+    if [[ -L "$config_target_dir" ]]; then
+        local resolved_target="${config_target_dir:A}"
+        local expected_target="${config_source_dir:A}"
+
+        if [[ "$resolved_target" != "$expected_target" ]]; then
+            echo "Error: $config_target_dir is a symlink to $resolved_target"
+            echo "Refusing to continue because ~/.config must be a real directory for leaf-linked stow targets."
+            exit 1
+        fi
+
+        echo "Migrating folded ~/.config symlink to leaf-linked layout"
+        backup_target "$config_target_dir"
+        if [[ ${#backup_failed[@]} -gt 0 ]]; then
+            echo "Failed to migrate ~/.config symlink; aborting stow."
+            exit 1
+        fi
+
+        mkdir -p "$config_target_dir"
+        return 0
+    fi
+
+    if [[ -e "$config_target_dir" && ! -d "$config_target_dir" ]]; then
+        echo "Error: $config_target_dir exists but is not a directory"
+        exit 1
+    fi
+
+    if [[ ! -d "$config_target_dir" ]]; then
+        echo "Creating ~/.config directory for leaf-linked stow targets"
+        mkdir -p "$config_target_dir"
+    fi
+}
+
 # Check for conflicts and backup if necessary
+enforce_config_leaf_linking
 enforce_ssh_leaf_linking
 
 for item in "${deploy_paths[@]}"; do

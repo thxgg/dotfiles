@@ -26,5 +26,5 @@ Anything committed here is expected to be deployed directly to the machine by `s
 
 ## Patterns & Pitfalls
 - `common/Library/Application Support/...` entries are valid stow targets but can hit macOS permission boundaries on parent directories.
-- Parent symlink deployment (`~/.config` -> `common/.config`) means children may appear as regular files while still being managed correctly.
+- Leaf-link deployment keeps `~/.config` as a real directory; managed entries inside it are symlinks from `common/.config`.
 - Empty directories are not meaningful stow artifacts; manage concrete files/symlinks instead.
