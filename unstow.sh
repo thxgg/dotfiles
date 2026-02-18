@@ -4,10 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-COMMON_ROOT="common"
-MACOS_ROOT="macos/home"
-LINUX_ROOT="linux/home"
 STOW_IGNORE_REGEX='^\.config(/|$)|\.md$'
+STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
 
 typeset -a package_roots config_children
 typeset -A config_child_sources
@@ -17,30 +15,12 @@ if ! command -v stow >/dev/null 2>&1; then
     exit 1
 fi
 
-resolve_package_roots() {
-    package_roots=("$COMMON_ROOT")
+if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
+    echo "Error: stow roots helper not found: $STOW_ROOTS_HELPER"
+    exit 1
+fi
 
-    case "$OSTYPE" in
-        darwin*)
-            [[ -d "$SCRIPT_DIR/$MACOS_ROOT" ]] && package_roots+=("$MACOS_ROOT")
-            ;;
-        linux-gnu*)
-            [[ -d "$SCRIPT_DIR/$LINUX_ROOT" ]] && package_roots+=("$LINUX_ROOT")
-            ;;
-        *)
-            echo "Error: unsupported operating system: $OSTYPE"
-            exit 1
-            ;;
-    esac
-
-    local root
-    for root in "${package_roots[@]}"; do
-        if [[ ! -d "$SCRIPT_DIR/$root" ]]; then
-            echo "Error: package directory not found: $SCRIPT_DIR/$root"
-            exit 1
-        fi
-    done
-}
+source "$STOW_ROOTS_HELPER"
 
 collect_config_children() {
     local root="$1"
@@ -95,7 +75,12 @@ unlink_config_children() {
     done
 }
 
-resolve_package_roots
+if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" strict; then
+    echo "Error: $DOTFILES_STOW_RESOLVE_ERROR"
+    exit 1
+fi
+
+package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 
 for root in "${package_roots[@]}"; do
     collect_config_children "$root"
