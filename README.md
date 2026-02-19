@@ -110,32 +110,6 @@ To remove links:
 
 - `./unstow.sh`
 
-## SSH Private Hosts
-
-- Shared SSH defaults live in tracked `common/.ssh/config`.
-- Private hosts and forwards belong in local untracked overrides loaded via:
-  - `~/.ssh/config.local`
-  - `~/.ssh/config.local.d/*.conf`
-
-## Tracked vs Untracked
-
-Tracked in this repo:
-
-- shell config (`.zshrc`, `.zprofile`, `.zshenv`)
-- git config
-- neovim config
-- selected app configs under `.config/`
-
-## Secret Hygiene Before Public Repo
-
-Before making this repository public, remove or refactor all hardcoded secrets to env vars or local untracked files.
-
-Recommended pattern:
-
-- keep machine-specific secrets in local files sourced from `.zshrc`
-- use env placeholders in tracked config
-- re-scan with `rg -n "(api[_-]?key|token|secret|password|github_pat_|sk-)" common`
-
 ## Third-Party Sounds
 
 The MP3 files in `common/.config/opencode/sounds/` are third-party assets and are not owned by this repository author.
