@@ -7,7 +7,6 @@ export PATH="$HOME/.local/bin:$PATH:$GOBIN"
 export ZSH="$HOME/.oh-my-zsh"
 # source $HOME/.zsh/catppuccin_latte-zsh-syntax-highlighting.zsh
 source $HOME/.zsh/catppuccin_mocha-zsh-syntax-highlighting.zsh
-# source $HOME/.zsh/vitesse_black-zsh-syntax-highlighting.zsh
 
 # Uncomment the following line if pasting URLs and other text is messed up.
 # DISABLE_MAGIC_FUNCTIONS="true"
