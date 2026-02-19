@@ -1,33 +1,6 @@
 palette = "catppuccin_mocha"
 add_newline = false
 
-[palettes.vitesse_black]
-black = "#000000"
-background = "#000000"
-darker_bg = "#121212"
-border = "#191919"
-foreground = "#dbd7cacc"
-muted = "#dedcd590"
-comment = "#758575dd"
-punctuation = "#444444"
-green = "#4d9375"
-light_green = "#80a665"
-teal = "#5eaab5"
-cyan = "#5d99a9"
-blue = "#6394bf"
-purple = "#6872ab"
-pink = "#d9739f"
-red = "#cb7676"
-orange = "#d4976c"
-brown = "#bd976a"
-yellow = "#e6cc77"
-property = "#b8a965"
-constant = "#c99076"
-string = "#c98a7d"
-primitive = "#5DA994"
-number = "#4C9A91"
-namespace = "#db889a"
-
 [palettes.catppuccin_mocha]
 rosewater = "#f5e0dc"
 flamingo = "#f2cdcd"
