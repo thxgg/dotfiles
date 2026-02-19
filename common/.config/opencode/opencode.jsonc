@@ -91,6 +91,8 @@
         "external_directory": {
             "*": "ask",
             "~/Projects/**": "allow",
+            "~/.config/**": "allow",
+            "~/Projects/Personal/dotfiles/**": "allow",
             "/tmp/**": "allow",
             "/private/tmp/**": "allow"
         },
