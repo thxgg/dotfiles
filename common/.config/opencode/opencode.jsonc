@@ -51,6 +51,10 @@
                 "OVERSEER_DB_PATH": "{env:HOME}/.local/share/opencode/overseer/tasks.db"
             },
             "enabled": false
+        },
+        "planetscale": {
+            "type": "remote",
+            "url": "https://mcp.pscale.dev/mcp/planetscale"
         }
     },
     "agent": {
