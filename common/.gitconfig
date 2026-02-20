@@ -26,6 +26,7 @@
 	rebase = true
 
 [rebase]
+	autoStash = true
 	updateRefs = true
 
 [rerere]
