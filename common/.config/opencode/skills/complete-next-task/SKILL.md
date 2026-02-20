@@ -5,7 +5,7 @@ description: Complete the next incomplete task from a PRD
 
 # Complete Next Task from PRD
 
-Complete one task from a PRD file. Implements the next task with `passes: false`, runs feedback loops, commits, and captures commit SHAs for traceability.
+Complete one task from a PRD file. Implements the next incomplete task, runs feedback loops, commits, and captures commit SHAs for traceability.
 
 ## Usage
 
@@ -27,18 +27,23 @@ bun run ~/.config/opencode/scripts/prd-db.ts get-state "$(pwd)" "<prd-name>" "/t
 This will create:
 ```
 /tmp/prd-state/<prd-name>/
-├── tasks.json     # Task list with passes field
+├── tasks.json     # Task list with pass criteria and status fields
 └── progress.json  # Cross-iteration memory (patterns, task logs)
 ```
 
 **IMPORTANT:** Always read and modify the files from `/tmp/prd-state/<prd-name>/`. Do not look for a `.claude` directory.
+
+Legacy note: some historical task files may contain boolean `passes` values. Treat those as legacy data and do not write new boolean `passes` values.
 
 ## Process
 
 ### 1. Get Bearings
 
 - Read `/tmp/prd-state/<prd-name>/progress.json` - **CHECK 'patterns' ARRAY FIRST**
-- Read `/tmp/prd-state/<prd-name>/tasks.json` - find next task with `passes: false`
+- Read `/tmp/prd-state/<prd-name>/tasks.json` - find next task to execute:
+  - Prefer task with `status: "in_progress"` (resume unfinished work)
+  - Otherwise pick next task with `status: "pending"`
+  - Treat `passes` as pass criteria only (array), not execution state
   - **Task Priority** (highest to lowest):
     1. Architecture/core abstractions
     2. Integration points
@@ -79,8 +84,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ"
 {
   "id": "task-1",
   "status": "in_progress",
-  "startedAt": "<UTC timestamp from bash>",
-  "passes": false
+  "startedAt": "<UTC timestamp from bash>"
 }
 ```
 
@@ -125,7 +129,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ"
 ```
 
 Update the task in `tasks.json`:
-- Set `passes` to `true`
+- Keep `passes` unchanged (it is a list of pass criteria)
 - Set `status` to `"completed"`
 - Set `completedAt` to the UTC timestamp
 
@@ -228,7 +232,7 @@ bun run ~/.config/opencode/scripts/prd-db.ts save-state "$(pwd)" "<prd-name>" "/
 
 ## Completion
 
-If all tasks have `passes: true`, output:
+If all tasks have `status: "completed"`, output:
 
 ```
 <tasks>COMPLETE</tasks>
