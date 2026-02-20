@@ -13,3 +13,17 @@ xwaylandvideobridge
 brightnessctl
 playerctl
 hyprsome-git
+udiskie
+flameshot
+ulauncher
+nautilus
+fcitx5
+fcitx5-configtool
+fcitx5-gtk
+fcitx5-qt
+fcitx5-chinese-addons
+kvantum
+kvantum-qt5
+kvantum-theme-catppuccin-git
+qt5ct
+qt6ct

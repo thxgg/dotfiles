@@ -1,0 +1,22 @@
+{
+    "fc938d73-7a12-4dd8-9577-4649cc957ce3": {
+        "id": "fc938d73-7a12-4dd8-9577-4649cc957ce3",
+        "name": "Google Search",
+        "keyword": "g",
+        "cmd": "https://google.com/search?q=%s",
+        "icon": "/usr/share/ulauncher/media/google-search-icon.png",
+        "is_default_search": true,
+        "run_without_argument": false,
+        "added": 1751131848.0086153
+    },
+    "59473780-8803-4ee8-96ba-28879b309087": {
+        "id": "59473780-8803-4ee8-96ba-28879b309087",
+        "name": "Wikipedia",
+        "keyword": "wiki",
+        "cmd": "https://en.wikipedia.org/wiki/%s",
+        "icon": "/usr/share/ulauncher/media/wikipedia-icon.png",
+        "is_default_search": true,
+        "run_without_argument": false,
+        "added": 1751131848.0086393
+    }
+}
