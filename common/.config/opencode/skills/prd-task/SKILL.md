@@ -15,16 +15,20 @@ The user will provide:
 
 If no PRD is specified, list available PRDs and ask which to convert.
 
-## State Directory Structure
+## State Storage
 
-Create a state directory for tracking progress:
+PRD state is stored in a global SQLite database managed by `prd-viewer`, not in the local repository. 
+To convert and save a new PRD:
 
-```
-.claude/state/<prd-name>/
-├── tasks.json          # The structured task list
-├── progress.json       # Execution progress tracking
-└── notes.md            # Implementation notes and decisions
-```
+1. Create a temporary directory to build the state files:
+   ```bash
+   mkdir -p /tmp/prd-state/<prd-name>
+   ```
+2. Write the generated `tasks.json` and `progress.json` into this temporary directory.
+3. Save the state to the global database using the provided CLI tool:
+   ```bash
+   bun run ~/.config/opencode/scripts/prd-db.ts save-state "$(pwd)" "<prd-name>" "/tmp/prd-state/<prd-name>/tasks.json" "/tmp/prd-state/<prd-name>/progress.json"
+   ```
 
 ## Task Schema
 
@@ -127,8 +131,7 @@ After conversion, report:
 1. Number of tasks generated
 2. Task breakdown by category
 3. Critical path (tasks that must be done first)
-4. Location of generated files
-5. Suggested starting point
+4. Suggested starting point
 
 ## Example Usage
 
@@ -136,9 +139,7 @@ User: `/prd-task docs/prd/user-auth.md`
 
 Output:
 ```
-Converted PRD "User Authentication" to tasks.
-
-Generated: .claude/state/user-auth/tasks.json
+Converted PRD "User Authentication" to tasks and saved to the global database.
 
 Task Summary:
 - Setup: 2 tasks
