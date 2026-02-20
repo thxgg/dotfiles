@@ -13,29 +13,32 @@ Complete one task from a PRD file. Implements the next task with `passes: false`
 /complete-next-task <prd-name>
 ```
 
-Where `<prd-name>` matches `.claude/state/<prd-name>/prd.json`
+Where `<prd-name>` matches a PRD slug from `docs/prd/`.
 
-## File Discovery
+## State Discovery
 
-Search for the state directory starting from cwd and walking up:
+State is stored in a global SQLite database, not in the local repository. Before starting, fetch the state into a temporary directory:
 
-1. Check if `.claude/state/<prd-name>/prd.json` exists at current level
-2. If not found, go up one directory
-3. Repeat until found or reaching filesystem root
-
-State directory structure:
+```bash
+mkdir -p /tmp/prd-state/<prd-name>
+bun run ~/.config/opencode/scripts/prd-db.ts get-state "$(pwd)" "<prd-name>" "/tmp/prd-state/<prd-name>"
 ```
-<state-dir>/
-├── prd.json       # Task list with passes field
+
+This will create:
+```
+/tmp/prd-state/<prd-name>/
+├── tasks.json     # Task list with passes field
 └── progress.json  # Cross-iteration memory (patterns, task logs)
 ```
+
+**IMPORTANT:** Always read and modify the files from `/tmp/prd-state/<prd-name>/`. Do not look for a `.claude` directory.
 
 ## Process
 
 ### 1. Get Bearings
 
-- Read progress.json - **CHECK 'patterns' ARRAY FIRST**
-- Read prd.json - find next task with `passes: false`
+- Read `/tmp/prd-state/<prd-name>/progress.json` - **CHECK 'patterns' ARRAY FIRST**
+- Read `/tmp/prd-state/<prd-name>/tasks.json` - find next task with `passes: false`
   - **Task Priority** (highest to lowest):
     1. Architecture/core abstractions
     2. Integration points
@@ -46,7 +49,7 @@ State directory structure:
 
 ### 2. Initialize Progress (if needed)
 
-If progress.json doesn't exist, create it.
+If `progress.json` doesn't exist or is empty, initialize it.
 
 **Get current UTC timestamp using bash:**
 ```bash
@@ -55,7 +58,7 @@ date -u +"%Y-%m-%dT%H:%M:%SZ"
 
 ```json
 {
-  "prdName": "<prdName from PRD>",
+  "prdName": "<prdName from tasks.json>",
   "started": "<UTC timestamp from bash>",
   "patterns": [],
   "taskLogs": []
@@ -71,7 +74,7 @@ Before starting work, update both files to track the task pickup:
 date -u +"%Y-%m-%dT%H:%M:%SZ"
 ```
 
-**In prd.json:** Set the task's `status` field to `"in_progress"`:
+**In tasks.json:** Set the task's `status` field to `"in_progress"`:
 ```json
 {
   "id": "task-1",
@@ -88,6 +91,11 @@ date -u +"%Y-%m-%dT%H:%M:%SZ"
   "status": "in_progress",
   "startedAt": "<UTC timestamp from bash>"
 }
+```
+
+**Sync to Database:**
+```bash
+bun run ~/.config/opencode/scripts/prd-db.ts save-state "$(pwd)" "<prd-name>" "/tmp/prd-state/<prd-name>/tasks.json" "/tmp/prd-state/<prd-name>/progress.json"
 ```
 
 ### 4. Branch Setup
@@ -109,19 +117,19 @@ Before committing, run ALL applicable:
 
 **Do NOT commit if any fail.** Fix issues first.
 
-### 7. Update PRD
+### 7. Update Tasks JSON
 
 **Get current UTC timestamp:**
 ```bash
 date -u +"%Y-%m-%dT%H:%M:%SZ"
 ```
 
-Update the task in prd.json:
+Update the task in `tasks.json`:
 - Set `passes` to `true`
 - Set `status` to `"completed"`
 - Set `completedAt` to the UTC timestamp
 
-### 8. Update Progress
+### 8. Update Progress JSON
 
 **Get current UTC timestamp:**
 ```bash
@@ -178,9 +186,8 @@ Determine if you're working in a subfolder git repo:
 # Get current git repo root
 CURRENT_GIT_ROOT=$(git rev-parse --show-toplevel)
 
-# Get the registered repo path from repos.json (the one containing .claude/state)
-# Walk up from cwd to find the .claude directory
-REGISTERED_REPO=$(cd "$(pwd)" && while [ ! -d ".claude" ] && [ "$(pwd)" != "/" ]; do cd ..; done && pwd)
+# Get the registered repo path by walking up to find docs/prd
+REGISTERED_REPO=$(cd "$(pwd)" && while [ ! -d "docs/prd" ] && [ "$(pwd)" != "/" ]; do cd ..; done && pwd)
 
 # Calculate relative path (empty if same as registered repo)
 RELATIVE_REPO=$(python3 -c "import os; print(os.path.relpath('$CURRENT_GIT_ROOT', '$REGISTERED_REPO'))" 2>/dev/null || echo "")
@@ -207,9 +214,17 @@ RELATIVE_REPO=$(python3 -c "import os; print(os.path.relpath('$CURRENT_GIT_ROOT'
 }
 ```
 
-If multiple commits were made for the task, capture each SHA with appropriate repo context. Then update the `commits` array in the taskLog entry in progress.json.
+If multiple commits were made for the task, capture each SHA with appropriate repo context. Then update the `commits` array in the taskLog entry in `/tmp/prd-state/<prd-name>/progress.json`.
 
 **Important:** Only add the feat/fix/refactor commits for the task implementation, not the chore commit for updating task status (that comes after).
+
+### 11. Final Sync to Database
+
+Once `/tmp/prd-state/<prd-name>/tasks.json` and `/tmp/prd-state/<prd-name>/progress.json` have been fully updated with the completion logic, you **MUST** save the state to the global database:
+
+```bash
+bun run ~/.config/opencode/scripts/prd-db.ts save-state "$(pwd)" "<prd-name>" "/tmp/prd-state/<prd-name>/tasks.json" "/tmp/prd-state/<prd-name>/progress.json"
+```
 
 ## Completion
 

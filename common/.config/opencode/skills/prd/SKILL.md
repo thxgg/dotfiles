@@ -183,7 +183,12 @@ Save the PRD to an appropriate location:
 - Default: `docs/prd/[feature-name].md`
 - Or user-specified location
 
-After generating:
+After generating the file, you **MUST** register the repository so it appears in the prd-viewer global database by running:
+```bash
+bun run ~/.config/opencode/scripts/prd-db.ts register "$(pwd)" "$(basename $(pwd))"
+```
+
+After registering:
 1. Summarize key decisions made
 2. List any open questions that need answers
 3. Suggest next steps (often: run `/prd-task` to convert to tasks)
