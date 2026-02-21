@@ -132,8 +132,6 @@ function gdc() {
   fi
 }
 
-eval "$(fnm env --use-on-cd)"
-
 typeset -g _prompt_newline_after_first=0
 typeset -g _prompt_skip_newline_once=0
 
@@ -271,3 +269,14 @@ fi
 
 # Local machine secrets (untracked)
 [[ -f ~/.env ]] && source ~/.env
+
+# fnm
+FNM_PATH="$HOME/.local/share/fnm"
+if [[ -x "$FNM_PATH/fnm" ]]; then
+  export PATH="$FNM_PATH:$PATH"
+  eval "$($FNM_PATH/fnm env --use-on-cd)"
+fi
+
+
+# opencode
+export PATH="$HOME/thxgg/.opencode/bin:$PATH"
