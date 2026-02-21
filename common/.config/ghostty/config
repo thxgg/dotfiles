@@ -12,3 +12,4 @@ macos-titlebar-proxy-icon = hidden
 clipboard-read = allow
 clipboard-write = allow
 title = ghostty
+shell-integration-features = ssh-terminfo,ssh-env
