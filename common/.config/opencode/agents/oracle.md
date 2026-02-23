@@ -1,11 +1,8 @@
 ---
 description: Senior engineering advisor for architecture decisions, complex debugging, and strategic planning. Use when deeper reasoning is needed.
 mode: subagent
-model: anthropic/claude-opus-4-5
-options:
-  thinking:
-    type: enabled
-    budgetTokens: 31999
+model: openai/gpt-5.3-codex
+variant: xhigh
 permission:
   "*": deny
   read: allow
