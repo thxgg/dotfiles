@@ -270,13 +270,7 @@ fi
 # Local machine secrets (untracked)
 [[ -f ~/.env ]] && source ~/.env
 
-# fnm
-FNM_PATH="$HOME/.local/share/fnm"
-if [[ -x "$FNM_PATH/fnm" ]]; then
-  export PATH="$FNM_PATH:$PATH"
-  eval "$($FNM_PATH/fnm env --use-on-cd)"
-fi
-
-
 # opencode
 export PATH="$HOME/thxgg/.opencode/bin:$PATH"
+
+eval "$(fnm env --use-on-cd --shell zsh)"
