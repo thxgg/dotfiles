@@ -13,7 +13,7 @@
 \x on
 
 \timing on
-\set HISTFILE ~/.psql_history/.psql_history-:DBNAME
+\set HISTFILE ~/.psql_history.d/history-:DBNAME
 \set HISTCONTROL ignoredups
 \set COMP_KEYWORD_CASE upper
 
