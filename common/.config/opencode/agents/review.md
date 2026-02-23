@@ -1,7 +1,8 @@
 ---
 description: Reviews code for bugs, security, and maintainability with evidence-backed findings.
 mode: subagent
-model: anthropic/claude-opus-4-5
+model: openai/gpt-5.3-codex
+variant: xhigh
 tools:
   write: false
   edit: false

@@ -1,7 +1,7 @@
 ---
 description: Multi-repository codebase expert for understanding library internals and remote code. Use for GitHub, npm, PyPI, and crates exploration.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: anthropic/claude-sonnet-4-6
 permission:
   "*": allow
   edit: deny
