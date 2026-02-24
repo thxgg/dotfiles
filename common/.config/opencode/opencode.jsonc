@@ -55,7 +55,7 @@
         "steward": {
             "type": "local",
             "command": ["npx", "-y", "@thxgg/steward", "mcp"],
-            "enabled": false
+            "enabled": true
         }
     },
     "agent": {
