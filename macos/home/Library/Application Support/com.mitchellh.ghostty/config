@@ -12,3 +12,4 @@ macos-titlebar-proxy-icon = hidden
 clipboard-read = allow
 clipboard-write = allow
 title = ghostty
+env = TMPDIR=/Users/thxgg/.local/state/tmp
