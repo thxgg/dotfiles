@@ -88,8 +88,6 @@ String-to-string map. Arbitrary key-value pairs.
 |----------|----------|
 | 1 | `.opencode/skills/<name>/SKILL.md` (project) |
 | 2 | `~/.config/opencode/skills/<name>/SKILL.md` (global) |
-| 3 | `.claude/skills/<name>/SKILL.md` (Claude-compat, project) |
-| 4 | `~/.claude/skills/<name>/SKILL.md` (Claude-compat, global) |
 
 For project-local paths, OpenCode walks up from CWD to git worktree root. First-wins for duplicate names.
 

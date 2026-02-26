@@ -1,11 +1,11 @@
 ---
 name: index-knowledge
-description: Generate hierarchical CLAUDE.md knowledge base for a codebase. Creates root + complexity-scored subdirectory documentation with parallel agent exploration.
+description: Generate hierarchical AGENTS.md knowledge base for a codebase. Creates root + complexity-scored subdirectory documentation with parallel agent exploration.
 ---
 
 # index-knowledge
 
-Generate hierarchical CLAUDE.md files providing AI agents with context-aware guidance. Root + complexity-scored subdirectories.
+Generate hierarchical AGENTS.md files providing AI agents with context-aware guidance. Root + complexity-scored subdirectories.
 
 ## Usage
 
@@ -28,7 +28,7 @@ See [$SKILL_DIR/references/intent-layer-spec.md] for the full intent node specif
 TodoWrite([
   { content: "Discovery: parallel explore + LSP + read existing", status: "pending", activeForm: "Running discovery phase" },
   { content: "Scoring: score directories, determine locations", status: "pending", activeForm: "Scoring directories" },
-  { content: "Generate: create CLAUDE.md files (root + subdirs)", status: "pending", activeForm: "Generating CLAUDE.md files" },
+  { content: "Generate: create AGENTS.md files (root + subdirs)", status: "pending", activeForm: "Generating AGENTS.md files" },
   { content: "Review: deduplicate, validate, trim", status: "pending", activeForm: "Reviewing generated files" }
 ])
 ```
@@ -120,11 +120,11 @@ find . -type f -not -path '*/\.*' -not -path '*/node_modules/*' | sed 's|/[^/]*$
 # Code concentration by extension
 find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.go" -o -name "*.rs" -o -name "*.java" \) -not -path '*/node_modules/*' | sed 's|/[^/]*$||' | sort | uniq -c | sort -rn | head -20
 
-# Existing CLAUDE.md / AGENTS.md
-find . -type f \( -name "CLAUDE.md" -o -name "AGENTS.md" \) -not -path '*/node_modules/*' 2>/dev/null
+# Existing AGENTS.md / AGENTS.md
+find . -type f \( -name "AGENTS.md" -o -name "AGENTS.md" \) -not -path '*/node_modules/*' 2>/dev/null
 ```
 
-#### 2. Read Existing CLAUDE.md Files
+#### 2. Read Existing AGENTS.md Files
 ```
 For each existing file found:
   Read(file_path=file)
@@ -176,13 +176,13 @@ LSP(operation="findReferences", filePath="...", line=X, character=Y)
 | Score | Action |
 |-------|--------|
 | **Root (.)** | ALWAYS create |
-| **>15** | Create CLAUDE.md |
+| **>15** | Create AGENTS.md |
 | **8-15** | Create if distinct domain |
 | **<8** | Skip (parent covers) |
 
 ### Output
 ```
-CLAUDE_LOCATIONS = [
+AGENTS_LOCATIONS = [
   { path: ".", type: "root" },
   { path: "src/hooks", score: 18, reason: "high complexity" },
   { path: "src/api", score: 12, reason: "distinct domain" }
@@ -193,11 +193,11 @@ CLAUDE_LOCATIONS = [
 
 ---
 
-## Phase 3: Generate CLAUDE.md Files
+## Phase 3: Generate AGENTS.md Files
 
 **Mark "Generate" as in_progress.**
 
-### Root CLAUDE.md (Full Treatment)
+### Root AGENTS.md (Full Treatment)
 
 ```markdown
 # PROJECT KNOWLEDGE BASE
@@ -233,41 +233,41 @@ CLAUDE_LOCATIONS = [
 \`\`\`
 
 ## Intent Nodes
-- [Child Area](./path/CLAUDE.md) - brief description
+- [Child Area](./path/AGENTS.md) - brief description
 ```
 
 **Quality gates**: 50-150 lines, no generic advice, no obvious info.
 
-### Subdirectory CLAUDE.md (Parallel)
+### Subdirectory AGENTS.md (Parallel)
 
 Launch general-purpose agents for each location in ONE message (parallel execution):
 
 ```
 // All in single message = parallel
 Task(
-  description="CLAUDE.md for src/hooks",
+  description="AGENTS.md for src/hooks",
   subagent_type="general-purpose",
-  prompt="Generate CLAUDE.md for: src/hooks
+  prompt="Generate AGENTS.md for: src/hooks
     - Reason: high complexity
     - 30-80 lines max
     - NEVER repeat parent content
     - Sections: Purpose & Scope, Entry Points, Usage Patterns, Anti-Patterns, Dependencies
     - Include Uplink to parent, Downlinks to children
-    - Write directly to src/hooks/CLAUDE.md"
+    - Write directly to src/hooks/AGENTS.md"
 )
 
 Task(
-  description="CLAUDE.md for src/api",
+  description="AGENTS.md for src/api",
   subagent_type="general-purpose",
-  prompt="Generate CLAUDE.md for: src/api
+  prompt="Generate AGENTS.md for: src/api
     - Reason: distinct domain
     - 30-80 lines max
     - NEVER repeat parent content
     - Sections: Purpose & Scope, Entry Points, Usage Patterns, Anti-Patterns, Dependencies
     - Include Uplink to parent, Downlinks to children
-    - Write directly to src/api/CLAUDE.md"
+    - Write directly to src/api/AGENTS.md"
 )
-// ... one Task per CLAUDE_LOCATIONS entry
+// ... one Task per AGENTS_LOCATIONS entry
 ```
 
 ### Intent Node Template
@@ -288,8 +288,8 @@ Canonical examples with code snippets from this codebase.
 What NOT to do, with BAD/GOOD examples.
 
 ## Dependencies & Edges
-- Uplink: [Parent](../CLAUDE.md)
-- Downlinks: [Child](./child/CLAUDE.md)
+- Uplink: [Parent](../AGENTS.md)
+- Downlinks: [Child](./child/AGENTS.md)
 
 ## Patterns & Pitfalls
 Lessons learned, edge cases, debugging tips.
@@ -322,17 +322,17 @@ For each generated file:
 Mode: {update | create-new}
 
 Files:
-  + ./CLAUDE.md (root, {N} lines)
-  + ./src/hooks/CLAUDE.md ({N} lines)
+  + ./AGENTS.md (root, {N} lines)
+  + ./src/hooks/AGENTS.md ({N} lines)
 
 Dirs Analyzed: {N}
-CLAUDE.md Created: {N}
-CLAUDE.md Updated: {N}
+AGENTS.md Created: {N}
+AGENTS.md Updated: {N}
 
 Hierarchy:
-  ./CLAUDE.md
-  └── src/hooks/CLAUDE.md
-      └── src/hooks/auth/CLAUDE.md
+  ./AGENTS.md
+  └── src/hooks/AGENTS.md
+      └── src/hooks/auth/AGENTS.md
 ```
 
 ---
@@ -358,7 +358,7 @@ Hierarchy:
 - **Static agent count**: MUST vary agents based on project size/depth
 - **Sequential execution**: MUST parallel (multiple Task calls in one message)
 - **Ignoring existing**: ALWAYS read existing first, even with --create-new
-- **Over-documenting**: Not every dir needs CLAUDE.md
+- **Over-documenting**: Not every dir needs AGENTS.md
 - **Redundancy**: Child never repeats parent
 - **Generic content**: Remove anything that applies to ALL projects
 - **Verbose style**: Telegraphic or die
