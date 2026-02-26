@@ -6,7 +6,7 @@ A comprehensive reference for creating and maintaining intent layer systems.
 
 An **intent layer** is a hierarchical system of documentation files (intent nodes) that provides AI agents with context-aware guidance. Each node is placed at a semantic boundary in the codebase and automatically loads when an agent works in that area.
 
-The primary file name is `CLAUDE.md`, which AI tools recognize and load automatically.
+The primary file name is `AGENTS.md`, which AI tools recognize and load automatically.
 
 ## Intent Node Components
 
@@ -34,8 +34,8 @@ Each intent node should contain these sections:
 - Common mistakes and why they're problematic
 
 ### Dependencies & Edges
-- **Uplink**: Link to parent CLAUDE.md in hierarchy
-- **Downlinks**: Links to child CLAUDE.md files
+- **Uplink**: Link to parent AGENTS.md in hierarchy
+- **Downlinks**: Links to child AGENTS.md files
 - External dependencies and integration points
 
 ### Patterns & Pitfalls
@@ -48,22 +48,22 @@ Each intent node should contain these sections:
 Intent layers form a tree structure following the codebase directory layout:
 
 ```
-/CLAUDE.md                        # Root node
-├── /src/CLAUDE.md                # Source layer
-│   ├── /src/api/CLAUDE.md        # API layer
-│   ├── /src/components/CLAUDE.md # Components layer
-│   └── /src/utils/CLAUDE.md      # Utilities layer
-└── /tests/CLAUDE.md              # Tests layer
+/AGENTS.md                        # Root node
+├── /src/AGENTS.md                # Source layer
+│   ├── /src/api/AGENTS.md        # API layer
+│   ├── /src/components/AGENTS.md # Components layer
+│   └── /src/utils/AGENTS.md      # Utilities layer
+└── /tests/AGENTS.md              # Tests layer
 ```
 
 ### Hierarchical Loading
 
-When an agent works in a file, all ancestor CLAUDE.md files are loaded:
+When an agent works in a file, all ancestor AGENTS.md files are loaded:
 
 Working in `/src/api/users.ts` loads:
-1. `/CLAUDE.md` (root)
-2. `/src/CLAUDE.md` (source)
-3. `/src/api/CLAUDE.md` (API)
+1. `/AGENTS.md` (root)
+2. `/src/AGENTS.md` (source)
+3. `/src/api/AGENTS.md` (API)
 
 This provides progressive context from general to specific.
 
@@ -74,20 +74,20 @@ Use relative markdown links for child nodes:
 ```markdown
 ## Navigation
 
-- Uplink: [Root](../CLAUDE.md)
+- Uplink: [Root](../AGENTS.md)
 - Downlinks:
-  - [API Layer](./api/CLAUDE.md) - REST and GraphQL handlers
-  - [Components](./components/CLAUDE.md) - Reusable UI components
-  - [Utils](./utils/CLAUDE.md) - Shared utility functions
+  - [API Layer](./api/AGENTS.md) - REST and GraphQL handlers
+  - [Components](./components/AGENTS.md) - Reusable UI components
+  - [Utils](./utils/AGENTS.md) - Shared utility functions
 ```
 
 ## Least Common Ancestor (LCA) Principle
 
 Place documentation at the least common ancestor of the files it affects:
 
-- Documentation about a single module → that module's CLAUDE.md
+- Documentation about a single module → that module's AGENTS.md
 - Documentation about component/service interaction → their common parent
-- Project-wide standards → root CLAUDE.md
+- Project-wide standards → root AGENTS.md
 
 This prevents duplication and ensures context loads when needed.
 
@@ -134,13 +134,13 @@ Intent layers improve through a continuous process:
 
 ## File Naming Conventions
 
-- **Primary**: `CLAUDE.md` (uppercase, recognized by Claude)
+- **Primary**: `AGENTS.md` (uppercase, recognized by OpenCode)
 - **Alternatives**: `AGENTS.md`, `CONTEXT.md` (for other AI tools)
 - **Placement**: At semantic boundaries, not every directory
 
 ## When to Create a New Node
 
-Create a CLAUDE.md when:
+Create a AGENTS.md when:
 - A directory represents a distinct architectural layer
 - Code in the directory has unique patterns or constraints
 - AI frequently makes mistakes in that area
@@ -157,8 +157,8 @@ For linking between non-hierarchical nodes (siblings, cousins):
 
 ```markdown
 ## Related Areas
-- See [Authentication](../auth/CLAUDE.md) for auth patterns
-- See [Database](../db/CLAUDE.md) for query patterns
+- See [Authentication](../auth/AGENTS.md) for auth patterns
+- See [Database](../db/AGENTS.md) for query patterns
 ```
 
 Use these sparingly to avoid circular dependencies in documentation.
