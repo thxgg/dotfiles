@@ -146,7 +146,5 @@ Run: `bash $SKILL_DIR/scripts/validate-skill.sh ./my-skill`
 |----------|----------|
 | 1 | `.opencode/skills/<name>/` (project) |
 | 2 | `~/.config/opencode/skills/<name>/` (global) |
-| 3 | `.claude/skills/<name>/` (Claude-compat, project) |
-| 4 | `~/.claude/skills/<name>/` (Claude-compat, global) |
 
 Discovery walks up from CWD to git root for project-local paths.

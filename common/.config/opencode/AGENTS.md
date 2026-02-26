@@ -22,7 +22,7 @@ This subtree acts like a small config+code workspace under dotfiles.
 - Committing `node_modules/` or generated build artifacts.
 
 ## Dependencies & Edges
-- Uplink: [Config Tree](../CLAUDE.md)
+- Uplink: [Config Tree](../AGENTS.md)
 - Downlinks: none
 
 ## Patterns & Pitfalls
