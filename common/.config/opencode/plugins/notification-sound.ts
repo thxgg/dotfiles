@@ -2,8 +2,10 @@ import type { Plugin } from "@opencode-ai/plugin";
 import { homedir } from "os";
 import { join } from "path";
 
+type SoundPlayer = (soundPath: string) => Promise<void>;
+
 export const NotificationSound: Plugin = async ({ $, client }) => {
-    if (process.platform !== "darwin") {
+    if (process.platform !== "darwin" && process.platform !== "linux") {
         return {};
     }
 
@@ -16,7 +18,9 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
         ".config/opencode/sounds/wow_quest_active.mp3",
     );
     const playbackVolume = 0.25;
+    const playbackVolumePercent = Math.round(playbackVolume * 100);
     const completionDelayMs = 3000;
+    let resolvedSoundPlayer: SoundPlayer | null | undefined;
 
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const interruptedSessions = new Set<string>();
@@ -32,16 +36,75 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
         }
     };
 
+    const commandExists = async (command: string): Promise<boolean> => {
+        try {
+            await $`command -v ${command}`.quiet();
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const resolveSoundPlayer = async (): Promise<SoundPlayer | null> => {
+        if (resolvedSoundPlayer !== undefined) {
+            return resolvedSoundPlayer;
+        }
+
+        if (process.platform === "darwin") {
+            resolvedSoundPlayer = async (soundPath: string): Promise<void> => {
+                await $`afplay -v ${playbackVolume} ${soundPath}`
+                    .quiet()
+                    .nothrow();
+            };
+            return resolvedSoundPlayer;
+        }
+
+        if (await commandExists("paplay")) {
+            resolvedSoundPlayer = async (soundPath: string): Promise<void> => {
+                await $`paplay ${soundPath}`
+                    .quiet()
+                    .nothrow();
+            };
+            return resolvedSoundPlayer;
+        }
+
+        if (await commandExists("mpv")) {
+            resolvedSoundPlayer = async (soundPath: string): Promise<void> => {
+                await $`mpv --no-terminal --no-video --really-quiet --volume=${playbackVolumePercent} ${soundPath}`
+                    .quiet()
+                    .nothrow();
+            };
+            return resolvedSoundPlayer;
+        }
+
+        if (await commandExists("ffplay")) {
+            const volumeFilter = `volume=${playbackVolume}`;
+            resolvedSoundPlayer = async (soundPath: string): Promise<void> => {
+                await $`ffplay -nodisp -autoexit -loglevel error -af ${volumeFilter} ${soundPath}`
+                    .quiet()
+                    .nothrow();
+            };
+            return resolvedSoundPlayer;
+        }
+
+        resolvedSoundPlayer = null;
+        return resolvedSoundPlayer;
+    };
+
+    const playSound = async (soundPath: string): Promise<void> => {
+        const player = await resolveSoundPlayer();
+        if (!player) {
+            return;
+        }
+        await player(soundPath);
+    };
+
     const playCompletionNotificationSound = async (): Promise<void> => {
-        await $`afplay -v ${playbackVolume} ${completionSoundPath}`
-            .quiet()
-            .nothrow();
+        await playSound(completionSoundPath);
     };
 
     const playInputRequiredNotificationSound = async (): Promise<void> => {
-        await $`afplay -v ${playbackVolume} ${inputRequiredSoundPath}`
-            .quiet()
-            .nothrow();
+        await playSound(inputRequiredSoundPath);
     };
 
     const isMainSession = async (sessionID: string): Promise<boolean> => {
