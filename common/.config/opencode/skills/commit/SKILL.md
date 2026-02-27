@@ -27,9 +27,16 @@ If `$ARGUMENTS` is provided, use it as guidance for the commit message.
    - Each commit should represent a single logical change
    - Stage and commit each logical group separately
 6. Create a concise one-line commit message that:
-   - Follows conventional commits format (feat:, fix:, chore:, docs:, refactor:, test:, etc.)
-   - Summarizes the changes clearly
-   - Is under 72 characters if possible
+    - Follows conventional commits format with a required scope: `<type>(<scope>): <summary>`
+    - Uses a project-local domain scope (NOT monorepo/project-name scope)
+    - Derives scope from the primary feature/module touched in the current project
+    - Uses this soft allowlist by convention:
+      - backend: `auth`, `promocodes`, `offers`, `notifications`, `database`, `payments`, `members`, `subscriptions`, `deps`, `ci`
+      - cms: `auth`, `member`, `offers`, `admin-users`, `totp`, `deps`, `ci`
+      - cms-vue: `auth`, `offers`, `notifications`, `members`, `deps`, `ci`
+    - If no allowlist scope fits, choose a short, specific domain scope; do not omit scope
+    - Summarizes the changes clearly
+    - Is under 72 characters if possible
 7. Commit with: `git commit -m "message"`
 
 Do NOT include a co-authored-by footer.
