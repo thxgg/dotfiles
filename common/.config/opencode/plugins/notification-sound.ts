@@ -24,7 +24,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
 
     const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const interruptedSessions = new Set<string>();
-    const awaitingInputSessions = new Set<string>();
+    const pendingInputRequests = new Map<string, Set<string>>();
     const busySessions = new Set<string>();
     const mainSessionCache = new Map<string, boolean>();
 
@@ -37,12 +37,8 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
     };
 
     const commandExists = async (command: string): Promise<boolean> => {
-        try {
-            await $`command -v ${command}`.quiet();
-            return true;
-        } catch {
-            return false;
-        }
+        const result = await $`which ${command}`.quiet().nothrow();
+        return result.exitCode === 0;
     };
 
     const resolveSoundPlayer = async (): Promise<SoundPlayer | null> => {
@@ -127,7 +123,60 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
     const markSessionInterrupted = (sessionID: string): void => {
         interruptedSessions.add(sessionID);
         busySessions.delete(sessionID);
+        pendingInputRequests.delete(sessionID);
         clearIdleTimer(sessionID);
+    };
+
+    const hasPendingInputRequests = (sessionID: string): boolean => {
+        const requests = pendingInputRequests.get(sessionID);
+        return Boolean(requests && requests.size > 0);
+    };
+
+    const clearPendingInputRequests = (sessionID: string): void => {
+        pendingInputRequests.delete(sessionID);
+    };
+
+    const markInputRequested = async (
+        sessionID: string,
+        requestID: string,
+    ): Promise<void> => {
+        clearIdleTimer(sessionID);
+
+        const existing = pendingInputRequests.get(sessionID);
+        const requests = existing ?? new Set<string>();
+        const wasWaiting = requests.size > 0;
+        requests.add(requestID);
+        pendingInputRequests.set(sessionID, requests);
+
+        if (wasWaiting) {
+            return;
+        }
+
+        if (!(await isMainSession(sessionID))) {
+            return;
+        }
+
+        await playInputRequiredNotificationSound();
+    };
+
+    const markInputResolved = (
+        sessionID: string,
+        requestID?: string,
+    ): void => {
+        const requests = pendingInputRequests.get(sessionID);
+        if (!requests) {
+            return;
+        }
+
+        if (requestID) {
+            requests.delete(requestID);
+        } else {
+            requests.clear();
+        }
+
+        if (requests.size === 0) {
+            pendingInputRequests.delete(sessionID);
+        }
     };
 
     const sessionIDFromProperties = (
@@ -143,7 +192,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
     const handleSessionBusy = (sessionID: string): void => {
         clearIdleTimer(sessionID);
         busySessions.add(sessionID);
-        awaitingInputSessions.delete(sessionID);
+        clearPendingInputRequests(sessionID);
         interruptedSessions.delete(sessionID);
     };
 
@@ -152,6 +201,12 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
         busySessions.delete(sessionID);
 
         if (!(await isMainSession(sessionID))) {
+            return;
+        }
+
+        clearIdleTimer(sessionID);
+
+        if (hasPendingInputRequests(sessionID)) {
             return;
         }
 
@@ -164,7 +219,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
                     return;
                 }
 
-                if (awaitingInputSessions.has(sessionID)) {
+                if (hasPendingInputRequests(sessionID)) {
                     return;
                 }
 
@@ -173,24 +228,13 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
         );
     };
 
-    const handleQuestionAsked = async (sessionID: string): Promise<void> => {
-        clearIdleTimer(sessionID);
-        awaitingInputSessions.add(sessionID);
-
-        if (!(await isMainSession(sessionID))) {
-            return;
-        }
-
-        await playInputRequiredNotificationSound();
-    };
-
     process.on("exit", () => {
         for (const timer of idleTimers.values()) {
             clearTimeout(timer);
         }
         idleTimers.clear();
         interruptedSessions.clear();
-        awaitingInputSessions.clear();
+        pendingInputRequests.clear();
         busySessions.clear();
         mainSessionCache.clear();
     });
@@ -206,7 +250,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
                 if (typeof deletedSessionID === "string") {
                     clearIdleTimer(deletedSessionID);
                     interruptedSessions.delete(deletedSessionID);
-                    awaitingInputSessions.delete(deletedSessionID);
+                    clearPendingInputRequests(deletedSessionID);
                     busySessions.delete(deletedSessionID);
                     mainSessionCache.delete(deletedSessionID);
                 }
@@ -246,7 +290,10 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
 
             if (eventType === "question.asked") {
                 if (!sessionID) return;
-                await handleQuestionAsked(sessionID);
+                const requestID = typeof properties.id === "string"
+                    ? properties.id
+                    : `question:${sessionID}`;
+                await markInputRequested(sessionID, requestID);
                 return;
             }
 
@@ -255,7 +302,28 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
                 || eventType === "question.rejected"
             ) {
                 if (!sessionID) return;
-                awaitingInputSessions.delete(sessionID);
+                const requestID = typeof properties.requestID === "string"
+                    ? properties.requestID
+                    : undefined;
+                markInputResolved(sessionID, requestID);
+                return;
+            }
+
+            if (eventType === "permission.asked") {
+                if (!sessionID) return;
+                const requestID = typeof properties.id === "string"
+                    ? properties.id
+                    : `permission:${sessionID}`;
+                await markInputRequested(sessionID, requestID);
+                return;
+            }
+
+            if (eventType === "permission.replied") {
+                if (!sessionID) return;
+                const requestID = typeof properties.requestID === "string"
+                    ? properties.requestID
+                    : undefined;
+                markInputResolved(sessionID, requestID);
                 return;
             }
 
@@ -263,7 +331,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
                 const statusType = properties.status?.type;
                 if (!sessionID || typeof statusType !== "string") return;
 
-                if (statusType === "busy") {
+                if (statusType === "busy" || statusType === "retry") {
                     handleSessionBusy(sessionID);
                     return;
                 }
@@ -273,18 +341,6 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
                     return;
                 }
 
-                return;
-            }
-
-            if (eventType === "session.busy") {
-                if (!sessionID) return;
-                handleSessionBusy(sessionID);
-                return;
-            }
-
-            if (eventType === "session.idle") {
-                if (!sessionID) return;
-                await handleSessionIdle(sessionID);
                 return;
             }
         },
