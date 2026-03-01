@@ -13,6 +13,7 @@ stow
 zsh
 starship
 btop
+rocm-smi-lib
 fnm
 neovim
 luarocks
