@@ -55,7 +55,7 @@
         "steward": {
             "type": "local",
             "command": ["npx", "-y", "@thxgg/steward", "mcp"],
-            "enabled": true
+            "enabled": false
         }
     },
     "agent": {
@@ -217,6 +217,7 @@
             "vite *": "allow",
             "vitest *": "allow",
             // Build tools
+            "./gradlew *": "allow",
             "make *": "allow",
             "cmake *": "allow",
             // Linters/formatters
