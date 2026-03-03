@@ -1,6 +1,7 @@
 git:
   pull:
     mode: "rebase"
+  fetchAll: false
 
 gui:
   theme:
