@@ -19,6 +19,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
     );
     const playbackVolume = 0.25;
     const playbackVolumePercent = Math.round(playbackVolume * 100);
+    const playbackVolumePulseAudio = Math.max(1, Math.round(playbackVolume * 65536));
     const completionDelayMs = 3000;
     let resolvedSoundPlayer: SoundPlayer | null | undefined;
 
@@ -57,7 +58,7 @@ export const NotificationSound: Plugin = async ({ $, client }) => {
 
         if (await commandExists("paplay")) {
             resolvedSoundPlayer = async (soundPath: string): Promise<void> => {
-                await $`paplay ${soundPath}`
+                await $`paplay --volume=${playbackVolumePulseAudio} ${soundPath}`
                     .quiet()
                     .nothrow();
             };
