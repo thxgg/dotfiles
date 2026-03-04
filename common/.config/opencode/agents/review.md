@@ -7,8 +7,6 @@ tools:
   write: false
   edit: false
   bash: true
-permission:
-  bash: ask
 ---
 
 You are a code reviewer focused on real, high-signal issues.
