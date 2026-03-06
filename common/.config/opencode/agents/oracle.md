@@ -1,7 +1,7 @@
 ---
 description: Senior engineering advisor for architecture decisions, complex debugging, and strategic planning. Use when deeper reasoning is needed.
 mode: subagent
-model: openai/gpt-5.3-codex
+model: openai/gpt-5.4
 variant: xhigh
 permission:
   "*": deny
