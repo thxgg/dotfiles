@@ -61,8 +61,8 @@
     "agent": {
         "plan": {
             "mode": "primary",
-            "model": "openai/gpt-5.4",
-            "variant": "high",
+            "model": "anthropic/claude-opus-4-6",
+            "variant": "max",
             "tools": {
                 "write": false,
                 "edit": false,
@@ -71,8 +71,18 @@
         },
         "build": {
             "mode": "primary",
+            "model": "anthropic/claude-opus-4-6",
+            "variant": "max",
+            "tools": {
+                "write": true,
+                "edit": true,
+                "bash": true
+            }
+        },
+        "deep": {
+            "mode": "primary",
             "model": "openai/gpt-5.4",
-            "variant": "high",
+            "variant": "xhigh",
             "tools": {
                 "write": true,
                 "edit": true,
@@ -261,5 +271,4 @@
             "kill *": "ask"
         },
     },
-    "plugin": ["@franlol/opencode-md-table-formatter@0.0.3"]
 }

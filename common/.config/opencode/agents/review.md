@@ -1,8 +1,8 @@
 ---
 description: Reviews code for bugs, security, and maintainability with evidence-backed findings.
 mode: subagent
-model: openai/gpt-5.4
-variant: xhigh
+model: opencode/gemini-3.1-pro
+variant: high
 tools:
   write: false
   edit: false
