@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+
+# Private/paywalled skills (not tracked in git)
+skills/web-animation-design/
