@@ -10,6 +10,7 @@ jq
 wget
 tree
 stow
+tmux
 zsh
 starship
 btop

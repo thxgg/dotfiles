@@ -1,3 +1,8 @@
+# Auto-start tmux: attach to existing session or create a new one
+if command -v tmux &>/dev/null && [[ -z "$TMUX" && -z "$INSIDE_EMACS" && -z "$VSCODE_PID" ]]; then
+  exec tmux new-session -A -s main
+fi
+
 export VISUAL=nvim
 export EDITOR=nvim
 export GOPATH="${GOPATH:-$HOME/.local/share/go}"
@@ -7,6 +12,7 @@ export PATH="$HOME/.local/bin:$PATH:$GOBIN"
 export ZSH="$HOME/.oh-my-zsh"
 # source $HOME/.zsh/catppuccin_latte-zsh-syntax-highlighting.zsh
 source $HOME/.zsh/catppuccin_mocha-zsh-syntax-highlighting.zsh
+source $HOME/.zsh/tmux_keys.zsh
 
 # Uncomment the following line if pasting URLs and other text is messed up.
 # DISABLE_MAGIC_FUNCTIONS="true"
