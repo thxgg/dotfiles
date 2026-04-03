@@ -3,7 +3,6 @@ theme = Catppuccin Mocha
 font-size = 16
 #macos-titlebar-style = hidden
 quit-after-last-window-closed = true
-keybind = shift+enter=text:\n
 maximize = true
 shell-integration = zsh
 unfocused-split-opacity = 0.97
