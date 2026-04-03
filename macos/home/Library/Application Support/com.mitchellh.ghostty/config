@@ -1,7 +1,7 @@
 font-family = Berkeley Mono Variable Nerd Font
 theme = Catppuccin Mocha
 font-size = 16
-#macos-titlebar-style = hidden
+macos-titlebar-style = hidden
 quit-after-last-window-closed = true
 maximize = true
 shell-integration = zsh
