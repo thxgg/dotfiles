@@ -1,27 +1,27 @@
-local map = function(mode, lhs, rhs, opts)
-	opts = opts or {}
-	opts.noremap = true
-	opts.silent = true
-	vim.keymap.set(mode, lhs, rhs, opts)
-end
-
 return {
 	{
 		"mfussenegger/nvim-dap",
 		config = function()
 			local dap = require("dap")
-			map("n", "<F5>", dap.continue, { desc = "Continue" })
-			map("n", "<F10>", dap.step_over, { desc = "Step over" })
-			map("n", "<F11>", dap.step_into, { desc = "Step into" })
-			map("n", "<F12>", dap.step_out, { desc = "Step out" })
-			map("n", "<leader>db", dap.toggle_breakpoint, { desc = "Toggle breakpoint" })
-			map("n", "<leader>dB", function()
+
+			-- DAP sign definitions (must be defined before signs are placed)
+			local sign = vim.fn.sign_define
+			sign("DapBreakpoint", { text = "●", texthl = "DapBreakpoint", linehl = "", numhl = "" })
+			sign("DapBreakpointCondition", { text = "●", texthl = "DapBreakpointCondition", linehl = "", numhl = "" })
+			sign("DapLogPoint", { text = "◆", texthl = "DapLogPoint", linehl = "", numhl = "" })
+
+			vim.keymap.set("n", "<F5>", dap.continue, { desc = "Continue" })
+			vim.keymap.set("n", "<F10>", dap.step_over, { desc = "Step over" })
+			vim.keymap.set("n", "<F11>", dap.step_into, { desc = "Step into" })
+			vim.keymap.set("n", "<F12>", dap.step_out, { desc = "Step out" })
+			vim.keymap.set("n", "<leader>db", dap.toggle_breakpoint, { desc = "Toggle breakpoint" })
+			vim.keymap.set("n", "<leader>dB", function()
 				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
 			end, { desc = "Set conditional breakpoint" })
-			map("n", "<leader>dl", function()
+			vim.keymap.set("n", "<leader>dl", function()
 				dap.set_breakpoint(nil, nil, vim.fn.input("Log point message: "))
 			end, { desc = "Log point" })
-			map("n", "<leader>dr", dap.repl.open, { desc = "Open REPL" })
+			vim.keymap.set("n", "<leader>dr", dap.repl.open, { desc = "Open REPL" })
 		end,
 	},
 	{
@@ -99,7 +99,7 @@ return {
 	{
 		"leoluz/nvim-dap-go",
 		config = function()
-			map("n", "<leader>dt", require("dap-go").debug_test, { desc = "[D]ebug [T]est" })
+			vim.keymap.set("n", "<leader>dt", require("dap-go").debug_test, { desc = "[D]ebug [T]est" })
 		end,
 	},
 }

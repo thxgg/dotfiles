@@ -1,10 +1,3 @@
-local map = function(mode, lhs, rhs, opts)
-	opts = opts or {}
-	opts.noremap = true
-	opts.silent = true
-	vim.keymap.set(mode, lhs, rhs, opts)
-end
-
 local function resolve_java_home()
 	if vim.env.JAVA_HOME and vim.env.JAVA_HOME ~= "" then
 		return vim.env.JAVA_HOME
@@ -65,9 +58,16 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 		vim.lsp.codelens.enable(true)
 
-		map("n", "K", vim.lsp.buf.hover, { buffer = bufnr, desc = "Show tooltip" })
-		map("i", "<C-k>", vim.lsp.buf.signature_help, { buffer = bufnr, desc = "Show signature help" })
-		map("n", "<F2>", vim.lsp.buf.rename, { buffer = bufnr, desc = "Rename" })
+		local function map(mode, lhs, rhs, opts)
+			opts = opts or {}
+			opts.buffer = bufnr
+			opts.silent = true
+			vim.keymap.set(mode, lhs, rhs, opts)
+		end
+
+		map("n", "K", vim.lsp.buf.hover, { desc = "Show tooltip" })
+		map("i", "<C-k>", vim.lsp.buf.signature_help, { desc = "Show signature help" })
+		map("n", "<F2>", vim.lsp.buf.rename, { desc = "Rename" })
 		map("v", "<F3>", function()
 			vim.lsp.buf.format({
 				range = {
@@ -77,17 +77,17 @@ vim.api.nvim_create_autocmd("LspAttach", {
 				async = false
 			})
 		end, { desc = "Format selection" })
-		map("n", "<F4>", vim.lsp.buf.code_action, { buffer = bufnr, desc = "Code Action" })
-		map("n", "<leader>gd", vim.lsp.buf.definition, { buffer = bufnr, desc = "[G]o to [D]efinition" })
-		map("n", "<leader>gtd", vim.lsp.buf.type_definition, { buffer = bufnr, desc = "[G]o to [T]ype [D]efinition" })
-		map("n", "<leader>gr", vim.lsp.buf.references, { buffer = bufnr, desc = "[G]o to [R]eferences" })
-		map("n", "<leader>gi", vim.lsp.buf.implementation, { buffer = bufnr, desc = "[G]o to [I]mplementation" })
+		map("n", "<F4>", vim.lsp.buf.code_action, { desc = "Code Action" })
+		map("n", "<leader>gd", vim.lsp.buf.definition, { desc = "[G]o to [D]efinition" })
+		map("n", "<leader>gtd", vim.lsp.buf.type_definition, { desc = "[G]o to [T]ype [D]efinition" })
+		map("n", "<leader>gr", vim.lsp.buf.references, { desc = "[G]o to [R]eferences" })
+		map("n", "<leader>gi", vim.lsp.buf.implementation, { desc = "[G]o to [I]mplementation" })
 		map("n", "<leader>go", function()
 			pcall(vim.lsp.buf.code_action, {
 				context = { only = { "source.organizeImports" } },
 				apply = true,
 			})
-		end, { buffer = bufnr, desc = "[O]rganize Imports" })
+		end, { desc = "[O]rganize Imports" })
 	end
 })
 

@@ -1,20 +1,18 @@
 return {
 	{
-		"numToStr/Comment.nvim",
-		dependencies = { "JoosepAlviste/nvim-ts-context-commentstring" },
+		"JoosepAlviste/nvim-ts-context-commentstring",
 		config = function()
 			require("ts_context_commentstring").setup({
 				enable_autocmd = false,
 			})
+			-- Patch vim.filetype.get_option so that native gc/gcc
+			-- uses treesitter-aware commentstrings (JSX, Vue SFC, etc.)
 			local get_option = vim.filetype.get_option
 			vim.filetype.get_option = function(filetype, option)
 				return option == "commentstring"
 						and require("ts_context_commentstring.internal").calculate_commentstring()
 					or get_option(filetype, option)
 			end
-			require("Comment").setup({
-				pre_hook = require("ts_context_commentstring.integrations.comment_nvim").create_pre_hook(),
-			})
 		end,
 	},
 }
