@@ -11,7 +11,6 @@ return {
 				},
 				dadbod_ui = true,
 				mason = true,
-				neotest = true,
 				nvim_surround = true,
 				which_key = true,
 			},

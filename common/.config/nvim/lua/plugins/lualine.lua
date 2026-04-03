@@ -3,7 +3,7 @@ return {
 	dependencies = { "nvim-tree/nvim-web-devicons" },
 	opts = {
 		options = {
-			theme = "catppuccin",
+			theme = "catppuccin-mocha",
 			section_separators = "",
 			component_separators = {
 				left = "|",
@@ -33,6 +33,6 @@ return {
 			lualine_y = {},
 			lualine_z = {},
 		},
-		extensions = { "aerial", "lazy", "mason", "nvim-dap-ui", "oil", "quickfix", "trouble" },
+		extensions = { "aerial", "lazy", "mason", "nvim-dap-ui", "oil", "quickfix" },
 	},
 }

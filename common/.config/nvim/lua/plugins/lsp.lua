@@ -64,7 +64,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		local bufnr = args.buf
 
 		-- On save actions
-		if client.supports_method('textDocument/formatting') and vim.bo.filetype ~= "java" then
+		if client:supports_method('textDocument/formatting') and vim.bo.filetype ~= "java" then
 			vim.api.nvim_create_autocmd("BufWritePre", {
 				buffer = args.buf,
 				callback = function()
@@ -91,15 +91,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
 			})
 		end
 
-		vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost" }, {
-			group = vim.api.nvim_create_augroup("JdtlsCodelens", { clear = true }),
-			buffer = bufnr,
-			callback = function()
-				vim.lsp.codelens.refresh()
-			end,
-		})
-		-- Initial codelens refresh
-		vim.lsp.codelens.refresh()
+		vim.lsp.codelens.enable(true)
 
 		map("n", "K", vim.lsp.buf.hover, { buffer = bufnr, desc = "Show tooltip" })
 		map("i", "<C-k>", vim.lsp.buf.signature_help, { buffer = bufnr, desc = "Show signature help" })
@@ -265,7 +257,6 @@ return {
 		"neovim/nvim-lspconfig",
 		dependencies = {
 			"williamboman/mason.nvim",
-			"williamboman/mason-lspconfig.nvim",
 		},
 	},
 	{
