@@ -3,7 +3,10 @@ return {
 		"nvim-treesitter/nvim-treesitter",
 		build = ":TSUpdate",
 		dependencies = {
-			{ "windwp/nvim-ts-autotag" },
+			{
+				"windwp/nvim-ts-autotag",
+				opts = {},
+			},
 		},
 		config = function()
 			local configs = require("nvim-treesitter.configs")
@@ -76,9 +79,6 @@ return {
 				highlight = {
 					enable = true,
 					additional_vim_regex_highlighting = false,
-				},
-				autotag = {
-					enable = true,
 				},
 				textobjects = {
 					select = {
