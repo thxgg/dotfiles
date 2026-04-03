@@ -9,6 +9,10 @@ common/.config/zed/prompts/
 common/.config/atuin/atuin-receipt.json
 .claude/settings.local.json
 
+# Pi local state
+.pi/todos/
+common/.pi/agent/sessions/
+
 # Dependency directories
 common/.config/opencode/node_modules/
 
