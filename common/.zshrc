@@ -280,3 +280,6 @@ fi
 export PATH="$HOME/thxgg/.opencode/bin:$PATH"
 
 eval "$(fnm env --use-on-cd --shell zsh)"
+
+# Vite+ bin (https://viteplus.dev)
+. "$HOME/.vite-plus/env"
