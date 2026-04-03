@@ -63,40 +63,11 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 		local bufnr = args.buf
 
-		-- On save actions
-		if client:supports_method('textDocument/formatting') and vim.bo.filetype ~= "java" then
-			vim.api.nvim_create_autocmd("BufWritePre", {
-				buffer = args.buf,
-				callback = function()
-					local clients = vim.lsp.get_clients({ bufnr = 0 })
-
-					-- ESLint
-					local has_eslint = false
-
-					for _, c in ipairs(clients) do
-						if c.name == "eslint" then
-							has_eslint = true
-							break
-						end
-					end
-
-					if has_eslint then
-						vim.cmd("LspEslintFixAll")
-						return
-					end
-
-					-- Format
-					vim.lsp.buf.format({ bufnr = args.buf, id = client.id })
-				end,
-			})
-		end
-
 		vim.lsp.codelens.enable(true)
 
 		map("n", "K", vim.lsp.buf.hover, { buffer = bufnr, desc = "Show tooltip" })
 		map("i", "<C-k>", vim.lsp.buf.signature_help, { buffer = bufnr, desc = "Show signature help" })
 		map("n", "<F2>", vim.lsp.buf.rename, { buffer = bufnr, desc = "Rename" })
-		map("n", "<F3>", vim.lsp.buf.format, { buffer = bufnr, desc = "Format buffer" })
 		map("v", "<F3>", function()
 			vim.lsp.buf.format({
 				range = {
@@ -156,20 +127,6 @@ vim.lsp.config('ts_ls', {
 })
 vim.lsp.config('vue_ls', {})
 vim.lsp.enable({ 'ts_ls', 'vue_ls' })
-
--- ESLint
-vim.lsp.config('eslint', {
-	settings = {
-		codeActionOnSave = {
-			enable = false,
-		},
-		experimental = {
-			useFlatConfig = true
-		},
-		run = "onType",
-	}
-})
-vim.lsp.enable('eslint')
 
 vim.api.nvim_create_user_command('TimeWrite', function()
 	local t0 = vim.uv.hrtime()

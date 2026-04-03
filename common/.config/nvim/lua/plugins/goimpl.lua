@@ -8,6 +8,6 @@ return {
 	},
 	opts = {},
 	init = function()
-		require("telescope").load_extension("goimpl")
+		pcall(require("telescope").load_extension, "goimpl")
 	end,
 }

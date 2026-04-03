@@ -10,7 +10,9 @@ opt.cursorlineopt = "both"
 opt.expandtab = true
 opt.guicursor = ""
 opt.hlsearch = false
+opt.ignorecase = true
 opt.incsearch = true
+opt.smartcase = true
 opt.isfname:append("@-@")
 opt.linebreak = true
 opt.list = true

@@ -3,7 +3,10 @@ return {
 		"nvim-telescope/telescope.nvim",
 		lazy = false,
 		branch = "0.1.x",
-		dependencies = { "nvim-lua/plenary.nvim" },
+		dependencies = {
+			"nvim-lua/plenary.nvim",
+			{ "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
+		},
 		opts = {
 			defaults = {
 				path_display = { "smart" },
@@ -33,7 +36,9 @@ return {
 	{
 		"nvim-telescope/telescope-ui-select.nvim",
 		config = function()
-			require("telescope").load_extension("ui-select")
+			local telescope = require("telescope")
+			pcall(telescope.load_extension, "fzf")
+			telescope.load_extension("ui-select")
 		end,
 	},
 }

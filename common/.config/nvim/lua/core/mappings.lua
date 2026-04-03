@@ -31,10 +31,8 @@ map("n", "H", ":bprevious<CR>", { desc = "Previous buffer" })
 map("n", "L", ":bnext<CR>", { desc = "Next buffer" })
 map("n", "<C-d>", "<C-d>zz", { desc = "Recenter cursor after half-page jumping down" })
 map("n", "<C-u>", "<C-u>zz", { desc = "Recenter cursor after half-page jumping up" })
-map("n", "<C-h>", "<C-w>h", { desc = "[W]indow to the left" })
-map("n", "<C-j>", "<C-w>j", { desc = "[W]indow below" })
-map("n", "<C-k>", "<C-w>k", { desc = "[W]indow above" })
-map("n", "<C-l>", "<C-w>l", { desc = "[W]indow to the right" })
+-- C-h/j/k/l navigation is handled by nvim-tmux-navigation plugin
+-- (seamlessly moves between nvim splits and tmux panes)
 map("n", "[q", ":cprevious<CR>", { desc = "Previous [Q]uickfix item" })
 map("n", "]q", ":cnext<CR>", { desc = "Next [Q]uickfix item" })
 
@@ -50,6 +48,20 @@ map("n", "J", "mzJ`z", { desc = "[J]oin line below with a space without moving c
 -- Search
 map("n", "n", "nzzzv", { desc = "Recenter cursor after next lookup" })
 map("n", "N", "Nzzzv", { desc = "Recenter cursor after previous lookup" })
+
+-- Diagnostics
+map("n", "]e", function()
+	vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.ERROR, float = false })
+end, { desc = "Next [E]rror" })
+map("n", "[e", function()
+	vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.ERROR, float = false })
+end, { desc = "Prev [E]rror" })
+map("n", "]w", function()
+	vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.WARN, float = false })
+end, { desc = "Next [W]arning" })
+map("n", "[w", function()
+	vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.WARN, float = false })
+end, { desc = "Prev [W]arning" })
 
 -- Close other buffers
 map("n", "<leader>cob", ":%bd|e#|bd#<CR>", { desc = "[C]lose [O]ther [B]uffers" })
