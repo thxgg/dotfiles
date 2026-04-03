@@ -16,7 +16,6 @@ opt.smartcase = true
 opt.isfname:append("@-@")
 opt.linebreak = true
 opt.list = true
-opt.listchars = "tab:⇥ ,eol:↲,trail:-"
 opt.listchars = "tab:⇥ ,trail:-"
 opt.number = true
 opt.relativenumber = false
@@ -31,7 +30,6 @@ opt.splitbelow = true
 opt.splitright = true
 opt.swapfile = false
 opt.tabstop = 4
-opt.termguicolors = true
 opt.undofile = true
 opt.wrap = false
 opt.wrapmargin = 0
