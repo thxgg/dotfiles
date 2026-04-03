@@ -19,11 +19,8 @@ return {
 			},
 		},
 		keys = {
-			-- Search
-			{ "<leader>ff", "<CMD>Telescope find_files<CR>",                desc = "[F]ind [F]iles" },
+			-- Search (file finding and live grep handled by fff.nvim)
 			{ "<leader>fb", "<CMD>Telescope current_buffer_fuzzy_find<CR>", desc = "[F]ind in [B]uffer" },
-			{ "<leader>/",  "<CMD>Telescope live_grep<CR>",                 desc = "Search" },
-			{ "<leader>fs", "<CMD>Telescope grep_string<CR>",               desc = "[F]ind [S]election" },
 			{ "<leader>fg", "<CMD>Telescope git_status<CR>",                desc = "[F]ind [G]it Status" },
 			{ "<leader>fd", "<CMD>Telescope diagnostics<CR>",               desc = "[F]ind [D]iagnostics" },
 			-- Util
