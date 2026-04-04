@@ -48,17 +48,20 @@ vim.g.loaded_perl_provider = 0
 vim.g.loaded_ruby_provider = 0
 
 -- Clipboard over SSH
-local ok, osc52 = pcall(require, "vim.ui.clipboard.osc52")
-if ok then
-	vim.g.clipboard = {
-		name = "OSC52",
-		copy = {
-			["+"] = osc52.copy("+"),
-			["*"] = osc52.copy("*"),
-		},
-		paste = {
-			["+"] = osc52.paste("+"),
-			["*"] = osc52.paste("*"),
-		},
-	}
+local is_ssh = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil
+if is_ssh then
+	local ok, osc52 = pcall(require, "vim.ui.clipboard.osc52")
+	if ok then
+		vim.g.clipboard = {
+			name = "OSC52",
+			copy = {
+				["+"] = osc52.copy("+"),
+				["*"] = osc52.copy("*"),
+			},
+			paste = {
+				["+"] = osc52.paste("+"),
+				["*"] = osc52.paste("*"),
+			},
+		}
+	end
 end
