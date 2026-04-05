@@ -13,6 +13,7 @@ This subtree acts like a small config+code workspace under dotfiles.
 
 ## Usage Patterns
 - Add a capability by creating/updating a skill, then wire command docs if discoverability is needed.
+- Use the local `agent-browser` skill for browser automation tasks; prefer `open -> snapshot -i -> interact via refs -> re-snapshot`.
 - Keep machine secrets as env vars and reference them in `opencode.jsonc`.
 - Use Bun for local package management (`package.json`, `bun.lock`).
 
