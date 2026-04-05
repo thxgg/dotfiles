@@ -65,6 +65,12 @@ brew bundle check --file=./macos/Brewfile
 zsh ./linux/setup.sh --dry-run
 ```
 
+## Browser Automation
+- Use `agent-browser` for browser automation tasks.
+- Core workflow: `agent-browser open <url>` -> `agent-browser snapshot -i` -> interact via `@eN` refs -> re-snapshot after page changes.
+- Prefer refs from snapshots over CSS selectors.
+- Prefer semantic waits like `agent-browser wait --load networkidle` over fixed sleeps.
+
 ## Intent Nodes
 - [Common Home Tree](./common/AGENTS.md) - shared stowed files mirrored into `$HOME`
 - [Linux Bootstrap](./linux/AGENTS.md) - Arch + `yay` package/profile orchestration
