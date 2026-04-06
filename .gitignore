@@ -11,6 +11,8 @@ common/.config/atuin/atuin-receipt.json
 
 # Pi local state
 .pi/todos/
+.pi/ephemeral.json
+.pi/skills/
 common/.pi/agent/sessions/
 
 # Dependency directories
@@ -23,3 +25,6 @@ common/.ssh/*
 # Safety guardrails for nested repos
 common/.config/nvim/.git/
 common/.config/opencode/.git/
+
+# MCP artifacts
+.playwright-mcp/
