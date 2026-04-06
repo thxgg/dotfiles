@@ -6,6 +6,7 @@ agent/settings.json
 agent/settings-extensions.json
 agent/auth.json
 agent/mcp-cache.json
+agent/mcp-npx-cache.json
 agent/.cache/
 
 # Todo data (session-specific)
