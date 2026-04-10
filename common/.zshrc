@@ -1,5 +1,6 @@
 # Auto-start tmux: attach to existing session or create a new one
-if command -v tmux &>/dev/null && [[ -z "$TMUX" && -z "$INSIDE_EMACS" && -z "$VSCODE_PID" ]]; then
+# Set PI_SKIP_TMUX_AUTOSTART=1 to bypass this when testing other shells.
+if command -v tmux &>/dev/null && [[ -z "$PI_SKIP_TMUX_AUTOSTART" && -z "$TMUX" && -z "$INSIDE_EMACS" && -z "$VSCODE_PID" ]]; then
   exec tmux new-session -A -s main
 fi
 
@@ -9,32 +10,12 @@ export GOPATH="${GOPATH:-$HOME/.local/share/go}"
 export GOBIN="${GOBIN:-$GOPATH/bin}"
 export FVM_CACHE_PATH="${FVM_CACHE_PATH:-$HOME/.local/share/fvm}"
 export PATH="$HOME/.local/bin:$PATH:$GOBIN"
-export ZSH="$HOME/.oh-my-zsh"
-# source $HOME/.zsh/catppuccin_latte-zsh-syntax-highlighting.zsh
-source $HOME/.zsh/catppuccin_mocha-zsh-syntax-highlighting.zsh
-source $HOME/.zsh/tmux_keys.zsh
-
-# Uncomment the following line if pasting URLs and other text is messed up.
-# DISABLE_MAGIC_FUNCTIONS="true"
-DISABLE_UNTRACKED_FILES_DIRTY="true"
-DISABLE_COMPFIX=true
-export skip_global_compinit=1
-HIST_STAMPS="dd/mm/yyyy"
-
-plugins=(
-	git
-	zsh-autosuggestions
-	zsh-syntax-highlighting
-	zsh-z
-)
-
-export ZSH_COMPDUMP=$ZSH/cache/.zcompdump-$HOST
-source $ZSH/oh-my-zsh.sh
 
 if [[ "$OSTYPE" == darwin* ]]; then
   alias ghosttyrc='cd "$HOME/Library/Application Support/com.mitchellh.ghostty" && $EDITOR config && cd -'
 fi
 alias zshrc="$EDITOR $HOME/.zshrc"
+alias fishrc="$EDITOR $HOME/.config/fish/config.fish"
 alias nvimrc="cd $HOME/.config/nvim; $EDITOR; cd -"
 
 # opencode
@@ -138,60 +119,6 @@ function gdc() {
   fi
 }
 
-typeset -g _prompt_newline_after_first=0
-typeset -g _prompt_skip_newline_once=0
-
-_prompt_newline_preexec() {
-  local -a cmd_words
-  local cmd subcmd
-
-  cmd_words=(${(z)1})
-  cmd=${cmd_words[1]:-}
-  subcmd=${cmd_words[2]:-}
-
-  if [[ "$cmd" == "clear" || "$cmd" == "reset" ]]; then
-    _prompt_skip_newline_once=1
-  elif [[ "$cmd" == "command" && ( "$subcmd" == "clear" || "$subcmd" == "reset" ) ]]; then
-    _prompt_skip_newline_once=1
-  fi
-}
-
-_prompt_newline_precmd() {
-  if (( ! _prompt_newline_after_first )); then
-    _prompt_newline_after_first=1
-    return
-  fi
-
-  if (( _prompt_skip_newline_once )); then
-    _prompt_skip_newline_once=0
-    return
-  fi
-
-  print ""
-}
-
-autoload -Uz add-zsh-hook
-add-zsh-hook preexec _prompt_newline_preexec
-add-zsh-hook precmd _prompt_newline_precmd
-
-# Sesh (smart tmux session manager) integration
-# Alt+s to open fzf session picker from zsh
-function sesh-sessions() {
-  {
-    exec </dev/tty
-    exec <&1
-    local session
-    session=$(sesh list -t -c | fzf --height 40% --reverse --border-label ' sesh ' --border --prompt '⚡  ')
-    zle reset-prompt > /dev/null 2>&1 || true
-    [[ -z "$session" ]] && return
-    sesh connect $session
-  }
-}
-zle     -N             sesh-sessions
-bindkey -M emacs '\es' sesh-sessions
-bindkey -M vicmd '\es' sesh-sessions
-bindkey -M viins '\es' sesh-sessions
-
 eval "$(starship init zsh)"
 
 # Initialize zoxide (smart cd replacement, required by sesh)
@@ -218,23 +145,9 @@ fi
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:$HOME/.lmstudio/bin"
 
-# bun completions
-[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
-
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
-
-# heroku autocomplete setup
-if [[ "$OSTYPE" == darwin* ]]; then
-  HEROKU_AC_ZSH_SETUP_PATH="$HOME/Library/Caches/heroku/autocomplete/zsh_setup"
-elif [[ "$OSTYPE" == linux-gnu* ]]; then
-  HEROKU_AC_ZSH_SETUP_PATH="$HOME/.cache/heroku/autocomplete/zsh_setup"
-else
-  HEROKU_AC_ZSH_SETUP_PATH=""
-fi
-
-[[ -n "$HEROKU_AC_ZSH_SETUP_PATH" && -f "$HEROKU_AC_ZSH_SETUP_PATH" ]] && source "$HEROKU_AC_ZSH_SETUP_PATH"
 
 export PATH=$HOME/development/flutter/bin:$PATH
 
@@ -261,42 +174,6 @@ trim_path() {
 trim_path
 export RIPGREP_CONFIG_PATH="$HOME/.ripgreprc"
 
-# Initialize completions once after all fpath updates.
-fpath=("$HOME/.docker/completions" $fpath)
-autoload -Uz compinit
-compinit
-
-#compdef opencode
-###-begin-opencode-completions-###
-#
-# yargs command completion script
-#
-# Installation: opencode completion >> ~/.zshrc
-#    or opencode completion >> ~/.zprofile on OSX.
-#
-_opencode_yargs_completions()
-{
-  local reply
-  local si=$IFS
-  IFS=$'
-' reply=($(COMP_CWORD="$((CURRENT-1))" COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" opencode --get-yargs-completions "${words[@]}"))
-  IFS=$si
-  if [[ ${#reply} -gt 0 ]]; then
-    _describe 'values' reply
-  else
-    _default
-  fi
-}
-if [[ "'${zsh_eval_context[-1]}" == "loadautofunc" ]]; then
-  _opencode_yargs_completions "$@"
-else
-  compdef _opencode_yargs_completions opencode
-fi
-###-end-opencode-completions-###
-
-# Local machine secrets (untracked)
-[[ -f ~/.env ]] && source ~/.env
-
 # opencode
 export PATH="$HOME/thxgg/.opencode/bin:$PATH"
 
@@ -304,3 +181,9 @@ eval "$(fnm env --use-on-cd --shell zsh)"
 
 # Vite+ bin (https://viteplus.dev)
 . "$HOME/.vite-plus/env"
+
+# direnv (loads ~/.env and ~/.env.secrets via ~/.envrc + ~/.config/direnv/direnvrc)
+export DIRENV_LOG_FORMAT=
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+fi

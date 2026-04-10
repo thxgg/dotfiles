@@ -3,7 +3,9 @@ base-devel
 yay
 git
 github-cli
+direnv
 fd
+fish
 ripgrep
 fzf
 jq

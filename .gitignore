@@ -15,6 +15,14 @@ common/.config/atuin/atuin-receipt.json
 .pi/skills/
 common/.pi/agent/sessions/
 
+# Local env / direnv overrides
+common/.env
+common/.env.secrets
+common/.envrc.local
+
+# Fish runtime state
+common/.config/fish/fish_variables
+
 # Dependency directories
 common/.config/opencode/node_modules/
 

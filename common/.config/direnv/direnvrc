@@ -1,0 +1,18 @@
+# Machine-local environment shared across all direnv-managed directories.
+# These files remain untracked and can use shell syntax because direnv evaluates
+# them before exporting the resulting environment back into the shell.
+
+if [[ -f "$HOME/.env" ]]; then
+  watch_file "$HOME/.env"
+  source_env "$HOME/.env"
+fi
+
+if [[ -f "$HOME/.env.secrets" ]]; then
+  watch_file "$HOME/.env.secrets"
+  source_env "$HOME/.env.secrets"
+fi
+
+if [[ -f "$HOME/.envrc.local" ]]; then
+  watch_file "$HOME/.envrc.local"
+  source_env "$HOME/.envrc.local"
+fi
