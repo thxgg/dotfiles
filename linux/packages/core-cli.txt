@@ -37,5 +37,7 @@ gitleaks
 trufflehog
 diff-so-fancy
 opencode-bin
+zoxide
+sesh-bin
 wl-clipboard
 cliphist
