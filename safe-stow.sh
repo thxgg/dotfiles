@@ -88,7 +88,7 @@ collect_package_entries() {
     local root_deploy_paths root_config_children
 
     if [[ $include_deploy_paths -eq 1 ]]; then
-        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' -print | sed 's|^./||')"})
+        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
 
         for item in "${root_deploy_paths[@]}"; do
             [[ -n "$item" ]] || continue
