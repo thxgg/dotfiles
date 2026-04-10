@@ -26,6 +26,14 @@ common/.config/fish/fish_variables
 # Generated directories inside stow roots (never commit)
 common/.pi/node_modules/
 
+# Pi runtime state (machine-local, never commit or stow)
+common/.pi/agent/sessions/
+common/.pi/agent/.cache/
+common/.pi/agent/auth.json
+common/.pi/agent/mcp-cache.json
+common/.pi/agent/mcp-npx-cache.json
+common/.pi/ephemeral/
+
 # Dependency directories
 common/.config/opencode/node_modules/
 
