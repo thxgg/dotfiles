@@ -101,7 +101,7 @@ collect_expected_entries() {
 
     [[ -d "$package_root" ]] || return
 
-    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
+    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
     for item in "${root_paths[@]}"; do
         [[ -n "$item" ]] || continue
 
