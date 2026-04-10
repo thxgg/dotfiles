@@ -1,7 +1,5 @@
 palette = "catppuccin_mocha"
 add_newline = false
-# Avoid spurious git timeout warnings in larger or dirtier repos.
-command_timeout = 5000
 
 [gcloud]
 disabled = true
