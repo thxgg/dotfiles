@@ -23,6 +23,9 @@ common/.envrc.local
 # Fish runtime state
 common/.config/fish/fish_variables
 
+# Generated directories inside stow roots (never commit)
+common/.pi/node_modules/
+
 # Dependency directories
 common/.config/opencode/node_modules/
 

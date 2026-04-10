@@ -101,7 +101,7 @@ collect_expected_entries() {
 
     [[ -d "$package_root" ]] || return
 
-    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' | sed 's|^./||')"})
+    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' -print | sed 's|^./||')"})
     for item in "${root_paths[@]}"; do
         [[ -n "$item" ]] || continue
 
