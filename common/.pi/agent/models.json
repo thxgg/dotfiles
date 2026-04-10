@@ -1,0 +1,42 @@
+{
+  "providers": {
+    "openai": {
+      "modelOverrides": {
+        "gpt-5.4": {
+          "contextWindow": 1050000
+        }
+      }
+    },
+    "azure-openai-responses": {
+      "modelOverrides": {
+        "gpt-5.4": {
+          "contextWindow": 1050000
+        }
+      }
+    },
+    "github-copilot": {
+      "modelOverrides": {
+        "gpt-5.4": {
+          "contextWindow": 1050000
+        }
+      }
+    },
+    "openai-codex": {
+      "modelOverrides": {
+        "gpt-5.4": {
+          "contextWindow": 1050000
+        },
+        "gpt-5.4-mini": {
+          "contextWindow": 400000
+        }
+      }
+    },
+    "opencode": {
+      "modelOverrides": {
+        "gpt-5.4": {
+          "contextWindow": 1050000
+        }
+      }
+    }
+  }
+}
