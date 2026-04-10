@@ -6,7 +6,7 @@ set -euo pipefail
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-STOW_IGNORE_REGEX='^\.config(/|$)|\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
+STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$STOW_DIR/scripts/lib/stow-roots.zsh"
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
@@ -88,7 +88,7 @@ collect_package_entries() {
     local root_deploy_paths root_config_children
 
     if [[ $include_deploy_paths -eq 1 ]]; then
-        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
+        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name 'AGENTS.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
 
         for item in "${root_deploy_paths[@]}"; do
             [[ -n "$item" ]] || continue
@@ -107,7 +107,7 @@ collect_package_entries() {
     fi
 
     if [[ -d "$package_root/.config" ]]; then
-        root_config_children=(${(@f)"$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name '*.md' | sed 's|^./||')"})
+        root_config_children=(${(@f)"$(cd "$package_root/.config" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) ! -name 'AGENTS.md' | sed 's|^./||')"})
 
         for child in "${root_config_children[@]}"; do
             [[ -n "$child" ]] || continue
