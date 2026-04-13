@@ -47,6 +47,19 @@ vim.g.loaded_node_provider = 0
 vim.g.loaded_perl_provider = 0
 vim.g.loaded_ruby_provider = 0
 
+-- fish 4.x terminal capability queries can leak raw escape-sequence responses
+-- inside Neovim terminal buffers (for example after Ctrl-C). Disable them for
+-- child shells spawned by Neovim without affecting the outer terminal session.
+do
+	local fish_features = vim.env.fish_features or ""
+	local features = fish_features == "" and {} or vim.split(fish_features, "[,%s]+", { trimempty = true })
+
+	if not vim.list_contains(features, "no-query-term") then
+		table.insert(features, "no-query-term")
+		vim.env.fish_features = table.concat(features, " ")
+	end
+end
+
 -- Clipboard over SSH
 local is_ssh = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil
 if is_ssh then
