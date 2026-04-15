@@ -74,7 +74,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
 					start = vim.api.nvim_buf_get_mark(0, "<"),
 					["end"] = vim.api.nvim_buf_get_mark(0, ">"),
 				},
-				async = false
+				async = false,
 			})
 		end, { desc = "Format selection" })
 		map("n", "<F4>", vim.lsp.buf.code_action, { desc = "Code Action" })
