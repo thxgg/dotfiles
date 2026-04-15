@@ -1,11 +1,54 @@
 {
   "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
     "shortcut": {
       "command": "npx",
       "args": ["-y", "@shortcut/mcp@latest"],
       "env": {
         "SHORTCUT_API_TOKEN": "${SHORTCUT_API_TOKEN}"
       }
+    },
+    "db_staging": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--network=host",
+        "-e",
+        "DATABASE_URI",
+        "crystaldba/postgres-mcp",
+        "--access-mode=unrestricted"
+      ],
+      "env": {
+        "DATABASE_URI": "${DATABASE_URI_STAGING}"
+      },
+      "lifecycle": "lazy"
+    },
+    "db_prod": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--network=host",
+        "-e",
+        "DATABASE_URI",
+        "crystaldba/postgres-mcp",
+        "--access-mode=unrestricted"
+      ],
+      "env": {
+        "DATABASE_URI": "${DATABASE_URI_PROD}"
+      },
+      "lifecycle": "lazy"
+    },
+    "stripe": {
+      "url": "https://mcp.stripe.com",
+      "auth": "oauth",
+      "lifecycle": "lazy"
     }
   }
 }
