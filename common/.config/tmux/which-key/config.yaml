@@ -1,0 +1,258 @@
+# yaml-language-server: $schema=config.schema.yaml
+command_alias_start_index: 240
+keybindings:
+  prefix_table: Space
+  root_table: C-Space
+title:
+  style: align=centre,bold,fg=#cdd6f4
+  prefix: tmux
+  prefix_style: align=centre,bold,fg=#cba6f7
+position:
+  x: R
+  y: P
+custom_variables:
+  - name: log_info
+    value: "#[fg=#a6e3a1,italics][info]#[default]#[italics]"
+macros:
+  - name: reload-config
+    commands:
+      - display "#{log_info} Reloading tmux config..."
+      - source-file $HOME/.config/tmux/tmux.conf
+      - display "Config reloaded 🚀"
+items:
+  - name: +Windows
+    key: w
+    menu:
+      - name: Choose
+        key: w
+        command: choose-tree -Zw
+      - name: Last
+        key: tab
+        command: last-window
+      - name: Previous
+        key: p
+        command: previous-window
+      - name: Next
+        key: n
+        command: next-window
+      - name: New
+        key: c
+        command: "new-window -c #{pane_current_path}"
+      - separator: true
+      - name: Split horizontal (\\)
+        key: h
+        command: "split-window -h -c #{pane_current_path}"
+      - name: Split vertical (Enter)
+        key: v
+        command: "split-window -v -c #{pane_current_path}"
+      - name: Equalize tiled
+        key: e
+        command: select-layout tiled
+      - name: +Layout
+        key: l
+        menu:
+          - name: Next
+            key: l
+            command: next-layout
+            transient: true
+          - name: Tiled
+            key: t
+            command: select-layout tiled
+          - name: Horizontal
+            key: h
+            command: select-layout even-horizontal
+          - name: Vertical
+            key: v
+            command: select-layout even-vertical
+          - name: Main horizontal
+            key: H
+            command: select-layout main-horizontal
+          - name: Main vertical
+            key: V
+            command: select-layout main-vertical
+      - separator: true
+      - name: Rename
+        key: r
+        command: 'command-prompt -I "#W" "rename-window -- \"%%\""'
+      - name: Kill
+        key: x
+        command: 'confirm -p "Kill window #W? (y/n)" kill-window'
+  - name: +Panes
+    key: p
+    menu:
+      - name: Choose
+        key: p
+        command: display-panes -d 0
+      - name: Last
+        key: tab
+        command: last-pane
+      - name: Next
+        key: n
+        command: select-pane -t:.+
+      - separator: true
+      - name: Left
+        key: h
+        command: select-pane -L
+      - name: Down
+        key: j
+        command: select-pane -D
+      - name: Up
+        key: k
+        command: select-pane -U
+      - name: Right
+        key: l
+        command: select-pane -R
+      - separator: true
+      - name: Maximize
+        key: m
+        command: resize-pane -Z
+      - name: Equalize tiled
+        key: e
+        command: select-layout tiled
+      - name: +Resize
+        key: r
+        menu:
+          - name: Wider
+            key: h
+            command: resize-pane -L 2
+            transient: true
+          - name: Taller
+            key: j
+            command: resize-pane -D 2
+            transient: true
+          - name: Shorter
+            key: k
+            command: resize-pane -U 2
+            transient: true
+          - name: Narrower
+            key: l
+            command: resize-pane -R 2
+            transient: true
+          - name: Wider more
+            key: H
+            command: resize-pane -L 5
+            transient: true
+          - name: Taller more
+            key: J
+            command: resize-pane -D 5
+            transient: true
+          - name: Shorter more
+            key: K
+            command: resize-pane -U 5
+            transient: true
+          - name: Narrower more
+            key: L
+            command: resize-pane -R 5
+            transient: true
+      - name: Kill
+        key: x
+        command: 'confirm -p "Kill pane #P? (y/n)" kill-pane'
+  - name: +Sessions
+    key: s
+    menu:
+      - name: Selector
+        key: t
+        command: >-
+          run-shell "sesh connect \"$(sesh list --icons | fzf-tmux -p 80%,70%
+          --no-sort --ansi --border-label \" sesh \" --prompt \"⚡  \"
+          --header \"  ^a all ^t tmux ^g configs ^x zoxide ^d tmux kill ^f find\"
+          --bind \"tab:down,btab:up\"
+          --bind \"ctrl-a:change-prompt(⚡  )+reload(sesh list --icons)\"
+          --bind \"ctrl-t:change-prompt(🪟  )+reload(sesh list -t --icons)\"
+          --bind \"ctrl-g:change-prompt(⚙️  )+reload(sesh list -c --icons)\"
+          --bind \"ctrl-x:change-prompt(📁  )+reload(sesh list -z --icons)\"
+          --bind \"ctrl-f:change-prompt(🔎  )+reload(fd -H -d 2 -t d -E .Trash . ~)\"
+          --bind \"ctrl-d:execute(tmux kill-session -t {2..})+change-prompt(⚡  )+reload(sesh list --icons)\"
+          --preview-window \"right:55%\"
+          --preview \"sesh preview {}\")\""
+      - name: Last
+        key: l
+        command: 'run-shell "sesh last"'
+      - name: Root
+        key: "9"
+        command: 'run-shell "sesh connect --root #{pane_current_path}"'
+      - name: Session window
+        key: w
+        command: >-
+          run-shell "sesh window \"$(sesh window | fzf-tmux -p 60%,50%
+          --prompt \"🪟  \" )\""
+      - name: Recent/root
+        key: r
+        command: >-
+          display-popup -E -w 40% "sesh connect \"$(sesh list -i -H | fzf
+          --height 40% --reverse --border-label \" sesh \" --border
+          --prompt \"⚡  \" --bind \"tab:down,btab:up\"
+          --bind \"ctrl-f:change-prompt(🔎  )+reload(fd -H -d 2 -t d -E .Trash . ~)\"
+          --value \"$(sesh root)\"
+          --preview-window \"right:55%\"
+          --preview \"sesh preview {}\")\""
+      - separator: true
+      - name: Choose tmux session
+        key: s
+        command: choose-tree -Zs
+      - name: New tmux session
+        key: n
+        command: new-session
+      - name: Rename tmux session
+        key: R
+        command: 'command-prompt -I "#S" "rename-session -- \"%%\""'
+      - name: Detach client
+        key: d
+        command: detach-client
+      - separator: true
+      - name: Save session
+        key: S
+        command: run-shell "$TMUX_PLUGIN_MANAGER_PATH/tmux-resurrect/scripts/save.sh"
+      - name: Restore session
+        key: U
+        command: run-shell "$TMUX_PLUGIN_MANAGER_PATH/tmux-resurrect/scripts/restore.sh"
+  - name: +Buffers
+    key: b
+    menu:
+      - name: Copy mode
+        key: v
+        command: copy-mode
+      - name: List buffers
+        key: l
+        command: list-buffers
+      - name: Paste buffer
+        key: p
+        command: paste-buffer
+      - name: Capture pane
+        key: c
+        command: capture-pane
+  - separator: true
+  - name: New window
+    key: c
+    command: "new-window -c #{pane_current_path}"
+  - name: Kill pane
+    key: x
+    command: 'confirm -p "Kill pane #P? (y/n)" kill-pane'
+  - name: Maximize pane
+    key: m
+    command: resize-pane -Z
+  - name: Copy mode
+    key: v
+    command: copy-mode
+  - name: Reload config
+    key: r
+    macro: reload-config
+  - separator: true
+  - name: +Plugins
+    key: P
+    menu:
+      - name: Install
+        key: i
+        command: run-shell "$TMUX_PLUGIN_MANAGER_PATH/tpm/bindings/install_plugins"
+      - name: Update
+        key: u
+        command: run-shell "$TMUX_PLUGIN_MANAGER_PATH/tpm/bindings/update_plugins"
+      - name: Clean
+        key: c
+        command: run-shell "$TMUX_PLUGIN_MANAGER_PATH/tpm/bindings/clean_plugins"
+  - name: Keys
+    key: "?"
+    command: list-keys -N
+  - name: Messages
+    key: "~"
+    command: show-messages
