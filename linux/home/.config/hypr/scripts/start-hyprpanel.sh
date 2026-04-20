@@ -5,6 +5,8 @@ set -euo pipefail
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
 key_file="$runtime_dir/hyprpanel-weather-key.json"
 
+export PATH="$HOME/.config/hypr/scripts:$PATH"
+
 load_env_file() {
     local env_file="$1"
 

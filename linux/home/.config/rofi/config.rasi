@@ -1,0 +1,36 @@
+@theme "catppuccin-default"
+
+configuration {
+    modi: "drun,run,window";
+    show-icons: true;
+    drun-display-format: "{icon} {name}";
+    display-drun: " Apps ";
+    display-run: " Run ";
+    display-window: " Windows ";
+    sidebar-mode: true;
+    disable-history: false;
+    hide-scrollbar: true;
+}
+
+window {
+    width: 38%;
+    border-radius: 12px;
+}
+
+inputbar {
+    padding: 10px;
+}
+
+listview {
+    lines: 10;
+    columns: 1;
+}
+
+element {
+    padding: 8px;
+    border-radius: 8px;
+}
+
+element-icon {
+    size: 1.1em;
+}
