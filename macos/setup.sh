@@ -22,6 +22,55 @@ error() {
 	printf '[ERROR] %s\n' "$1" >&2
 }
 
+current_login_shell() {
+	if command -v dscl >/dev/null 2>&1; then
+		dscl . -read "/Users/$USER" UserShell 2>/dev/null | awk '{print $2}'
+		return
+	fi
+
+	printf '%s\n' "${SHELL:-}"
+}
+
+configure_fish_shell() {
+	local fish_path current_shell
+
+	if ! command -v fish >/dev/null 2>&1; then
+		warn "fish not found in PATH; skipping login shell migration"
+		return
+	fi
+
+	fish_path="$(command -v fish)"
+	current_shell="$(current_login_shell)"
+
+	if [[ "$current_shell" == "$fish_path" ]]; then
+		success "Login shell already set to fish ($fish_path)"
+		return
+	fi
+
+	if [[ -r /etc/shells ]] && ! grep -Fxq "$fish_path" /etc/shells; then
+		warn "fish path is missing from /etc/shells: $fish_path"
+		warn "Add it to /etc/shells, then run: chsh -s $fish_path"
+		return
+	fi
+
+	if [[ ! -t 0 || ! -t 1 ]]; then
+		warn "Login shell is still ${current_shell:-unknown}; run: chsh -s $fish_path"
+		return
+	fi
+
+	if ! command -v chsh >/dev/null 2>&1; then
+		warn "chsh not found; set your login shell manually: $fish_path"
+		return
+	fi
+
+	info "Updating login shell to fish: $fish_path"
+	if chsh -s "$fish_path"; then
+		success "Login shell updated to fish"
+	else
+		warn "Automatic login shell change failed; run manually: chsh -s $fish_path"
+	fi
+}
+
 ret=0
 trap 'ret=$?; if [[ $ret -ne 0 ]]; then error "macOS setup failed"; fi; exit $ret' EXIT
 
@@ -102,6 +151,8 @@ fi
 # Post-installation setup for specific formulae
 info "Running post-installation setup"
 
+configure_fish_shell
+
 # PostgreSQL setup
 if brew list --formula | grep -qx "postgresql@18"; then
 	info "Ensuring PostgreSQL service is running"
@@ -119,7 +170,7 @@ if command -v fnm &>/dev/null; then
 	info "Setting up Node.js versions with fnm"
 	eval "$(fnm env --use-on-cd)"
 	fnm install 14
-	fnm install lts
+	fnm install lts-latest
 	fnm default lts-latest
 fi
 

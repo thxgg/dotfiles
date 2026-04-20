@@ -8,8 +8,8 @@ Personal machine bootstrap + dotfiles repository using GNU Stow.
 ```text
 dotfiles/
 ├── common/                     # shared stow payload mirrored to $HOME
-│   ├── .config/                # app/tool configs
-│   ├── .zshrc/.zprofile/...    # shell + git + ssh + psql
+│   ├── .config/                # app/tool configs (fish, tmux, nvim, ghostty, ...)
+│   ├── .zshrc/.zprofile/...    # fallback shell/login config + git + ssh + psql
 ├── macos/                      # Homebrew bootstrap + Brewfile + macOS-only stow payload
 │   └── home/                   # macOS-only stow payload mirrored to $HOME
 ├── linux/                      # Arch+yay bootstrap + package profiles + Linux-only stow payload
@@ -29,7 +29,7 @@ dotfiles/
 | Validate deployment | `doctor.sh` | Reports OK/WARN/FAIL on key managed paths |
 | Add macOS packages | `macos/Brewfile` | Declarative source for brew formulae/casks |
 | Add Arch packages | `linux/packages/*.txt` | Profile-based lists consumed by `linux/setup.sh` |
-| Shell behavior | `common/.zshrc` + `common/.zsh/*` | Keep secrets in `~/.env.secrets`, not tracked files |
+| Shell behavior | `common/.config/fish/config.fish` + `common/.config/tmux/tmux.conf` | Primary interactive shell is fish; keep secrets in `~/.env.secrets`, not tracked files |
 | Neovim behavior | `common/.config/nvim` | Lazy plugin specs + core/user modules |
 | OpenCode setup | `common/.config/opencode` | Agents/commands/skills and local plugin code |
 

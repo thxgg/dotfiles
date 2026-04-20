@@ -26,7 +26,7 @@ uv
 jdk21-openjdk
 sqlite
 postgresql18
-redis
+valkey
 docker
 docker-compose
 tailscale
@@ -38,7 +38,7 @@ k6
 gitleaks
 trufflehog
 diff-so-fancy
-opencode-bin
+opencode
 zoxide
 sesh-bin
 wl-clipboard

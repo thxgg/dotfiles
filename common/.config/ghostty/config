@@ -5,7 +5,7 @@ font-size = 14
 quit-after-last-window-closed = true
 keybind = shift+enter=text:\n
 maximize = true
-shell-integration = zsh
+shell-integration = fish
 unfocused-split-opacity = 0.97
 macos-option-as-alt = true
 macos-titlebar-proxy-icon = hidden
@@ -14,3 +14,4 @@ clipboard-write = allow
 title = ghostty
 shell-integration-features = ssh-terminfo,ssh-env
 env = TMPDIR=/home/thxgg/.local/state/tmp
+window-padding-color = extend

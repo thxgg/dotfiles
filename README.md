@@ -2,6 +2,8 @@
 
 This repository manages shell/editor/system configuration with GNU Stow.
 
+Primary interactive shell behavior lives in `common/.config/fish/config.fish`, with tmux in `common/.config/tmux/tmux.conf` and a minimal `common/.zshrc` kept as fallback.
+
 Stow payload is split into shared + OS-specific roots:
 
 - `common/` for cross-platform dotfiles
@@ -65,6 +67,7 @@ Optional bypass for emergency local commits:
   - Homebrew install if missing
   - `brew update` and `brew upgrade`
   - `brew bundle --file=./macos/Brewfile`
+  - login-shell migration to fish when run interactively
   - service setup for PostgreSQL and Redis
 
 Useful commands:
@@ -75,6 +78,8 @@ Useful commands:
 ## Linux Setup (Arch + yay)
 
 Linux setup is Arch-only and requires `yay`.
+
+The package profile includes the shared fish + tmux toolchain, and `linux/setup.sh` will try to migrate the login shell to fish when run interactively (or print the `chsh` command to run manually).
 
 Package profiles are in `linux/packages/`:
 
