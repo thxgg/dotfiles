@@ -5,4 +5,6 @@ elif [[ -d "$HOME/.cargo/bin" ]]; then
 fi
 
 # Vite+ bin (https://viteplus.dev)
-. "$HOME/.vite-plus/env"
+if [[ -f "$HOME/.vite-plus/env" ]]; then
+  . "$HOME/.vite-plus/env"
+fi
