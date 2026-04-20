@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ -x /usr/bin/swww-daemon ]]; then
+	exec /usr/bin/swww-daemon "$@"
+elif [[ -x /usr/bin/awww-daemon ]]; then
+	exec /usr/bin/awww-daemon "$@"
+else
+	echo "Neither swww-daemon nor awww-daemon is installed" >&2
+	exit 127
+fi

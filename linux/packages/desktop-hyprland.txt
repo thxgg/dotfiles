@@ -6,6 +6,7 @@ ags-hyprpanel-git
 swaync
 swww
 wofi
+rofi
 grim
 nwg-displays
 xdg-desktop-portal-hyprland
@@ -15,7 +16,6 @@ playerctl
 hyprsome-git
 udiskie
 flameshot
-ulauncher
 nautilus
 fcitx5
 fcitx5-configtool

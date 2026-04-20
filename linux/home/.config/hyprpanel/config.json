@@ -375,7 +375,7 @@
   "theme.bar.buttons.modules.microphone.text": "#ffffff",
   "theme.bar.buttons.modules.microphone.icon": "#ffffff",
   "theme.bar.buttons.modules.microphone.icon_background": "#090909",
-  "wallpaper.image": "~/Pictures/Wallpapers/cube_mono.jpg",
+  "wallpaper.image": "/home/thxgg/Pictures/Wallpapers/glaze_2.png",
   "wallpaper.enable": true,
   "theme.font.name": "SF Pro Display",
   "theme.font.label": "SF Pro Display",
@@ -439,7 +439,7 @@
   "bar.customModules.ram.round": false,
   "bar.customModules.kbLayout.labelType": "code",
   "menus.clock.weather.key": "hyprpanel-weather-key.json",
-  "menus.dashboard.powermenu.avatar.image": "~/.face.icon",
+  "menus.dashboard.powermenu.avatar.image": "/home/thxgg/Pictures/avatar.png",
   "menus.dashboard.controls.enabled": false,
   "menus.dashboard.shortcuts.left.shortcut1.tooltip": "Helium",
   "menus.dashboard.shortcuts.left.shortcut1.command": "helium-browser",
@@ -480,5 +480,6 @@
   "bar.launcher.icon": "",
   "bar.bluetooth.label": false,
   "theme.bar.buttons.bluetooth.enableBorder": false,
-  "bar.volume.label": true
+  "bar.volume.label": true,
+  "bar.autoHide": "never"
 }

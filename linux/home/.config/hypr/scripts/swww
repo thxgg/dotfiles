@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ -x /usr/bin/swww ]]; then
+	exec /usr/bin/swww "$@"
+elif [[ -x /usr/bin/awww ]]; then
+	exec /usr/bin/awww "$@"
+else
+	echo "Neither swww nor awww is installed" >&2
+	exit 127
+fi
