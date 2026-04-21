@@ -1,0 +1,227 @@
+/* OLED / monochrome-orange overrides
+ * HyprPanel still ships a number of Catppuccin-based generic menu styles.
+ * Override them here so the shared menu primitives match the local theme.
+ */
+
+.menu-items {
+  background: #000000;
+  border-color: #242424;
+  color: #FFFFFF;
+}
+
+.menu-section-container .menu-label {
+  color: #FFFFFF;
+}
+
+.menu-section-container .menu-label-container,
+.menu-section-container .menu-items-section,
+.menu-dropdown-label-container {
+  background: #121212;
+}
+
+.menu-slider trough,
+.menu-slider:hover trough {
+  background: #3A3A3A;
+}
+
+.menu-slider trough highlight,
+.menu-slider trough progress {
+  background: #F48120;
+}
+
+.menu-slider:hover slider {
+  background: #FFFFFF;
+}
+
+.menu-switch {
+  background-color: #303030;
+}
+
+.menu-switch:checked,
+.menu-switch:active {
+  background: #F48120;
+}
+
+.menu-switch trough highlight,
+.menu-switch trough progress {
+  background-color: #F48120;
+}
+
+.menu-switch slider,
+.menu-switch:hover slider {
+  background-color: #FFFFFF;
+}
+
+.menu-separator {
+  background: #242424;
+}
+
+.menu-label-dim {
+  color: #9A9A9A;
+}
+
+.menu-icon-button:hover {
+  color: #F48120;
+}
+
+.notification-card-container.menu {
+  background: #000000;
+  border-color: #242424;
+}
+
+.notification-card-container.menu .notification-menu-controls {
+  background: #121212;
+}
+
+.notification-card-container.menu .menu-label.notifications {
+  color: #FFFFFF;
+}
+
+.notification-card-container.menu .menu-separator.notification-controls {
+  background-color: #242424;
+}
+
+.notification-card-container.menu .menu-switch.notifications {
+  background-color: #242424;
+}
+
+.notification-card-container.menu .menu-switch.notifications:checked,
+.notification-card-container.menu .menu-switch.notifications:active {
+  background: #F48120;
+}
+
+.notification-card-container.menu .menu-switch.notifications slider,
+.notification-card-container.menu .menu-switch.notifications:hover slider {
+  background-color: #FFFFFF;
+}
+
+.notification-card-container.menu .clear-notifications-label {
+  color: #FFFFFF;
+}
+
+.notification-card-container.menu .clear-notifications-button:hover label:not(.removing) {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.notification-card-container.menu scrollbar slider {
+  background: #F48120;
+}
+
+.notification-menu-pager {
+  background: #000000;
+}
+
+.notification-menu-pager .pager-button {
+  color: #F48120;
+}
+
+.notification-menu-pager .pager-button:hover .pager-button-label {
+  color: rgba(244, 129, 32, 0.6);
+}
+
+.notification-menu-pager .pager-label {
+  color: #9A9A9A;
+}
+
+.notification-menu-pager .disabled,
+.notification-menu-pager .disabled:hover .pager-button-label {
+  color: rgba(244, 129, 32, 0.2);
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button {
+  background: #FFFFFF;
+  border: 1px solid #242424;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button label {
+  color: #000000;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover.shutdown,
+.dashboard-content-items .power-menu-container .dashboard-button:hover.reboot,
+.dashboard-content-items .power-menu-container .dashboard-button:hover.logout,
+.dashboard-content-items .power-menu-container .dashboard-button:hover.sleep {
+  background: #F48120;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .shortcuts-container .container button {
+  background: #FFFFFF;
+  color: #000000;
+}
+
+.dashboard-content-items .shortcuts-container .container button:hover {
+  background: #F48120;
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .controls-container button.wifi,
+.dashboard-content-items .controls-container button.bluetooth,
+.dashboard-content-items .controls-container button.notifications,
+.dashboard-content-items .controls-container button.playback,
+.dashboard-content-items .controls-container button.input {
+  background: #FFFFFF;
+}
+
+.dashboard-content-items .controls-container button label {
+  color: #000000;
+}
+
+.dashboard-content-items .controls-container button.wifi:hover,
+.dashboard-content-items .controls-container button.bluetooth:hover,
+.dashboard-content-items .controls-container button.notifications:hover,
+.dashboard-content-items .controls-container button.playback:hover,
+.dashboard-content-items .controls-container button.input:hover {
+  background: #F48120;
+}
+
+.dashboard-content-items .controls-container button:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .directories-container .directory-link {
+  background: #FFFFFF;
+  color: #000000;
+  border-radius: 0.3em;
+  padding: 0.22em 0.45em;
+  margin: 0.28em 0.32em 0.28em 0;
+}
+
+.dashboard-content-items .directories-container .directory-link label {
+  color: #000000;
+}
+
+.dashboard-content-items .directories-container .directory-link:hover {
+  background: #F48120;
+  color: #FFFFFF;
+  opacity: 1;
+}
+
+.dashboard-content-items .directories-container .directory-link:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .stats-container .stat.cpu label,
+.dashboard-content-items .stats-container .stat.ram label,
+.dashboard-content-items .stats-container .stat.gpu label,
+.dashboard-content-items .stats-container .stat.storage label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .stats-container .stat.cpu .stats-bar block.filled,
+.dashboard-content-items .stats-container .stat.ram .stats-bar block.filled,
+.dashboard-content-items .stats-container .stat.gpu .stats-bar block.filled,
+.dashboard-content-items .stats-container .stat.storage .stats-bar block.filled {
+  background: #FFFFFF;
+}
+
+.dashboard-content-items .stats-container .stat:hover label {
+  color: #F48120;
+}
+
+.dashboard-content-items .stats-container .stat:hover .stats-bar block.filled {
+  background: #F48120;
+}
