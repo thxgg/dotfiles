@@ -23,6 +23,11 @@ Useful setup flags:
 
 If you only want stow linking without package installation, run `./safe-stow.sh`.
 
+If you update terminal or tmux config and use long-lived tmux sessions, fully restart the tmux server afterward so refreshed GUI/session environment variables are picked up:
+
+- `tmux kill-server`
+- `tmux`
+
 If you only want specific app config components under `~/.config`, you can use scoped mode:
 
 - `./safe-stow.sh --list-config`
@@ -80,6 +85,8 @@ Useful commands:
 Linux setup is Arch-only and requires `yay`.
 
 The package profile includes the shared fish + tmux toolchain, and `linux/setup.sh` will try to migrate the login shell to fish when run interactively (or print the `chsh` command to run manually).
+
+For Wayland terminals inside tmux, the shared tmux config refreshes GUI/session environment variables from the attaching client so clipboard-dependent tools like Pi image paste keep working. After deploying tmux config changes, restart the tmux server once.
 
 Package profiles are in `linux/packages/`:
 
