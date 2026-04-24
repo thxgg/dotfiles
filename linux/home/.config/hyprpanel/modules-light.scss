@@ -1,0 +1,395 @@
+/* OLED / monochrome-orange overrides
+ * HyprPanel still ships a number of Catppuccin-based generic menu styles.
+ * Override them here so the shared menu primitives match the local theme.
+ */
+
+.menu-items {
+  background: #FAFAFA;
+  border-color: #D9D9D9;
+  color: #161616;
+}
+
+.menu-section-container .menu-label {
+  color: #161616;
+}
+
+.menu-section-container .menu-label-container,
+.menu-section-container .menu-items-section,
+.menu-dropdown-label-container {
+  background: #FFFFFF;
+}
+
+.menu-slider trough,
+.menu-slider:hover trough {
+  background: #D9D9D9;
+}
+
+.menu-slider trough highlight,
+.menu-slider trough progress {
+  background: #F48120;
+}
+
+.menu-slider:hover slider {
+  background: #FFFFFF;
+}
+
+.menu-switch {
+  background-color: #D9D9D9;
+}
+
+.menu-switch:checked,
+.menu-switch:active {
+  background: #F48120;
+}
+
+.menu-switch trough highlight,
+.menu-switch trough progress {
+  background-color: #F48120;
+}
+
+.menu-switch slider,
+.menu-switch:hover slider {
+  background-color: #161616;
+}
+
+.menu-separator {
+  background: #D9D9D9;
+}
+
+.menu-label-dim {
+  color: #7A7A7A;
+}
+
+.menu-icon-button:hover {
+  color: #F48120;
+}
+
+.notification-card-container.menu {
+  background: #FAFAFA;
+  border-color: #D9D9D9;
+}
+
+.notification-card-container.menu .notification-menu-controls {
+  background: #FFFFFF;
+}
+
+.notification-card-container.menu .menu-label.notifications {
+  color: #161616;
+}
+
+.notification-card-container.menu .menu-separator.notification-controls {
+  background-color: #D9D9D9;
+}
+
+.notification-card-container.menu .menu-switch.notifications {
+  background-color: #D9D9D9;
+}
+
+.notification-card-container.menu .menu-switch.notifications:checked,
+.notification-card-container.menu .menu-switch.notifications:active {
+  background: #F48120;
+}
+
+.notification-card-container.menu .menu-switch.notifications slider,
+.notification-card-container.menu .menu-switch.notifications:hover slider {
+  background-color: #161616;
+}
+
+.notification-card-container.menu .clear-notifications-label {
+  color: #161616;
+}
+
+.notification-card-container.menu .clear-notifications-button:hover label:not(.removing) {
+  color: rgba(22, 22, 22, 0.5);
+}
+
+.notification-card-container.menu scrollbar slider {
+  background: #F48120;
+}
+
+.notification-menu-pager {
+  background: #FAFAFA;
+}
+
+.notification-menu-pager .pager-button {
+  color: #F48120;
+}
+
+.notification-menu-pager .pager-button:hover .pager-button-label {
+  color: rgba(244, 129, 32, 0.6);
+}
+
+.notification-menu-pager .pager-label {
+  color: #7A7A7A;
+}
+
+.notification-menu-pager .disabled,
+.notification-menu-pager .disabled:hover .pager-button-label {
+  color: rgba(244, 129, 32, 0.2);
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button {
+  background: #FFFFFF;
+  border: 1px solid #D9D9D9;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button label {
+  color: #161616;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover.shutdown,
+.dashboard-content-items .power-menu-container .dashboard-button:hover.reboot,
+.dashboard-content-items .power-menu-container .dashboard-button:hover.logout,
+.dashboard-content-items .power-menu-container .dashboard-button:hover.sleep {
+  background: #F48120;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .shortcuts-container .container button {
+  background: #FFFFFF;
+  color: #161616;
+}
+
+.dashboard-content-items .shortcuts-container .container button:hover {
+  background: #F48120;
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .controls-container button.wifi,
+.dashboard-content-items .controls-container button.bluetooth,
+.dashboard-content-items .controls-container button.notifications,
+.dashboard-content-items .controls-container button.playback,
+.dashboard-content-items .controls-container button.input {
+  background: #FFFFFF;
+}
+
+.dashboard-content-items .controls-container button label {
+  color: #161616;
+}
+
+.dashboard-content-items .controls-container button.wifi:hover,
+.dashboard-content-items .controls-container button.bluetooth:hover,
+.dashboard-content-items .controls-container button.notifications:hover,
+.dashboard-content-items .controls-container button.playback:hover,
+.dashboard-content-items .controls-container button.input:hover {
+  background: #F48120;
+}
+
+.dashboard-content-items .controls-container button:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .directories-container .directory-link {
+  background: #FFFFFF;
+  color: #161616;
+  border-radius: 0.3em;
+  padding: 0.22em 0.45em;
+  margin: 0.28em 0.32em 0.28em 0;
+}
+
+.dashboard-content-items .directories-container .directory-link label {
+  color: #161616;
+}
+
+.dashboard-content-items .directories-container .directory-link:hover {
+  background: #F48120;
+  color: #FFFFFF;
+  opacity: 1;
+}
+
+.dashboard-content-items .directories-container .directory-link:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .stats-container .stat.cpu label,
+.dashboard-content-items .stats-container .stat.ram label,
+.dashboard-content-items .stats-container .stat.gpu label,
+.dashboard-content-items .stats-container .stat.storage label {
+  color: #161616;
+}
+
+.dashboard-content-items .stats-container .stat.cpu .stats-bar block.filled,
+.dashboard-content-items .stats-container .stat.ram .stats-bar block.filled,
+.dashboard-content-items .stats-container .stat.gpu .stats-bar block.filled,
+.dashboard-content-items .stats-container .stat.storage .stats-bar block.filled {
+  background: #FFFFFF;
+}
+
+.dashboard-content-items .stats-container .stat:hover label {
+  color: #F48120;
+}
+
+.dashboard-content-items .stats-container .stat:hover .stats-bar block.filled {
+  background: #F48120;
+}
+
+/* Dashboard polish: warmer surfaces, tighter spacing, softer Cloudflare accents */
+.menu-items {
+  background: #F5F0E8;
+  border-color: #E9D9C7;
+}
+
+.menu-section-container .menu-label-container,
+.menu-section-container .menu-items-section,
+.menu-dropdown-label-container {
+  background: #FFFBF7;
+}
+
+.dashboard-content-items {
+  min-width: 27.75em;
+  background: #F5F0E8;
+}
+
+.dashboard-content-items .dashboard-card,
+.dashboard-content-items .power-menu-container {
+  background: #FFFBF7;
+  border: 1px solid #E9D9C7;
+  border-radius: 1.15em;
+  box-shadow: 0 10px 24px rgba(174, 108, 38, 0.08);
+}
+
+.dashboard-content-items .dashboard-card {
+  margin: 0 1em;
+  padding: 1.15em 1.2em;
+}
+
+.dashboard-content-items .power-menu-container {
+  margin-right: 1em;
+  padding: 0.95em;
+}
+
+.dashboard-content-items .profile-picture-container {
+  margin-right: 0.9em;
+}
+
+.dashboard-content-items .profile-picture-container .profile-picture {
+  border-radius: 1em;
+  border: 1px solid #E9D9C7;
+}
+
+.dashboard-content-items .profile-picture-container .profile-name {
+  margin-top: 0.6em;
+  font-size: 1.35em;
+  font-weight: 700;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button,
+.dashboard-content-items .shortcuts-container .container button,
+.dashboard-content-items .controls-container button,
+.dashboard-content-items .directories-container .directory-link {
+  background: #FFF4E8;
+  border: 1px solid #F1D4B6;
+  border-radius: 0.9em;
+  color: #C86A1A;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button {
+  min-width: 3.2em;
+  min-height: 2.85em;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:not(:last-child) {
+  margin-bottom: 0.6em;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button label,
+.dashboard-content-items .shortcuts-container .container button label,
+.dashboard-content-items .controls-container button label,
+.dashboard-content-items .directories-container .directory-link label {
+  color: #C86A1A;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover,
+.dashboard-content-items .shortcuts-container .container button:hover,
+.dashboard-content-items .controls-container button:hover,
+.dashboard-content-items .directories-container .directory-link:hover {
+  background: #E6A066;
+  border-color: #E6A066;
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover label,
+.dashboard-content-items .shortcuts-container .container button:hover label,
+.dashboard-content-items .controls-container button:hover label,
+.dashboard-content-items .directories-container .directory-link:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .shortcuts-container .dashboard-card,
+.dashboard-content-items .directories-container.dashboard-card,
+.dashboard-content-items .stats-container.dashboard-card {
+  padding: 1.1em 1.15em;
+}
+
+.dashboard-content-items .shortcuts-container .card-button-section-container.visible {
+  margin-right: 1em;
+}
+
+.dashboard-content-items .shortcuts-container .top-button.paired {
+  margin-bottom: 1em;
+}
+
+.dashboard-content-items .shortcuts-container .container button {
+  min-height: 3.1em;
+  min-width: 3.1em;
+}
+
+.dashboard-content-items .controls-container button {
+  min-height: 3.1em;
+  min-width: 3.7em;
+}
+
+.dashboard-content-items .controls-container button:not(:last-child) {
+  margin-right: 0.8em;
+}
+
+.dashboard-content-items .directories-container.dashboard-card {
+  padding-right: 1.15em;
+}
+
+.dashboard-content-items .directories-container .directory-link {
+  min-width: 9.35em;
+  padding: 0.42em 0.55em;
+  margin: 0.18em 0.28em 0.18em 0;
+}
+
+.dashboard-content-items .stats-container .stat {
+  margin-bottom: 0.3em;
+}
+
+.dashboard-content-items .stats-container .stat label {
+  margin-right: 0.65em;
+  min-width: 1.5em;
+  color: #C86A1A;
+}
+
+.dashboard-content-items .stats-container .stats-bar block.empty {
+  background: #EEDFD1;
+}
+
+.dashboard-content-items .stats-container .stats-bar block.filled {
+  background: #F48120;
+}
+
+.dashboard-content-items .stats-container .stat-value {
+  margin-top: 0.1em;
+  margin-bottom: 0.65em;
+  color: #161616;
+  font-weight: 600;
+}
+
+.dashboard-content-items > :not(:first-child):not(:last-child) {
+  margin-bottom: 0.55em;
+}
+
+.dashboard-content-items > :first-child {
+  margin-top: 1em;
+  margin-bottom: 0.55em;
+}
+
+.dashboard-content-items > :last-child {
+  margin-bottom: 1em;
+}

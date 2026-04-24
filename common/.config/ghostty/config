@@ -1,6 +1,9 @@
 font-family = Berkeley Mono Variable Nerd Font
-theme = Catppuccin Mocha
+theme = light:Cloudflare Light,dark:Cloudflare Dark
+window-theme = system
 font-size = 14
+adjust-cell-height = -1
+adjust-font-baseline = 1
 # macos-titlebar-style = hidden
 quit-after-last-window-closed = true
 maximize = true
@@ -12,4 +15,5 @@ clipboard-read = allow
 clipboard-write = allow
 title = ghostty
 env = TMPDIR=/home/thxgg/.local/state/tmp
+window-padding-y = 0
 window-padding-color = extend

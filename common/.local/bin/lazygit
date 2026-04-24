@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+for arg in "$@"; do
+  case "$arg" in
+    --use-config-file|-ucf)
+      theme_exec_real lazygit "$@"
+      ;;
+  esac
+done
+
+mode="$(theme_current_mode)"
+base_config="$HOME/.config/lazygit/config.yml"
+theme_config="$HOME/.config/lazygit/theme-$mode.yml"
+if [[ ! -f "$base_config" || ! -f "$theme_config" ]]; then
+  theme_exec_real lazygit "$@"
+fi
+
+config_files="$base_config,$theme_config"
+theme_exec_real lazygit --use-config-file "$config_files" "$@"

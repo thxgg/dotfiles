@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+for arg in "$@"; do
+  case "$arg" in
+    --style|-s|--color|-C)
+      theme_exec_real wofi "$@"
+      ;;
+  esac
+done
+
+mode="$(theme_current_mode)"
+style_path="$HOME/.config/wofi/style-$mode.css"
+if [[ ! -f "$style_path" ]]; then
+  theme_exec_real wofi "$@"
+fi
+
+extra=()
+if [[ "$mode" == dark ]]; then
+  extra+=(--gtk-dark)
+fi
+
+theme_exec_real wofi --style "$style_path" "${extra[@]}" "$@"

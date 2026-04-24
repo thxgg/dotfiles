@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+if [[ -n "${STARSHIP_CONFIG:-}" ]]; then
+  theme_exec_real starship "$@"
+fi
+
+mode="$(theme_current_mode)"
+config_path="$HOME/.config/starship-$mode.toml"
+if [[ ! -f "$config_path" ]]; then
+  theme_exec_real starship "$@"
+fi
+
+export STARSHIP_CONFIG="$config_path"
+theme_exec_real starship "$@"

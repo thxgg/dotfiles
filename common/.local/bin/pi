@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+# Import GUI/clipboard-related variables from the attached tmux client.
+# Long-lived panes can keep stale Wayland/X11 env, which breaks Pi paste.
+if [[ -n "${TMUX:-}" ]] && command -v tmux >/dev/null 2>&1; then
+  for key in \
+    DISPLAY \
+    WAYLAND_DISPLAY \
+    XDG_SESSION_TYPE \
+    XDG_RUNTIME_DIR \
+    DBUS_SESSION_BUS_ADDRESS \
+    HYPRLAND_INSTANCE_SIGNATURE \
+    KRB5CCNAME \
+    MSYSTEM \
+    SSH_ASKPASS \
+    SSH_AUTH_SOCK \
+    SSH_AGENT_PID \
+    SSH_CONNECTION \
+    WINDOWID \
+    XAUTHORITY
+  do
+    line="$(tmux show-environment "$key" 2>/dev/null || true)"
+
+    if [[ -z "$line" ]]; then
+      continue
+    fi
+
+    if [[ "$line" == "-$key" ]]; then
+      unset "$key"
+      continue
+    fi
+
+    if [[ "$line" == "$key="* ]]; then
+      value="${line#*=}"
+      printf -v "$key" '%s' "$value"
+      export "$key"
+    fi
+  done
+fi
+
+for arg in "$@"; do
+  case "$arg" in
+    --theme)
+      theme_exec_real pi "$@"
+      ;;
+  esac
+done
+
+mode="$(theme_current_mode)"
+runtime_dir="$(theme_runtime_dir)/pi"
+runtime_theme="$runtime_dir/cloudflare.json"
+source_theme="$HOME/.pi/agent/themes/cloudflare-$mode.json"
+
+if [[ ! -f "$source_theme" ]]; then
+  theme_exec_real pi "$@"
+fi
+
+mkdir -p "$runtime_dir"
+python - "$source_theme" "$runtime_theme" <<'PY'
+import json, pathlib, sys
+source = pathlib.Path(sys.argv[1])
+out = pathlib.Path(sys.argv[2])
+data = json.loads(source.read_text())
+data["name"] = "cloudflare"
+out.write_text(json.dumps(data, indent=2) + "\n")
+PY
+
+theme_exec_real pi --theme "$runtime_theme" "$@"

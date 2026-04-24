@@ -1,0 +1,101 @@
+* {
+  background:                  #050505;
+  background-alt:              #101010;
+  foreground:                  #ffffff;
+  foreground-muted:            #b5b5b5;
+  border:                      #262626;
+  accent:                      #f48120;
+  accent-soft:                 #ffb04d;
+  urgent:                      #ff9940;
+  selected-normal-background:  @accent;
+  selected-normal-foreground:  #050505;
+  selected-active-background:  @accent-soft;
+  selected-active-foreground:  #050505;
+  selected-urgent-background:  @urgent;
+  selected-urgent-foreground:  #050505;
+  normal-background:           @background;
+  normal-foreground:           @foreground;
+  active-background:           @background;
+  active-foreground:           @accent;
+  urgent-background:           @background;
+  urgent-foreground:           @urgent;
+  alternate-normal-background: @background-alt;
+  alternate-normal-foreground: @foreground;
+  alternate-active-background: @background-alt;
+  alternate-active-foreground: @accent;
+  alternate-urgent-background: @background-alt;
+  alternate-urgent-foreground: @urgent;
+}
+
+window {
+  background-color: @background;
+  border: 1px;
+  border-color: @border;
+  border-radius: 12px;
+}
+
+mainbox,
+inputbar,
+message,
+listview,
+element,
+element-text,
+element-icon {
+  background-color: transparent;
+  text-color: @foreground;
+}
+
+prompt,
+textbox-prompt-colon,
+entry,
+mode-switcher button {
+  background-color: @background-alt;
+  text-color: @foreground;
+}
+
+prompt,
+textbox-prompt-colon {
+  padding: 10px 0 10px 10px;
+}
+
+entry {
+  padding: 10px;
+}
+
+listview {
+  border: 0px;
+  spacing: 6px;
+  padding: 8px 10px 10px;
+}
+
+element {
+  border-radius: 8px;
+  padding: 8px;
+}
+
+element selected.normal,
+element selected.active,
+element selected.urgent {
+  background-color: @selected-normal-background;
+  text-color: @selected-normal-foreground;
+}
+
+element alternate.normal {
+  background-color: @alternate-normal-background;
+  text-color: @alternate-normal-foreground;
+}
+
+mode-switcher {
+  spacing: 8px;
+  padding: 0 10px 10px;
+}
+
+mode-switcher button {
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+mode-switcher button.selected {
+  background-color: @accent;
+  text-color: #050505;
+}

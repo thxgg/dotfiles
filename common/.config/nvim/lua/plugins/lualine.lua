@@ -1,9 +1,11 @@
+local theme = require("user.theme")
+
 return {
 	"nvim-lualine/lualine.nvim",
 	dependencies = { "nvim-tree/nvim-web-devicons" },
 	opts = {
 		options = {
-			theme = "catppuccin-mocha",
+			theme = "catppuccin-" .. theme.catppuccin_flavour(),
 			section_separators = "",
 			component_separators = {
 				left = "|",
