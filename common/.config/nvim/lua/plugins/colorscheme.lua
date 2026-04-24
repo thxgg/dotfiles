@@ -1,9 +1,12 @@
+local theme = require("user.theme")
+
 return {
 	{
 		"catppuccin/nvim",
 		name = "catppuccin",
 		priority = 1000,
 		opts = {
+			color_overrides = theme.catppuccin_color_overrides(),
 			integrations = {
 				aerial = true,
 				blink_cmp = {
@@ -16,8 +19,8 @@ return {
 			},
 		},
 		init = function()
-			vim.opt.background = "dark"
-			vim.cmd.colorscheme("catppuccin-mocha")
+			vim.opt.background = theme.background()
+			vim.cmd.colorscheme("catppuccin-" .. theme.catppuccin_flavour())
 		end,
 	},
 }

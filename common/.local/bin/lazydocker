@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+if [[ -n "${CONFIG_DIR:-}" ]]; then
+  theme_exec_real lazydocker "$@"
+fi
+
+mode="$(theme_current_mode)"
+config_dir="$HOME/.config/lazydocker/$mode"
+if [[ ! -f "$config_dir/config.yml" ]]; then
+  theme_exec_real lazydocker "$@"
+fi
+
+export CONFIG_DIR="$config_dir"
+theme_exec_real lazydocker "$@"

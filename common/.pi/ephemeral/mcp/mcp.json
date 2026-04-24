@@ -45,7 +45,44 @@
       },
       "lifecycle": "lazy"
     },
+    "heroku": {
+      "command": "heroku",
+      "args": ["mcp:start"],
+      "lifecycle": "lazy"
+    },
+    "aws-mcp": {
+      "command": "uvx",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--profile",
+        "code",
+        "--metadata",
+        "AWS_REGION=eu-west-2"
+      ],
+      "lifecycle": "lazy"
+    },
     "stripe": {
+      "url": "https://mcp.stripe.com",
+      "auth": "oauth",
+      "lifecycle": "lazy"
+    },
+    "stripe-business": {
+      "url": "https://mcp.stripe.com",
+      "auth": "oauth",
+      "lifecycle": "lazy"
+    },
+    "stripe-business-prod": {
+      "url": "https://mcp.stripe.com",
+      "auth": "oauth",
+      "lifecycle": "lazy"
+    },
+    "stripe-memberships": {
+      "url": "https://mcp.stripe.com",
+      "auth": "oauth",
+      "lifecycle": "lazy"
+    },
+    "stripe-memberships-prod": {
       "url": "https://mcp.stripe.com",
       "auth": "oauth",
       "lifecycle": "lazy"

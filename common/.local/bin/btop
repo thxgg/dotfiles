@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+for arg in "$@"; do
+  case "$arg" in
+    --config|-c)
+      theme_exec_real btop "$@"
+      ;;
+  esac
+done
+
+mode="$(theme_current_mode)"
+runtime_dir="$(theme_runtime_dir)/btop"
+runtime_conf="$runtime_dir/btop.conf"
+base_conf="$HOME/.config/btop/btop.conf"
+theme_name="cloudflare_${mode}.theme"
+
+if [[ ! -f "$base_conf" ]]; then
+  theme_exec_real btop "$@"
+fi
+
+mkdir -p "$runtime_dir"
+python - "$base_conf" "$runtime_conf" "$theme_name" <<'PY'
+import pathlib, re, sys
+base = pathlib.Path(sys.argv[1]).read_text()
+out = pathlib.Path(sys.argv[2])
+theme = sys.argv[3]
+out.write_text(re.sub(r'^color_theme\s*=\s*".*"$', f'color_theme = "{theme}"', base, flags=re.M))
+PY
+
+theme_exec_real btop --config "$runtime_conf" "$@"

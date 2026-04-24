@@ -35,24 +35,65 @@ end
 set -gx VISUAL nvim
 set -gx EDITOR nvim
 
-# Catppuccin Mocha syntax highlighting
 set -g fish_greeting
-set -g fish_color_normal cdd6f4
-set -g fish_color_command a6e3a1
-set -g fish_color_keyword cba6f7
-set -g fish_color_quote a6e3a1
-set -g fish_color_redirection f5c2e7
-set -g fish_color_end fab387
-set -g fish_color_error f38ba8 --bold
-set -g fish_color_param cdd6f4
-set -g fish_color_valid_path a6e3a1 --underline
-set -g fish_color_option 89dceb
-set -g fish_color_comment 6c7086
-set -g fish_color_operator f5c2e7
-set -g fish_color_escape fab387
-set -g fish_color_autosuggestion 585b70
-set -g fish_color_selection --background=313244
-set -g fish_color_search_match --background=45475a
+set -l __dotfiles_theme_mode dark
+if test -x "$HOME/.local/bin/theme-mode"
+    set __dotfiles_theme_mode ("$HOME/.local/bin/theme-mode" get 2>/dev/null)
+end
+
+if test "$__dotfiles_theme_mode" = light
+    set -g fish_color_normal 161616
+    set -g fish_color_command d96d00
+    set -g fish_color_keyword f48120
+    set -g fish_color_quote cc8400
+    set -g fish_color_redirection e96a00
+    set -g fish_color_end f48120
+    set -g fish_color_error e96a00 --bold
+    set -g fish_color_param 161616
+    set -g fish_color_valid_path d96d00 --underline
+    set -g fish_color_option 7a7a7a
+    set -g fish_color_comment 9a9a9a
+    set -g fish_color_operator e67300
+    set -g fish_color_escape d96d00
+    set -g fish_color_autosuggestion b5b5b5
+    set -g fish_color_selection --background=ececec
+    set -g fish_color_search_match --background=d9d9d9
+
+    set -g fish_pager_color_completion 161616
+    set -g fish_pager_color_description 7a7a7a
+    set -g fish_pager_color_prefix d96d00 --bold
+    set -g fish_pager_color_progress 9a9a9a
+    set -g fish_pager_color_selected_background --background=ececec
+    set -g fish_pager_color_selected_completion 161616
+    set -g fish_pager_color_selected_description 5c5c5c
+else
+    set -g fish_color_normal cdd6f4
+    set -g fish_color_command a6e3a1
+    set -g fish_color_keyword cba6f7
+    set -g fish_color_quote a6e3a1
+    set -g fish_color_redirection f5c2e7
+    set -g fish_color_end fab387
+    set -g fish_color_error f38ba8 --bold
+    set -g fish_color_param cdd6f4
+    set -g fish_color_valid_path a6e3a1 --underline
+    set -g fish_color_option 89dceb
+    set -g fish_color_comment 6c7086
+    set -g fish_color_operator f5c2e7
+    set -g fish_color_escape fab387
+    set -g fish_color_autosuggestion 585b70
+    set -g fish_color_selection --background=313244
+    set -g fish_color_search_match --background=45475a
+
+    set -g fish_pager_color_completion cdd6f4
+    set -g fish_pager_color_description 9399b2
+    set -g fish_pager_color_prefix fab387 --bold
+    set -g fish_pager_color_progress 7f849c
+    set -g fish_pager_color_selected_background --background=313244
+    set -g fish_pager_color_selected_completion cdd6f4
+    set -g fish_pager_color_selected_description bac2de
+end
+
+set -e __dotfiles_theme_mode
 
 set -q GOPATH; or set -gx GOPATH "$HOME/.local/share/go"
 set -q GOBIN; or set -gx GOBIN "$GOPATH/bin"

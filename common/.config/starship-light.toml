@@ -1,0 +1,49 @@
+palette = "cloudflare_light"
+add_newline = false
+
+[gcloud]
+disabled = true
+
+[directory]
+style = "fg:sapphire"
+truncation_symbol = ""
+read_only_style = "fg:red"
+
+[git_branch]
+style = "fg:peach"
+
+[git_status]
+style = "fg:red"
+
+[character]
+success_symbol = "[❯](fg:peach)"
+error_symbol = "[❯](fg:red)"
+vimcmd_symbol = "[❮](fg:peach)"
+
+[palettes.cloudflare_light]
+rosewater = "#ffc08a"
+flamingo = "#ffb37a"
+pink = "#ffab66"
+mauve = "#ffa252"
+red = "#e96a00"
+maroon = "#f48120"
+peach = "#f48120"
+yellow = "#cc8400"
+green = "#ff9c52"
+teal = "#ff934f"
+sky = "#f48120"
+sapphire = "#ff8a1f"
+blue = "#d96d00"
+lavender = "#ffb04d"
+text = "#161616"
+subtext1 = "#3e3e3e"
+subtext0 = "#5c5c5c"
+overlay2 = "#7a7a7a"
+overlay1 = "#9a9a9a"
+overlay0 = "#c4c4c4"
+surface2 = "#d9d9d9"
+surface1 = "#ececec"
+surface0 = "#ffffff"
+base = "#fafafa"
+mantle = "#f1f1f1"
+crust = "#e8e8e8"

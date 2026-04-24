@@ -225,3 +225,171 @@
 .dashboard-content-items .stats-container .stat:hover .stats-bar block.filled {
   background: #F48120;
 }
+
+/* Dashboard polish: warmer surfaces, tighter spacing, softer Cloudflare accents */
+.menu-items {
+  background: #050505;
+  border-color: #2B2118;
+}
+
+.menu-section-container .menu-label-container,
+.menu-section-container .menu-items-section,
+.menu-dropdown-label-container {
+  background: #0F0F0F;
+}
+
+.dashboard-content-items {
+  min-width: 27.75em;
+  background: #050505;
+}
+
+.dashboard-content-items .dashboard-card,
+.dashboard-content-items .power-menu-container {
+  background: #0F0F0F;
+  border: 1px solid #2B2118;
+  border-radius: 1.15em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-content-items .dashboard-card {
+  margin: 0 1em;
+  padding: 1.15em 1.2em;
+}
+
+.dashboard-content-items .power-menu-container {
+  margin-right: 1em;
+  padding: 0.95em;
+}
+
+.dashboard-content-items .profile-picture-container {
+  margin-right: 0.9em;
+}
+
+.dashboard-content-items .profile-picture-container .profile-picture {
+  border-radius: 1em;
+  border: 1px solid #2B2118;
+}
+
+.dashboard-content-items .profile-picture-container .profile-name {
+  margin-top: 0.6em;
+  font-size: 1.35em;
+  font-weight: 700;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button,
+.dashboard-content-items .shortcuts-container .container button,
+.dashboard-content-items .controls-container button,
+.dashboard-content-items .directories-container .directory-link {
+  background: #18110B;
+  border: 1px solid #53311A;
+  border-radius: 0.9em;
+  color: #F0AA67;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button {
+  min-width: 3.2em;
+  min-height: 2.85em;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:not(:last-child) {
+  margin-bottom: 0.6em;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button label,
+.dashboard-content-items .shortcuts-container .container button label,
+.dashboard-content-items .controls-container button label,
+.dashboard-content-items .directories-container .directory-link label {
+  color: #F0AA67;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover,
+.dashboard-content-items .shortcuts-container .container button:hover,
+.dashboard-content-items .controls-container button:hover,
+.dashboard-content-items .directories-container .directory-link:hover {
+  background: #7A4317;
+  border-color: #A45C20;
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button:hover label,
+.dashboard-content-items .shortcuts-container .container button:hover label,
+.dashboard-content-items .controls-container button:hover label,
+.dashboard-content-items .directories-container .directory-link:hover label {
+  color: #FFFFFF;
+}
+
+.dashboard-content-items .shortcuts-container .dashboard-card,
+.dashboard-content-items .directories-container.dashboard-card,
+.dashboard-content-items .stats-container.dashboard-card {
+  padding: 1.1em 1.15em;
+}
+
+.dashboard-content-items .shortcuts-container .card-button-section-container.visible {
+  margin-right: 1em;
+}
+
+.dashboard-content-items .shortcuts-container .top-button.paired {
+  margin-bottom: 1em;
+}
+
+.dashboard-content-items .shortcuts-container .container button {
+  min-height: 3.1em;
+  min-width: 3.1em;
+}
+
+.dashboard-content-items .controls-container button {
+  min-height: 3.1em;
+  min-width: 3.7em;
+}
+
+.dashboard-content-items .controls-container button:not(:last-child) {
+  margin-right: 0.8em;
+}
+
+.dashboard-content-items .directories-container.dashboard-card {
+  padding-right: 1.15em;
+}
+
+.dashboard-content-items .directories-container .directory-link {
+  min-width: 9.35em;
+  padding: 0.42em 0.55em;
+  margin: 0.18em 0.28em 0.18em 0;
+}
+
+.dashboard-content-items .stats-container .stat {
+  margin-bottom: 0.3em;
+}
+
+.dashboard-content-items .stats-container .stat label {
+  margin-right: 0.65em;
+  min-width: 1.5em;
+  color: #F0AA67;
+}
+
+.dashboard-content-items .stats-container .stats-bar block.empty {
+  background: #2B2118;
+}
+
+.dashboard-content-items .stats-container .stats-bar block.filled {
+  background: #F48120;
+}
+
+.dashboard-content-items .stats-container .stat-value {
+  margin-top: 0.1em;
+  margin-bottom: 0.65em;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.dashboard-content-items > :not(:first-child):not(:last-child) {
+  margin-bottom: 0.55em;
+}
+
+.dashboard-content-items > :first-child {
+  margin-top: 1em;
+  margin-bottom: 0.55em;
+}
+
+.dashboard-content-items > :last-child {
+  margin-bottom: 1em;
+}

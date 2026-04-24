@@ -1,0 +1,49 @@
+window {
+  margin: 0;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  background-color: #050505;
+  color: #ffffff;
+}
+
+#input {
+  margin: 10px;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background-color: #101010;
+  color: #ffffff;
+}
+
+#inner-box {
+  margin: 0 10px 10px;
+  background-color: transparent;
+}
+
+#outer-box,
+#scroll {
+  margin: 0;
+  background-color: transparent;
+}
+
+#entry {
+  padding: 8px;
+  border-radius: 8px;
+}
+
+#entry:nth-child(even) {
+  background-color: #101010;
+}
+
+#entry:selected {
+  background-color: #f48120;
+  color: #050505;
+}
+
+#text {
+  color: inherit;
+}
+
+#img {
+  margin-right: 8px;
+}
