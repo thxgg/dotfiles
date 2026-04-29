@@ -1,11 +1,11 @@
 gui:
   theme:
     activeBorderColor:
-      - '#f48120'
+      - '#EC5B2B'
       - bold
     inactiveBorderColor:
-      - '#5c5c5c'
+      - '#6a737d'
     optionsTextColor:
-      - '#d96d00'
+      - '#b0851f'
     selectedLineBgColor:
-      - '#d9d9d9'
+      - '#e0e0e0'

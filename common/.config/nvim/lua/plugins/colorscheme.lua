@@ -7,6 +7,7 @@ return {
 		priority = 1000,
 		opts = {
 			color_overrides = theme.catppuccin_color_overrides(),
+			custom_highlights = theme.catppuccin_custom_highlights,
 			integrations = {
 				aerial = true,
 				blink_cmp = {
