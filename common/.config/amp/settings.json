@@ -1,0 +1,5 @@
+{
+  "amp.internal.model": {
+    "deep": "openai:gpt-5.5"
+  }
+}
