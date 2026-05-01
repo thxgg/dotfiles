@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/theme-lib.sh"
+
+CHROME_THEME_VERSION="v5.0.0"
+BASE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/catppuccin-chrome"
+
+usage() {
+  cat <<'EOF'
+Usage: catppuccin-macos-theme-setup [all|helium|nighttab|slack|slack-copy]
+
+Prepares macOS Catppuccin Latte/Mocha Lavender assets for apps that do not
+consume normal dotfiles directly.
+
+Commands:
+  all         Prepare Helium assets and print NightTab/Slack setup notes
+  helium      Download/unpack Catppuccin Chrome Latte/Mocha Lavender themes
+  nighttab    Print and copy the NightTab console snippet for a system-following Catppuccin Lavender theme
+  slack       Print Slack Catppuccin Latte/Mocha Lavender import strings
+  slack-copy  Copy the Slack string matching the current theme mode to the clipboard
+  slack-system Print/copy a Slack console snippet that sets Color Mode to System
+EOF
+}
+
+slack_theme_for_mode() {
+  case "${1:-$(theme_current_mode)}" in
+    light)
+      printf '%s\n' '#EFF1F5,#F8F8FA,#7287FD,#EFF1F5,#DCE0E8,#4C4F69,#7287FD,#E64553,#EFF1F5,#4C4F69'
+      ;;
+    *)
+      printf '%s\n' '#1E1E2E,#F8F8FA,#B4BEFE,#1E1E2E,#11111B,#CDD6F4,#B4BEFE,#EBA0AC,#1E1E2E,#CDD6F4'
+      ;;
+  esac
+}
+
+prepare_chrome_theme() {
+  local flavour="$1"
+  local asset zip dir url
+  asset="catppuccin-chrome-${flavour}-lavender.zip"
+  zip="$BASE_DIR/$asset"
+  dir="$BASE_DIR/catppuccin-chrome-${flavour}-lavender"
+  url="https://github.com/catppuccin/chrome/releases/download/${CHROME_THEME_VERSION}/${asset}"
+
+  mkdir -p "$BASE_DIR"
+
+  if [[ ! -f "$zip" ]]; then
+    if ! command -v curl >/dev/null 2>&1; then
+      printf 'curl is required to download %s\n' "$asset" >&2
+      return 1
+    fi
+    printf 'Downloading %s\n' "$asset"
+    curl --fail --location --silent --show-error --output "$zip" "$url"
+  fi
+
+  if [[ ! -d "$dir" ]]; then
+    if ! command -v unzip >/dev/null 2>&1; then
+      printf 'unzip is required to extract %s\n' "$asset" >&2
+      return 1
+    fi
+    printf 'Extracting %s\n' "$asset"
+    mkdir -p "$dir"
+    unzip -q "$zip" -d "$dir"
+  fi
+
+  printf '%s\n' "$dir"
+}
+
+setup_helium() {
+  local latte_dir mocha_dir
+  latte_dir="$(prepare_chrome_theme latte)"
+  mocha_dir="$(prepare_chrome_theme mocha)"
+
+  cat <<EOF
+
+Helium Catppuccin Chrome themes are prepared:
+  Latte Lavender: $latte_dir
+  Mocha Lavender: $mocha_dir
+
+Chromium themes are normal extensions and Helium does not expose a stable
+external dotfile API for safe live theme switching. Open Helium's extensions
+page, enable Developer Mode, and Load unpacked the matching directory above.
+EOF
+}
+
+nighttab_snippet() {
+  cat <<'EOF'
+(() => {
+  const baseTheme = {
+    name: '',
+    color: { range: { primary: { h: 222, s: 14 } }, contrast: { start: 17, end: 83 }, shades: 14 },
+    accent: {
+      hsl: { h: 221, s: 100, l: 50 },
+      rgb: { r: 0, g: 80, b: 255 },
+      random: { active: false, style: 'any' },
+      cycle: { active: false, speed: 300, step: 10 },
+    },
+    font: {
+      display: { name: '', weight: 400, style: 'normal' },
+      ui: { name: '', weight: 400, style: 'normal' },
+    },
+    background: {
+      type: 'theme',
+      color: { hsl: { h: 221, s: 47, l: 17 }, rgb: { r: 23, g: 36, b: 64 } },
+      gradient: {
+        angle: 160,
+        start: { hsl: { h: 206, s: 16, l: 40 }, rgb: { r: 86, g: 104, b: 118 } },
+        end: { hsl: { h: 219, s: 28, l: 12 }, rgb: { r: 22, g: 28, b: 39 } },
+      },
+      image: { url: '', blur: 0, grayscale: 0, scale: 100, accent: 0, opacity: 100, vignette: { opacity: 0, start: 90, end: 70 } },
+      video: { url: '', blur: 0, grayscale: 0, scale: 100, accent: 0, opacity: 100, vignette: { opacity: 0, start: 90, end: 70 } },
+    },
+    radius: 25,
+    shadow: 75,
+    opacity: { general: 100 },
+    layout: { color: { by: 'theme', hsl: { h: 0, s: 0, l: 0 }, rgb: { r: 0, g: 0, b: 0 }, blur: 0, opacity: 10 }, divider: { size: 0 } },
+    header: { color: { by: 'theme', hsl: { h: 0, s: 0, l: 0 }, rgb: { r: 0, g: 0, b: 0 }, opacity: 10 }, search: { opacity: 100 } },
+    bookmark: { color: { by: 'theme', opacity: 10, hsl: { h: 0, s: 0, l: 0 }, rgb: { r: 0, g: 0, b: 0 } }, item: { border: 0, opacity: 100 } },
+    group: { toolbar: { opacity: 100 } },
+    toolbar: { opacity: 100 },
+    style: 'dark',
+    shade: { opacity: 30, blur: 0 },
+  };
+
+  const cfg = JSON.parse(localStorage.nightTab);
+  cfg.state.theme.custom = cfg.state.theme.custom || { all: [], edit: false };
+  cfg.state.theme.custom.all = cfg.state.theme.custom.all || [];
+
+  const makeTheme = (name, style, primary, contrast, accent) => ({
+    ...baseTheme,
+    name,
+    style,
+    color: { ...baseTheme.color, range: { primary }, contrast },
+    accent: {
+      ...baseTheme.accent,
+      ...accent,
+      random: { active: false, style: 'any' },
+      cycle: { active: false, speed: 300, step: 10 },
+    },
+  });
+
+  const latte = makeTheme(
+    'Catppuccin Latte Lavender',
+    'light',
+    { h: 220, s: 16 },
+    { start: 90, end: 100 },
+    { hsl: { h: 231, s: 97, l: 72 }, rgb: { r: 114, g: 135, b: 253 } },
+  );
+  const mocha = makeTheme(
+    'Catppuccin Mocha Lavender',
+    'dark',
+    { h: 240, s: 21 },
+    { start: 15, end: 50 },
+    { hsl: { h: 232, s: 97, l: 85 }, rgb: { r: 180, g: 190, b: 254 } },
+  );
+  const system = makeTheme(
+    'Catppuccin Lavender System',
+    'system',
+    { h: 240, s: 21 },
+    { start: 15, end: 90 },
+    window.matchMedia('(prefers-color-scheme: light)').matches ? latte.accent : mocha.accent,
+  );
+
+  const upsert = (theme) => {
+    const index = cfg.state.theme.custom.all.findIndex((item) => item.name === theme.name);
+    if (index === -1) cfg.state.theme.custom.all.push(theme);
+    else cfg.state.theme.custom.all[index] = theme;
+  };
+
+  upsert(latte);
+  upsert(mocha);
+  upsert(system);
+
+  cfg.state.theme = {
+    ...cfg.state.theme,
+    ...system,
+    custom: cfg.state.theme.custom,
+  };
+  localStorage.setItem('nightTab', JSON.stringify(cfg));
+  console.log('Installed and selected Catppuccin Lavender System. Refresh NightTab to apply.');
+})();
+EOF
+}
+
+setup_nighttab() {
+  local snippet
+  snippet="$(nighttab_snippet)"
+  printf '%s\n' "$snippet"
+
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s\n' "$snippet" | pbcopy
+    printf '\nNightTab setup snippet copied to the clipboard. Paste it into the NightTab page DevTools Console, then refresh. It selects a Catppuccin Lavender theme with NightTab style set to system.\n'
+  fi
+}
+
+setup_slack() {
+  cat <<EOF
+Slack Catppuccin Lavender theme strings:
+  Latte: $(slack_theme_for_mode light)
+  Mocha: $(slack_theme_for_mode dark)
+
+Import in Slack: Preferences -> Themes -> Import theme.
+Slack's Color Mode can follow macOS, but imported custom theme strings are
+workspace settings and do not auto-switch between Latte and Mocha. Use
+slack-copy after changing modes to copy the matching import string.
+EOF
+}
+
+copy_slack_current() {
+  local mode theme
+  mode="$(theme_current_mode)"
+  theme="$(slack_theme_for_mode "$mode")"
+  printf '%s\n' "$theme"
+
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s\n' "$theme" | pbcopy
+    printf 'Copied Slack %s Catppuccin Lavender theme string to clipboard.\n' "$mode"
+    printf 'Import in Slack: Preferences -> Themes -> Import theme.\n'
+  fi
+}
+
+slack_system_snippet() {
+  cat <<'EOF'
+(() => {
+  localStorage.setItem('slack-client-theme-os-sync', 'true');
+  localStorage.setItem('slack-client-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  location.reload();
+})();
+EOF
+}
+
+setup_slack_system() {
+  local snippet
+  snippet="$(slack_system_snippet)"
+  printf '%s\n' "$snippet"
+
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s\n' "$snippet" | pbcopy
+    printf '\nSlack system-mode snippet copied to the clipboard. Paste it into Slack DevTools Console, or set Slack Preferences -> Appearance -> Color Mode -> System.\n'
+  fi
+}
+
+command_name="${1:-all}"
+case "$command_name" in
+  all)
+    setup_helium
+    printf '\n'
+    setup_slack
+    printf '\nNightTab setup snippet:\n'
+    setup_nighttab
+    ;;
+  helium)
+    setup_helium
+    ;;
+  nighttab)
+    setup_nighttab
+    ;;
+  slack)
+    setup_slack
+    ;;
+  slack-copy)
+    copy_slack_current
+    ;;
+  slack-system)
+    setup_slack_system
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

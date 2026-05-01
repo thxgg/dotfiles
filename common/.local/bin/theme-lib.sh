@@ -15,25 +15,68 @@ theme_mode_file() {
   printf '%s/mode\n' "$(theme_state_dir)"
 }
 
-theme_current_mode() {
+theme_last_applied_mode_file() {
+  printf '%s/last-applied-mode\n' "$(theme_state_dir)"
+}
+
+theme_ensure_state_dir() {
+  mkdir -p "$(theme_state_dir)"
+}
+
+theme_configured_mode() {
   local mode_file mode
   mode_file="$(theme_mode_file)"
 
   if [[ -r "$mode_file" ]]; then
     mode="$(tr -d '[:space:]' < "$mode_file")"
     case "$mode" in
-      dark|light)
+      auto|dark|light)
         printf '%s\n' "$mode"
         return 0
         ;;
     esac
   fi
 
-  printf '%s\n' dark
+  if [[ "$(uname -s 2>/dev/null || true)" == Darwin ]]; then
+    printf '%s\n' auto
+  else
+    printf '%s\n' dark
+  fi
 }
 
-theme_ensure_state_dir() {
-  mkdir -p "$(theme_state_dir)"
+theme_system_mode() {
+  case "$(uname -s 2>/dev/null || true)" in
+    Darwin)
+      if [[ "$(defaults read -g AppleInterfaceStyle 2>/dev/null || true)" == Dark ]]; then
+        printf '%s\n' dark
+      else
+        printf '%s\n' light
+      fi
+      ;;
+    *)
+      printf '%s\n' dark
+      ;;
+  esac
+}
+
+theme_resolve_mode() {
+  local configured="${1:-$(theme_configured_mode)}"
+
+  case "$configured" in
+    light|dark)
+      printf '%s\n' "$configured"
+      ;;
+    auto)
+      theme_system_mode
+      ;;
+    *)
+      printf '%s\n' dark
+      ;;
+  esac
+}
+
+theme_current_mode() {
+  theme_resolve_mode "$(theme_configured_mode)"
 }
 
 theme_runtime_dir() {

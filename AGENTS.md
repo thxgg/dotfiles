@@ -40,7 +40,7 @@ dotfiles/
 - Keep git hooks enabled with `git config core.hooksPath .githooks`.
 - Use `safe-stow.sh` instead of raw `stow` so conflicts are backed up first.
 - Keep machine secrets in untracked `~/.env.secrets`.
-- Cloudflare theming is implemented as native per-app theme assets plus wrapper/runtime selection logic (`common/.local/bin/*`, `~/.local/state/theme`). When changing one app's Cloudflare dark/light theme, update the matching variants across the other themed apps so they stay visually synchronized.
+- Catppuccin Latte/Mocha theming is implemented as native per-app theme assets plus wrapper/runtime selection logic (`common/.local/bin/*`, `~/.local/state/theme`). Use Lavender as the accent for both variants, and update matching light/dark variants across themed apps so they stay visually synchronized.
 
 ## Anti-Patterns (This Project)
 - Committing secrets or token-bearing host files (for example auth host maps) without review.

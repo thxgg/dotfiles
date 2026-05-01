@@ -24,7 +24,7 @@
     "openai-codex": {
       "modelOverrides": {
         "gpt-5.5": {
-          "contextWindow": 400000
+          "contextWindow": 1050000
         },
         "gpt-5.4-mini": {
           "contextWindow": 400000

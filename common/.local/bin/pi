@@ -53,22 +53,13 @@ for arg in "$@"; do
 done
 
 mode="$(theme_current_mode)"
-runtime_dir="$(theme_runtime_dir)/pi"
-runtime_theme="$runtime_dir/cloudflare.json"
-source_theme="$HOME/.pi/agent/themes/cloudflare-$mode.json"
+case "$mode" in
+  light) source_theme="$HOME/.pi/agent/themes/catppuccin-latte.json" ;;
+  *) source_theme="$HOME/.pi/agent/themes/catppuccin-mocha.json" ;;
+esac
 
 if [[ ! -f "$source_theme" ]]; then
   theme_exec_real pi "$@"
 fi
 
-mkdir -p "$runtime_dir"
-python - "$source_theme" "$runtime_theme" <<'PY'
-import json, pathlib, sys
-source = pathlib.Path(sys.argv[1])
-out = pathlib.Path(sys.argv[2])
-data = json.loads(source.read_text())
-data["name"] = "cloudflare"
-out.write_text(json.dumps(data, indent=2) + "\n")
-PY
-
-theme_exec_real pi --theme "$runtime_theme" "$@"
+theme_exec_real pi --theme "$source_theme" "$@"

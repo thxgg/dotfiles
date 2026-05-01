@@ -1,49 +1,49 @@
-palette = "cloudflare_light"
+palette = "catppuccin_latte"
 add_newline = false
 
 [gcloud]
 disabled = true
 
 [directory]
-style = "fg:sapphire"
+style = "fg:lavender"
 truncation_symbol = ""
 read_only_style = "fg:red"
 
 [git_branch]
-style = "fg:peach"
+style = "fg:lavender"
 
 [git_status]
 style = "fg:red"
 
 [character]
-success_symbol = "[❯](fg:peach)"
+success_symbol = "[❯](fg:lavender)"
 error_symbol = "[❯](fg:red)"
-vimcmd_symbol = "[❮](fg:peach)"
+vimcmd_symbol = "[❮](fg:lavender)"
 
-[palettes.cloudflare_light]
-rosewater = "#ffc08a"
-flamingo = "#ffb37a"
-pink = "#ffab66"
-mauve = "#ffa252"
-red = "#e96a00"
-maroon = "#f48120"
-peach = "#f48120"
-yellow = "#cc8400"
-green = "#ff9c52"
-teal = "#ff934f"
-sky = "#f48120"
-sapphire = "#ff8a1f"
-blue = "#d96d00"
-lavender = "#ffb04d"
-text = "#161616"
-subtext1 = "#3e3e3e"
-subtext0 = "#5c5c5c"
-overlay2 = "#7a7a7a"
-overlay1 = "#9a9a9a"
-overlay0 = "#c4c4c4"
-surface2 = "#d9d9d9"
-surface1 = "#ececec"
-surface0 = "#ffffff"
-base = "#fafafa"
-mantle = "#f1f1f1"
-crust = "#e8e8e8"
+[palettes.catppuccin_latte]
+rosewater = "#dc8a78"
+flamingo = "#dd7878"
+pink = "#ea76cb"
+mauve = "#8839ef"
+red = "#d20f39"
+maroon = "#e64553"
+peach = "#fe640b"
+yellow = "#df8e1d"
+green = "#40a02b"
+teal = "#179299"
+sky = "#04a5e5"
+sapphire = "#209fb5"
+blue = "#1e66f5"
+lavender = "#7287fd"
+text = "#4c4f69"
+subtext1 = "#5c5f77"
+subtext0 = "#6c6f85"
+overlay2 = "#7c7f93"
+overlay1 = "#8c8fa1"
+overlay0 = "#9ca0b0"
+surface2 = "#acb0be"
+surface1 = "#bcc0cc"
+surface0 = "#ccd0da"
+base = "#eff1f5"
+mantle = "#e6e9ef"
+crust = "#dce0e8"

@@ -8,21 +8,24 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
 
 quiet=0
 session_init=0
+force=0
 
 usage() {
   cat <<'EOF'
-Usage: theme-mode [--quiet] [--session-init] <get|set|toggle|apply> [dark|light]
+Usage: theme-mode [--quiet] [--session-init] [--force] <get|get-configured|set|toggle|apply> [auto|dark|light]
 
 Commands:
-  get            Print the current theme mode (dark/light)
-  set <mode>     Persist mode and apply it
-  toggle         Switch between dark and light, then apply it
-  apply [mode]   Apply the current mode (or the supplied mode) without toggling
+  get             Print the resolved theme mode (dark/light)
+  get-configured  Print the configured mode (auto/dark/light)
+  set <mode>      Persist mode and apply it; use auto on macOS to follow system appearance
+  toggle          Switch between resolved dark and light, then apply it
+  apply [mode]    Apply configured mode, or supplied auto/dark/light, without toggling
 
 Flags:
   --quiet         Suppress status logging
   --session-init  Only materialize state and settings needed for session startup;
                   skip live Hyprland reloads and HyprPanel restarts
+  --force         Reapply even when the resolved mode has not changed
 EOF
 }
 
@@ -34,6 +37,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --session-init)
       session_init=1
+      shift
+      ;;
+    --force)
+      force=1
       shift
       ;;
     *)
@@ -50,10 +57,28 @@ log() {
   printf '%s\n' "$*"
 }
 
+valid_configured_mode() {
+  [[ "${1:-}" == auto || "${1:-}" == dark || "${1:-}" == light ]]
+}
+
 write_mode() {
   local mode="$1"
   theme_ensure_state_dir
   printf '%s\n' "$mode" > "$(theme_mode_file)"
+}
+
+write_last_applied_mode() {
+  local mode="$1"
+  theme_ensure_state_dir
+  printf '%s\n' "$mode" > "$(theme_last_applied_mode_file)"
+}
+
+last_applied_mode() {
+  local file
+  file="$(theme_last_applied_mode_file)"
+  if [[ -r "$file" ]]; then
+    tr -d '[:space:]' < "$file"
+  fi
 }
 
 setup_kvantum_runtime_theme() {
@@ -87,6 +112,67 @@ reload_tmux() {
   fi
 }
 
+apply_fish_colors() {
+  local mode="$1"
+
+  if ! command -v fish >/dev/null 2>&1; then
+    return 0
+  fi
+
+  THEME_MODE="$mode" fish <<'FISH' >/dev/null 2>&1 || true
+set mode $THEME_MODE
+if test "$mode" = light
+    set -U fish_color_normal 4c4f69
+    set -U fish_color_command 1e66f5
+    set -U fish_color_keyword 7287fd
+    set -U fish_color_quote 40a02b
+    set -U fish_color_redirection ea76cb
+    set -U fish_color_end fe640b
+    set -U fish_color_error d20f39 --bold
+    set -U fish_color_param 4c4f69
+    set -U fish_color_valid_path 1e66f5 --underline
+    set -U fish_color_option 179299
+    set -U fish_color_comment 8c8fa1
+    set -U fish_color_operator 7287fd
+    set -U fish_color_escape fe640b
+    set -U fish_color_autosuggestion 9ca0b0
+    set -U fish_color_selection --background=ccd0da
+    set -U fish_color_search_match --background=bcc0cc
+    set -U fish_pager_color_completion 4c4f69
+    set -U fish_pager_color_description 7c7f93
+    set -U fish_pager_color_prefix 7287fd --bold
+    set -U fish_pager_color_progress 8c8fa1
+    set -U fish_pager_color_selected_background --background=ccd0da
+    set -U fish_pager_color_selected_completion 4c4f69
+    set -U fish_pager_color_selected_description 6c6f85
+else
+    set -U fish_color_normal cdd6f4
+    set -U fish_color_command 89b4fa
+    set -U fish_color_keyword b4befe
+    set -U fish_color_quote a6e3a1
+    set -U fish_color_redirection f5c2e7
+    set -U fish_color_end fab387
+    set -U fish_color_error f38ba8 --bold
+    set -U fish_color_param cdd6f4
+    set -U fish_color_valid_path 89b4fa --underline
+    set -U fish_color_option 94e2d5
+    set -U fish_color_comment 6c7086
+    set -U fish_color_operator b4befe
+    set -U fish_color_escape fab387
+    set -U fish_color_autosuggestion 585b70
+    set -U fish_color_selection --background=313244
+    set -U fish_color_search_match --background=45475a
+    set -U fish_pager_color_completion cdd6f4
+    set -U fish_pager_color_description 9399b2
+    set -U fish_pager_color_prefix b4befe --bold
+    set -U fish_pager_color_progress 7f849c
+    set -U fish_pager_color_selected_background --background=313244
+    set -U fish_pager_color_selected_completion cdd6f4
+    set -U fish_pager_color_selected_description bac2de
+end
+FISH
+}
+
 reload_hyprland() {
   if command -v hyprctl >/dev/null 2>&1 && hyprctl version >/dev/null 2>&1; then
     hyprctl reload >/dev/null 2>&1 || true
@@ -112,10 +198,21 @@ restart_hyprpanel() {
 }
 
 apply_mode() {
-  local mode="$1"
+  local resolved_mode="$1"
+  local previous_mode
+  previous_mode="$(last_applied_mode || true)"
 
-  setup_kvantum_runtime_theme "$mode"
-  apply_gtk_preference "$mode"
+  if [[ $force -eq 0 && "$previous_mode" == "$resolved_mode" ]]; then
+    log "Theme mode already $resolved_mode"
+    if [[ $quiet -eq 0 ]]; then
+      printf '%s\n' "$resolved_mode"
+    fi
+    return 0
+  fi
+
+  setup_kvantum_runtime_theme "$resolved_mode"
+  apply_gtk_preference "$resolved_mode"
+  apply_fish_colors "$resolved_mode"
   reload_tmux
 
   if [[ $session_init -eq 0 ]]; then
@@ -123,9 +220,11 @@ apply_mode() {
     restart_hyprpanel
   fi
 
-  log "Applied $mode theme mode"
+  write_last_applied_mode "$resolved_mode"
+
+  log "Applied $resolved_mode theme mode"
   if [[ $quiet -eq 0 ]]; then
-    printf '%s\n' "$mode"
+    printf '%s\n' "$resolved_mode"
   fi
 }
 
@@ -133,14 +232,18 @@ case "$command_name" in
   get)
     theme_current_mode
     ;;
+  get-configured)
+    theme_configured_mode
+    ;;
   set)
     mode="${1:-}"
-    if [[ "$mode" != dark && "$mode" != light ]]; then
+    if ! valid_configured_mode "$mode"; then
       usage >&2
       exit 1
     fi
     write_mode "$mode"
-    apply_mode "$mode"
+    force=1
+    apply_mode "$(theme_resolve_mode "$mode")"
     ;;
   toggle)
     current_mode="$(theme_current_mode)"
@@ -150,16 +253,17 @@ case "$command_name" in
       next_mode=dark
     fi
     write_mode "$next_mode"
+    force=1
     apply_mode "$next_mode"
     ;;
   apply)
-    mode="${1:-$(theme_current_mode)}"
-    if [[ "$mode" != dark && "$mode" != light ]]; then
+    mode="${1:-$(theme_configured_mode)}"
+    if ! valid_configured_mode "$mode"; then
       usage >&2
       exit 1
     fi
     write_mode "$mode"
-    apply_mode "$mode"
+    apply_mode "$(theme_resolve_mode "$mode")"
     ;;
   -h|--help|help)
     usage

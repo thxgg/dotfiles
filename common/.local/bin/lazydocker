@@ -17,4 +17,9 @@ if [[ ! -f "$config_dir/config.yml" ]]; then
 fi
 
 export CONFIG_DIR="$config_dir"
+# Lazydocker mixes configurable gocui theme colors with hard-coded ANSI output
+# colors for stats/YAML/status text. Disable those ANSI colors so the full UI
+# follows the Catppuccin config/terminal foreground instead of leaking old
+# palette colors into the right-side detail panes.
+export NO_COLOR=1
 theme_exec_real lazydocker "$@"

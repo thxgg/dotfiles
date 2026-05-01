@@ -135,4 +135,20 @@ fi
 
 info "Applying stow links"
 zsh "$SCRIPT_DIR/safe-stow.sh"
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+	if [[ -x "$HOME/.local/bin/theme-mode" ]]; then
+		info "Setting theme-mode to follow macOS appearance"
+		"$HOME/.local/bin/theme-mode" --quiet set auto || warn "Could not initialize automatic theme mode"
+	fi
+
+	THEME_AGENT="$HOME/Library/LaunchAgents/com.thxgg.theme-mode.plist"
+	if [[ -f "$THEME_AGENT" ]] && command -v launchctl >/dev/null 2>&1; then
+		info "Loading macOS theme-mode LaunchAgent"
+		launchctl bootout "gui/$UID" "$THEME_AGENT" >/dev/null 2>&1 || true
+		launchctl bootstrap "gui/$UID" "$THEME_AGENT" >/dev/null 2>&1 || warn "Could not load theme-mode LaunchAgent"
+		launchctl enable "gui/$UID/com.thxgg.theme-mode" >/dev/null 2>&1 || true
+	fi
+fi
+
 success "Setup completed"
