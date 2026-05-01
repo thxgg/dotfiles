@@ -18,7 +18,10 @@ mode="$(theme_current_mode)"
 runtime_dir="$(theme_runtime_dir)/btop"
 runtime_conf="$runtime_dir/btop.conf"
 base_conf="$HOME/.config/btop/btop.conf"
-theme_name="cloudflare_${mode}.theme"
+case "$mode" in
+  light) theme_name="catppuccin_latte.theme" ;;
+  *) theme_name="catppuccin_mocha.theme" ;;
+esac
 
 if [[ ! -f "$base_conf" ]]; then
   theme_exec_real btop "$@"
