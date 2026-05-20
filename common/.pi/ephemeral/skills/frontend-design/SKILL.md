@@ -1,6 +1,7 @@
 ---
 name: frontend-design
 description: Create distinctive, production-grade Vue/Nuxt interfaces with Tailwind CSS v4, shadcn-vue, and Vue transitions. Avoids generic AI aesthetics through intentional design direction.
+disable-model-invocation: true
 ---
 
 # frontend-design
