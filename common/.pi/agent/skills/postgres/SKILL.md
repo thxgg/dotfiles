@@ -1,6 +1,7 @@
 ---
 name: postgres
 description: PostgreSQL best practices, query optimization, schema design, and performance tuning. Use when working with Postgres databases.
+disable-model-invocation: true
 ---
 
 # PostgreSQL

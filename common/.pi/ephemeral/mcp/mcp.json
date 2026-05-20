@@ -68,6 +68,11 @@
       "args": ["mcp:start"],
       "lifecycle": "lazy"
     },
+    "linear": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+      "lifecycle": "lazy"
+    },
     "aws-mcp": {
       "command": "uvx",
       "args": [
@@ -78,11 +83,6 @@
         "--metadata",
         "AWS_REGION=eu-west-2"
       ],
-      "lifecycle": "lazy"
-    },
-    "stripe": {
-      "url": "https://mcp.stripe.com",
-      "auth": "oauth",
       "lifecycle": "lazy"
     },
     "stripe-business": {

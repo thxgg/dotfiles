@@ -1,5 +1,13 @@
 # Global Agent Instructions
 
+## Context Discipline
+
+Treat context as scarce. Do not load skills unless the user explicitly invokes them with `/skill:name` or clearly asks for that workflow.
+
+Prefer reading the nearest `AGENTS.md`, relevant source files, and targeted search results over loading broad skills.
+
+Before large edits, build context first, summarize the plan, and ask for confirmation unless the user requested autonomous implementation.
+
 ## Browser Automation
 
 Use `agent-browser` for browser automation tasks. Run `agent-browser --help` for the full command set.

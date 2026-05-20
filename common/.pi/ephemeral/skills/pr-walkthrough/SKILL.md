@@ -1,6 +1,7 @@
 ---
 name: pr-walkthrough
 description: Generate an interactive visual walkthrough of any pull/merge request as a local HTML webapp. Produces a multi-slide presentation with SVG diagrams, annotated code, and architecture visuals. Pass a PR/MR URL and optional audience context (e.g. "assume I don't know Rust"). Use when the user says "walkthrough this PR", "explain this MR", "visual walkthrough", "PR presentation", or provides a PR/MR URL and asks for a walkthrough.
+disable-model-invocation: true
 ---
 
 # PR Walkthrough
