@@ -98,12 +98,166 @@ setup_kvantum_runtime_theme() {
   ln -sfn "$source_dir/cloudflare-$mode.svg" "$runtime_theme_dir/cloudflare-current.svg"
 }
 
+gtk_theme_exists() {
+  local theme_name="$1"
+  [[ -d "/usr/share/themes/$theme_name" || \
+     -d "$HOME/.themes/$theme_name" || \
+     -d "${XDG_DATA_HOME:-$HOME/.local/share}/themes/$theme_name" ]]
+}
+
+select_gtk_theme() {
+  local mode="$1"
+  local candidate
+  local -a candidates
+
+  if [[ "$mode" == dark ]]; then
+    candidates=(
+      catppuccin-mocha-lavender-standard+default
+      catppuccin-mocha-blue-standard+default
+      Adwaita-dark
+    )
+  else
+    candidates=(
+      catppuccin-latte-lavender-standard+default
+      Adwaita
+    )
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if gtk_theme_exists "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+}
+
+apply_gtk_settings_files() {
+  local mode="$1"
+  local gtk_theme="$2"
+  local config_home prefer_dark gtk_dir settings_file
+
+  config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  if [[ "$mode" == dark ]]; then
+    prefer_dark=1
+  else
+    prefer_dark=0
+  fi
+
+  for gtk_dir in "$config_home/gtk-3.0" "$config_home/gtk-4.0"; do
+    mkdir -p "$gtk_dir"
+    settings_file="$gtk_dir/settings.ini"
+    {
+      printf '[Settings]\n'
+      if [[ -n "$gtk_theme" ]]; then
+        printf 'gtk-theme-name=%s\n' "$gtk_theme"
+      fi
+      printf 'gtk-application-prefer-dark-theme=%s\n' "$prefer_dark"
+    } > "$settings_file"
+  done
+}
+
 apply_gtk_preference() {
   local mode="$1"
+  local gtk_theme
+
+  gtk_theme="$(select_gtk_theme "$mode" || true)"
 
   if command -v gsettings >/dev/null 2>&1; then
     gsettings set org.gnome.desktop.interface color-scheme "prefer-$mode" >/dev/null 2>&1 || true
+    if [[ -n "$gtk_theme" ]]; then
+      gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme" >/dev/null 2>&1 || true
+    fi
   fi
+
+  apply_gtk_settings_files "$mode" "$gtk_theme"
+}
+
+apply_helium_preference() {
+  local mode="$1"
+  local config_home flags_file tmp_file
+
+  # Helium's Arch wrapper reads this file on startup. Keep our theme flag in a
+  # managed block so user-defined Helium flags can coexist in the same file.
+  if [[ "$(uname -s 2>/dev/null || true)" != Linux ]]; then
+    return 0
+  fi
+
+  if ! command -v helium-browser >/dev/null 2>&1; then
+    return 0
+  fi
+
+  config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  flags_file="$config_home/helium-browser-flags.conf"
+  mkdir -p "$config_home"
+  tmp_file="$(mktemp)"
+
+  if [[ -r "$flags_file" ]]; then
+    awk '
+      /^# BEGIN dotfiles theme-mode$/ { skip = 1; next }
+      /^# END dotfiles theme-mode$/ { skip = 0; next }
+      !skip { print }
+    ' "$flags_file" > "$tmp_file"
+  fi
+
+  {
+    cat "$tmp_file"
+    if [[ -s "$tmp_file" ]]; then
+      printf '\n'
+    fi
+    printf '# BEGIN dotfiles theme-mode\n'
+    if [[ "$mode" == dark ]]; then
+      printf '%s\n' '--force-dark-mode'
+    else
+      printf '# Light mode: no Helium dark-mode flag.\n'
+    fi
+    printf '# END dotfiles theme-mode\n'
+  } > "$flags_file"
+
+  rm -f "$tmp_file"
+}
+
+apply_wallpaper() {
+  local mode="$1"
+  local config_home wallpaper target client daemon
+
+  if [[ "$(uname -s 2>/dev/null || true)" != Linux ]]; then
+    return 0
+  fi
+
+  if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+    return 0
+  fi
+
+  config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  wallpaper="$config_home/background-$mode.png"
+  target="$config_home/background"
+
+  if [[ ! -f "$wallpaper" ]]; then
+    return 0
+  fi
+
+  ln -sfn "$wallpaper" "$target"
+
+  if command -v swww >/dev/null 2>&1; then
+    client=swww
+    daemon=swww-daemon
+  elif command -v awww >/dev/null 2>&1; then
+    client=awww
+    daemon=awww-daemon
+  else
+    return 0
+  fi
+
+  if ! "$client" query >/dev/null 2>&1 && command -v "$daemon" >/dev/null 2>&1; then
+    if [[ "$client" == awww ]]; then
+      rm -f "/run/user/$(id -u)/${WAYLAND_DISPLAY}-awww-daemon.sock"
+    fi
+    nohup "$daemon" >/dev/null 2>&1 &
+    sleep 0.3
+  fi
+
+  "$client" img "$target" --transition-type fade >/dev/null 2>&1 || \
+    "$client" img "$target" >/dev/null 2>&1 || true
 }
 
 reload_tmux() {
@@ -203,6 +357,11 @@ apply_mode() {
   previous_mode="$(last_applied_mode || true)"
 
   if [[ $force -eq 0 && "$previous_mode" == "$resolved_mode" ]]; then
+    setup_kvantum_runtime_theme "$resolved_mode"
+    apply_gtk_preference "$resolved_mode"
+    apply_helium_preference "$resolved_mode"
+    apply_wallpaper "$resolved_mode"
+
     log "Theme mode already $resolved_mode"
     if [[ $quiet -eq 0 ]]; then
       printf '%s\n' "$resolved_mode"
@@ -212,6 +371,8 @@ apply_mode() {
 
   setup_kvantum_runtime_theme "$resolved_mode"
   apply_gtk_preference "$resolved_mode"
+  apply_helium_preference "$resolved_mode"
+  apply_wallpaper "$resolved_mode"
   apply_fish_colors "$resolved_mode"
   reload_tmux
 

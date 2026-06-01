@@ -72,6 +72,10 @@ ln -sfn "$panel_config_source" "$panel_config_dir/config.json"
 ln -sfn "$HOME/.config/hyprpanel/modules.json" "$panel_config_dir/modules.json"
 ln -sfn "$panel_scss_source" "$panel_config_dir/modules.scss"
 
+# HyprPanel caches compiled SCSS under /tmp/hyprpanel and does not always
+# invalidate it when our symlinked theme files change.
+rm -rf "${TMPDIR:-/tmp}/hyprpanel"
+
 export XDG_CONFIG_HOME="$config_root"
 
 cd "$runtime_dir"

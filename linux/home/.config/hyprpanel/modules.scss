@@ -1,6 +1,6 @@
-/* OLED / monochrome-orange overrides
+/* OLED / monochrome overrides
  * HyprPanel still ships a number of Catppuccin-based generic menu styles.
- * Override them here so the shared menu primitives match the local theme.
+ * Override them here so the shared menu primitives match the local monochrome theme.
  */
 
 .menu-items {
@@ -26,7 +26,7 @@
 
 .menu-slider trough highlight,
 .menu-slider trough progress {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .menu-slider:hover slider {
@@ -39,12 +39,12 @@
 
 .menu-switch:checked,
 .menu-switch:active {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .menu-switch trough highlight,
 .menu-switch trough progress {
-  background-color: #F48120;
+  background-color: #FFFFFF;
 }
 
 .menu-switch slider,
@@ -61,7 +61,7 @@
 }
 
 .menu-icon-button:hover {
-  color: #F48120;
+  color: #FFFFFF;
 }
 
 .notification-card-container.menu {
@@ -87,7 +87,7 @@
 
 .notification-card-container.menu .menu-switch.notifications:checked,
 .notification-card-container.menu .menu-switch.notifications:active {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .notification-card-container.menu .menu-switch.notifications slider,
@@ -104,7 +104,7 @@
 }
 
 .notification-card-container.menu scrollbar slider {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .notification-menu-pager {
@@ -112,11 +112,11 @@
 }
 
 .notification-menu-pager .pager-button {
-  color: #F48120;
+  color: #FFFFFF;
 }
 
 .notification-menu-pager .pager-button:hover .pager-button-label {
-  color: rgba(244, 129, 32, 0.6);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .notification-menu-pager .pager-label {
@@ -125,7 +125,7 @@
 
 .notification-menu-pager .disabled,
 .notification-menu-pager .disabled:hover .pager-button-label {
-  color: rgba(244, 129, 32, 0.2);
+  color: rgba(255, 255, 255, 0.2);
 }
 
 .dashboard-content-items .power-menu-container .dashboard-button {
@@ -141,7 +141,7 @@
 .dashboard-content-items .power-menu-container .dashboard-button:hover.reboot,
 .dashboard-content-items .power-menu-container .dashboard-button:hover.logout,
 .dashboard-content-items .power-menu-container .dashboard-button:hover.sleep {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .dashboard-content-items .power-menu-container .dashboard-button:hover label {
@@ -154,7 +154,7 @@
 }
 
 .dashboard-content-items .shortcuts-container .container button:hover {
-  background: #F48120;
+  background: #FFFFFF;
   color: #FFFFFF;
 }
 
@@ -175,7 +175,7 @@
 .dashboard-content-items .controls-container button.notifications:hover,
 .dashboard-content-items .controls-container button.playback:hover,
 .dashboard-content-items .controls-container button.input:hover {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .dashboard-content-items .controls-container button:hover label {
@@ -195,7 +195,7 @@
 }
 
 .dashboard-content-items .directories-container .directory-link:hover {
-  background: #F48120;
+  background: #FFFFFF;
   color: #FFFFFF;
   opacity: 1;
 }
@@ -219,17 +219,17 @@
 }
 
 .dashboard-content-items .stats-container .stat:hover label {
-  color: #F48120;
+  color: #FFFFFF;
 }
 
 .dashboard-content-items .stats-container .stat:hover .stats-bar block.filled {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
-/* Dashboard polish: warmer surfaces, tighter spacing, softer Cloudflare accents */
+/* Dashboard polish: monochrome surfaces, tighter spacing */
 .menu-items {
   background: #050505;
-  border-color: #2B2118;
+  border-color: #242424;
 }
 
 .menu-section-container .menu-label-container,
@@ -246,7 +246,7 @@
 .dashboard-content-items .dashboard-card,
 .dashboard-content-items .power-menu-container {
   background: #0F0F0F;
-  border: 1px solid #2B2118;
+  border: 1px solid #242424;
   border-radius: 1.15em;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
@@ -267,7 +267,7 @@
 
 .dashboard-content-items .profile-picture-container .profile-picture {
   border-radius: 1em;
-  border: 1px solid #2B2118;
+  border: 1px solid #242424;
 }
 
 .dashboard-content-items .profile-picture-container .profile-name {
@@ -280,10 +280,10 @@
 .dashboard-content-items .shortcuts-container .container button,
 .dashboard-content-items .controls-container button,
 .dashboard-content-items .directories-container .directory-link {
-  background: #18110B;
-  border: 1px solid #53311A;
+  background: #121212;
+  border: 1px solid #242424;
   border-radius: 0.9em;
-  color: #F0AA67;
+  color: #FFFFFF;
 }
 
 .dashboard-content-items .power-menu-container .dashboard-button {
@@ -299,15 +299,15 @@
 .dashboard-content-items .shortcuts-container .container button label,
 .dashboard-content-items .controls-container button label,
 .dashboard-content-items .directories-container .directory-link label {
-  color: #F0AA67;
+  color: #FFFFFF;
 }
 
 .dashboard-content-items .power-menu-container .dashboard-button:hover,
 .dashboard-content-items .shortcuts-container .container button:hover,
 .dashboard-content-items .controls-container button:hover,
 .dashboard-content-items .directories-container .directory-link:hover {
-  background: #7A4317;
-  border-color: #A45C20;
+  background: #5C5C5C;
+  border-color: #FFFFFF;
   color: #FFFFFF;
 }
 
@@ -315,6 +315,37 @@
 .dashboard-content-items .shortcuts-container .container button:hover label,
 .dashboard-content-items .controls-container button:hover label,
 .dashboard-content-items .directories-container .directory-link:hover label {
+  color: #FFFFFF;
+}
+
+/* Generated HyprPanel power-button classes are more specific than the shared
+ * dashboard-button rule above. Keep their icons legible on monochrome fills.
+ */
+.dashboard-content-items .power-menu-container .dashboard-button.shutdown,
+.dashboard-content-items .power-menu-container .dashboard-button.reboot,
+.dashboard-content-items .power-menu-container .dashboard-button.logout,
+.dashboard-content-items .power-menu-container .dashboard-button.sleep {
+  background: #FFFFFF;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button.shutdown label,
+.dashboard-content-items .power-menu-container .dashboard-button.reboot label,
+.dashboard-content-items .power-menu-container .dashboard-button.logout label,
+.dashboard-content-items .power-menu-container .dashboard-button.sleep label {
+  color: #000000;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button.shutdown:hover,
+.dashboard-content-items .power-menu-container .dashboard-button.reboot:hover,
+.dashboard-content-items .power-menu-container .dashboard-button.logout:hover,
+.dashboard-content-items .power-menu-container .dashboard-button.sleep:hover {
+  background: #5C5C5C;
+}
+
+.dashboard-content-items .power-menu-container .dashboard-button.shutdown:hover label,
+.dashboard-content-items .power-menu-container .dashboard-button.reboot:hover label,
+.dashboard-content-items .power-menu-container .dashboard-button.logout:hover label,
+.dashboard-content-items .power-menu-container .dashboard-button.sleep:hover label {
   color: #FFFFFF;
 }
 
@@ -352,8 +383,14 @@
 
 .dashboard-content-items .directories-container .directory-link {
   min-width: 9.35em;
-  padding: 0.42em 0.55em;
-  margin: 0.18em 0.28em 0.18em 0;
+  min-height: 2.05em;
+  padding: 0.38em 0.68em;
+  margin: 0.24em 0.28em;
+}
+
+.dashboard-content-items .directories-container .directory-link label {
+  font-size: 1.05em;
+  margin: 0;
 }
 
 .dashboard-content-items .stats-container .stat {
@@ -363,15 +400,15 @@
 .dashboard-content-items .stats-container .stat label {
   margin-right: 0.65em;
   min-width: 1.5em;
-  color: #F0AA67;
+  color: #FFFFFF;
 }
 
 .dashboard-content-items .stats-container .stats-bar block.empty {
-  background: #2B2118;
+  background: #242424;
 }
 
 .dashboard-content-items .stats-container .stats-bar block.filled {
-  background: #F48120;
+  background: #FFFFFF;
 }
 
 .dashboard-content-items .stats-container .stat-value {
