@@ -4,14 +4,15 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-STOW_IGNORE_REGEX='^\.config(/|$)|\.md$'
+STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
+SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
 CONFIG_ONLY_MODE=0
 
-typeset -a package_roots config_children requested_config_children invalid_config_children
-typeset -A config_child_sources
+typeset -a package_roots config_children requested_config_children invalid_config_children special_leaf_paths
+typeset -A config_child_sources special_leaf_sources
 
 usage() {
     cat <<'EOF'
@@ -95,6 +96,29 @@ collect_config_children() {
 
         config_child_sources[$child]="$root"
         config_children+=("$child")
+    done
+}
+
+collect_special_leaf_entries() {
+    local root item package_root
+
+    for root in "${package_roots[@]}"; do
+        package_root="$SCRIPT_DIR/$root"
+
+        for item in "${SPECIAL_LEAF_TARGETS[@]}"; do
+            [[ -e "$package_root/$item" || -L "$package_root/$item" ]] || continue
+
+            if [[ -n "${special_leaf_sources[$item]-}" ]]; then
+                echo "Error: duplicate target path detected: $item"
+                echo " - from: ${special_leaf_sources[$item]}"
+                echo " - from: $root"
+                echo "Refusing to continue. Shared and OS-specific roots must not overlap."
+                exit 1
+            fi
+
+            special_leaf_sources[$item]="$root"
+            special_leaf_paths+=("$item")
+        done
     done
 }
 
@@ -184,6 +208,25 @@ unlink_config_children() {
     done
 }
 
+unlink_special_leaf_paths() {
+    local item source_root source_path target_path
+
+    for item in "${special_leaf_paths[@]}"; do
+        source_root="${special_leaf_sources[$item]}"
+        source_path="$SCRIPT_DIR/$source_root/$item"
+        target_path="$TARGET_DIR/$item"
+
+        [[ -L "$target_path" ]] || continue
+
+        if [[ "${target_path:A}" == "${source_path:A}" ]]; then
+            rm "$target_path"
+            echo "Removed ~/$item"
+        else
+            echo "Skipping ~/$item (points elsewhere)"
+        fi
+    done
+}
+
 if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" strict; then
     echo "Error: $DOTFILES_STOW_RESOLVE_ERROR"
     exit 1
@@ -194,6 +237,7 @@ package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 for root in "${package_roots[@]}"; do
     collect_config_children "$root"
 done
+collect_special_leaf_entries
 
 if [[ $LIST_CONFIG_ONLY -eq 1 ]]; then
     print_available_config_children
@@ -213,6 +257,7 @@ if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
     for root in "${package_roots[@]}"; do
         unstow_root "$root"
     done
+    unlink_special_leaf_paths
 fi
 
 unlink_config_children

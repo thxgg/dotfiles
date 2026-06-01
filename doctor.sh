@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 TARGET_ROOT="$HOME"
 STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
+SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
 CONFIG_ONLY_MODE=0
@@ -101,7 +102,7 @@ collect_expected_entries() {
 
     [[ -d "$package_root" ]] || return
 
-    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name '*.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
+    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name 'AGENTS.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
     for item in "${root_paths[@]}"; do
         [[ -n "$item" ]] || continue
 
@@ -130,6 +131,27 @@ collect_expected_entries() {
             config_children+=("$child")
         done
     fi
+}
+
+collect_special_expected_entries() {
+    local root item package_root
+
+    for root in "${package_roots[@]}"; do
+        package_root="$SCRIPT_DIR/$root"
+
+        for item in "${SPECIAL_LEAF_TARGETS[@]}"; do
+            [[ -e "$package_root/$item" || -L "$package_root/$item" ]] || continue
+
+            if [[ -n "${expected_sources[$item]-}" ]]; then
+                print_status FAIL "Duplicate target path detected: $item (from ${expected_sources[$item]} and $root)"
+                duplicate_count+=1
+                continue
+            fi
+
+            expected_sources[$item]="$root"
+            expected_paths+=("$item")
+        done
+    done
 }
 
 print_available_config_children() {
@@ -340,6 +362,7 @@ else
     for root in "${package_roots[@]}"; do
         collect_expected_entries "$root"
     done
+    collect_special_expected_entries
 
     collect_special_source_dirs
 

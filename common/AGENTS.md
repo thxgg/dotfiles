@@ -13,6 +13,7 @@ OS-specific payload lives in `macos/home/` and `linux/home/`.
 - **Add a shared dotfile**: create path under `common/`, then run `./safe-stow.sh`.
 - **Add an OS-specific dotfile**: create path under `macos/home/` or `linux/home/`.
 - **Update existing config**: edit tracked file in `common/`, not the live file in `$HOME`.
+- **Update Codex defaults**: edit `common/.codex/config.toml`, `common/.codex/AGENTS.md`, or `common/.agents/skills`.
 - **Machine secrets**: keep only references in tracked shell config; values live in `~/.env.secrets`.
 
 ## Anti-Patterns

@@ -8,11 +8,12 @@ STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
 STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$STOW_DIR/scripts/lib/stow-roots.zsh"
+SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
 CONFIG_ONLY_MODE=0
 
-typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children
+typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children special_leaf_paths
 typeset -a ssh_source_dirs config_source_dirs requested_config_children invalid_config_children
 typeset -A deploy_sources config_child_sources
 typeset -i backup_dir_created=0
@@ -124,6 +125,30 @@ collect_package_entries() {
             config_children+=("$child")
         done
     fi
+}
+
+collect_special_leaf_entries() {
+    local root item package_root
+
+    for root in "${package_roots[@]}"; do
+        package_root="$STOW_DIR/$root"
+
+        for item in "${SPECIAL_LEAF_TARGETS[@]}"; do
+            [[ -e "$package_root/$item" || -L "$package_root/$item" ]] || continue
+
+            if [[ -n "${deploy_sources[$item]-}" ]]; then
+                echo "Error: duplicate target path detected: $item"
+                echo " - from: ${deploy_sources[$item]}"
+                echo " - from: $root"
+                echo "Refusing to continue. Shared and OS-specific roots must not overlap."
+                exit 1
+            fi
+
+            deploy_sources[$item]="$root"
+            deploy_paths+=("$item")
+            special_leaf_paths+=("$item")
+        done
+    done
 }
 
 print_available_config_children() {
@@ -415,6 +440,31 @@ link_config_children() {
     done
 }
 
+link_special_leaf_paths() {
+    local item source_root source_path source_path_abs target_path target_dir
+
+    for item in "${special_leaf_paths[@]}"; do
+        source_root="${deploy_sources[$item]}"
+        source_path="$STOW_DIR/$source_root/$item"
+        source_path_abs="${source_path:A}"
+        target_path="$TARGET_DIR/$item"
+        target_dir="${target_path:h}"
+
+        if is_managed_target "$target_path" "$source_path_abs"; then
+            continue
+        fi
+
+        if [[ -e "$target_path" || -L "$target_path" ]]; then
+            echo "Error: $target_path still exists after conflict handling"
+            echo "Refusing to overwrite unknown content while linking special leaf target."
+            exit 1
+        fi
+
+        mkdir -p "$target_dir"
+        ln -s "$source_path_abs" "$target_path"
+    done
+}
+
 stow_root() {
     local root="$1"
     local package_dir="$STOW_DIR/$root"
@@ -435,6 +485,7 @@ package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 for root in "${package_roots[@]}"; do
     collect_package_entries "$root"
 done
+collect_special_leaf_entries
 
 collect_special_source_dirs
 
@@ -530,6 +581,7 @@ if [[ $include_deploy_paths -eq 1 ]]; then
     for root in "${package_roots[@]}"; do
         stow_root "$root"
     done
+    link_special_leaf_paths
 fi
 
 link_config_children
