@@ -9,6 +9,7 @@ fish
 ripgrep
 fzf
 jq
+curl
 wget
 tree
 stow
@@ -17,7 +18,6 @@ zsh
 starship
 btop
 rocm-smi-lib
-fnm
 neovim
 luarocks
 python
