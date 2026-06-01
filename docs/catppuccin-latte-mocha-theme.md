@@ -32,7 +32,7 @@ For apps with built-in Catppuccin support or existing Catppuccin assets, prefer 
 Recommended macOS external-app handling:
 
 - Helium browser chrome: add a helper that downloads/unpacks the Catppuccin Chrome Latte Lavender and Mocha Lavender release zips into `~/.local/share/catppuccin-chrome/`, then applies the matching unpacked theme to Helium where feasible. If Chromium/Helium does not expose safe live theme switching, the helper should at least prepare the unpacked themes and document the one-time `chrome://extensions` / `Load unpacked` step.
-- NightTab: add a helper/documented snippet based on `catppuccin/nighttab` that injects/creates `Catppuccin Latte Lavender` and `Catppuccin Mocha Lavender` custom themes (`setTheme("latte", "lavender")`, `setTheme("mocha", "lavender")`) and selects a `Catppuccin Lavender System` theme using NightTab's `style: "system"` mode so it follows the browser/system light-dark preference after the one-time console import.
+- NightTab: `common/.local/bin/catppuccin-nighttab-lavender` prints/copies a console snippet based on `catppuccin/nighttab` that updates existing `Catppuccin Latte/Mocha Sapphire` custom themes to `Catppuccin Latte/Mocha Lavender` and switches the active accent to Lavender after the one-time console import.
 - Slack: use Slack's supported custom theme strings, adapted to Lavender. Latte: `#EFF1F5,#F8F8FA,#7287FD,#EFF1F5,#DCE0E8,#4C4F69,#7287FD,#E64553,#EFF1F5,#4C4F69`; Mocha: `#1E1E2E,#F8F8FA,#B4BEFE,#1E1E2E,#11111B,#CDD6F4,#B4BEFE,#EBA0AC,#1E1E2E,#CDD6F4`. Prefer documenting/copying these strings over brittle Slack internals unless a safe macOS Slack settings file is found during implementation.
 
 ## Files to modify
