@@ -1,0 +1,26 @@
+{
+  "providers": {
+    "openai-codex": {
+      "models": [
+        {
+          "id": "gpt-5.5-fast",
+          "name": "GPT-5.5 Fast",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": "low",
+            "xhigh": "xhigh"
+          },
+          "input": ["text", "image"],
+          "cost": {
+            "input": 6.25,
+            "output": 37.5,
+            "cacheRead": 0.625,
+            "cacheWrite": 0
+          },
+          "contextWindow": 272000,
+          "maxTokens": 128000
+        }
+      ]
+    }
+  }
+}
