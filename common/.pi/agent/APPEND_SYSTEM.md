@@ -41,6 +41,10 @@ Prefer refs from `snapshot` over CSS selectors, and prefer semantic waits like `
 - Do not include a co-authored-by footer.
 - Do not include ticket IDs or story references unless project conventions say otherwise.
 
+## External Comments and Reviews
+
+Never submit reviews or post comments in Linear or GitHub unless the user explicitly asks for that exact external action.
+
 ## Pull Requests
 
 ### Workflow
