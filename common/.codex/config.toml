@@ -1,0 +1,224 @@
+notify = ["/Users/thxgg/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
+personality = "pragmatic"
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+service_tier = "fast"
+approval_policy = "never"
+approvals_reviewer = "user"
+sandbox_mode = "danger-full-access"
+
+[[skills.config]]
+path = "/Users/thxgg/.codex/skills/web-animation-design/SKILL.md"
+enabled = false
+
+[[skills.config]]
+name = "presentations:Presentations"
+enabled = false
+
+[[skills.config]]
+path = "/Users/thxgg/.codex/skills/.system/skill-creator/SKILL.md"
+enabled = false
+
+[[skills.config]]
+name = "spreadsheets:Spreadsheets"
+enabled = false
+
+[[skills.config]]
+path = "/Users/thxgg/.codex/skills/.system/plugin-creator/SKILL.md"
+enabled = false
+
+[[skills.config]]
+path = "/Users/thxgg/.codex/skills/.system/openai-docs/SKILL.md"
+enabled = false
+
+[plugins."linear@openai-curated"]
+enabled = true
+
+[plugins."github@openai-curated"]
+enabled = true
+
+[plugins."documents@openai-primary-runtime"]
+enabled = false
+
+[plugins."spreadsheets@openai-primary-runtime"]
+enabled = false
+
+[plugins."presentations@openai-primary-runtime"]
+enabled = false
+
+[plugins."browser@openai-bundled"]
+enabled = true
+
+[marketplaces.openai-bundled]
+last_updated = "2026-05-31T17:20:23Z"
+source_type = "local"
+source = "/Users/thxgg/.codex/.tmp/bundled-marketplaces/openai-bundled"
+
+[marketplaces.openai-primary-runtime]
+last_updated = "2026-05-27T12:30:29Z"
+source_type = "local"
+source = "/Users/thxgg/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
+
+[projects."/Users/thxgg/Projects/Work/code-hospitality-monorepo"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Projects/Personal/dotfiles"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Obsidian/Personal/Home"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Projects/Work/rentacar"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Documents/Codex/2026-05-28/skill-installer-users-thxgg-codex-skills"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Documents/Codex/2026-05-28/how-can-i-enable-computer-use"]
+trust_level = "trusted"
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+enabled = true
+
+[mcp_servers.grep_app]
+url = "https://mcp.grep.app/"
+enabled = true
+
+# Transferred from Pi's ephemeral MCP catalog. Keep these disabled globally
+# because Pi made them opt-in per project/session rather than always-on.
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]
+enabled = false
+
+[mcp_servers.shortcut]
+command = "npx"
+args = ["-y", "@shortcut/mcp@latest"]
+env_vars = ["SHORTCUT_API_TOKEN"]
+enabled = false
+
+[mcp_servers.sonarqube]
+command = "docker"
+args = ["run", "-i", "--rm", "-e", "SONARQUBE_TOKEN", "-e", "SONARQUBE_URL", "mcp/sonarqube"]
+env_vars = ["SONARQUBE_TOKEN"]
+enabled = false
+
+[mcp_servers.sonarqube.env]
+SONARQUBE_URL = "https://sonar.codehospitality.app"
+
+[mcp_servers.db_staging]
+command = "sh"
+args = ["-lc", 'DATABASE_URI="$DATABASE_URI_STAGING" exec docker run -i --rm --network=host -e DATABASE_URI crystaldba/postgres-mcp --access-mode=unrestricted']
+env_vars = ["DATABASE_URI_STAGING"]
+default_tools_approval_mode = "prompt"
+enabled = false
+
+[mcp_servers.db_prod]
+command = "sh"
+args = ["-lc", 'DATABASE_URI="$DATABASE_URI_PROD" exec docker run -i --rm --network=host -e DATABASE_URI crystaldba/postgres-mcp --access-mode=unrestricted']
+env_vars = ["DATABASE_URI_PROD"]
+default_tools_approval_mode = "prompt"
+enabled = false
+
+[mcp_servers.heroku]
+command = "heroku"
+args = ["mcp:start"]
+enabled = false
+
+[mcp_servers.linear]
+command = "npx"
+args = ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+enabled = true
+
+[mcp_servers.aws-mcp]
+command = "uvx"
+args = ["mcp-proxy-for-aws@latest", "https://aws-mcp.us-east-1.api.aws/mcp", "--profile", "code", "--metadata", "AWS_REGION=eu-west-2"]
+enabled = false
+
+[mcp_servers.stripe-business]
+url = "https://mcp.stripe.com"
+enabled = false
+
+[mcp_servers.stripe-business-prod]
+url = "https://mcp.stripe.com"
+enabled = false
+
+[mcp_servers.stripe-memberships]
+url = "https://mcp.stripe.com"
+enabled = false
+
+[mcp_servers.stripe-memberships-prod]
+url = "https://mcp.stripe.com"
+enabled = false
+
+[mcp_servers.node_repl]
+args = []
+command = "/Applications/Codex.app/Contents/Resources/node_repl"
+startup_timeout_sec = 120
+
+[mcp_servers.node_repl.env]
+NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
+NODE_REPL_NODE_MODULE_DIRS = ""
+NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/node"
+NODE_REPL_TRUSTED_CODE_PATHS = "/Users/thxgg/.codex"
+CODEX_HOME = "/Users/thxgg/.codex"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "0b0d41e7a14a4903d2f95b0b3f427ed796b12c8edca2fa392a03df43997075ae"
+BROWSER_USE_AVAILABLE_BACKENDS = "iab"
+NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
+BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
+CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
+
+[desktop]
+appearanceTheme = "system"
+appearanceLightCodeThemeId = "catppuccin"
+appearanceDarkCodeThemeId = "linear"
+sansFontSize = 14
+codeFontSize = 14
+followUpQueueMode = "steer"
+composerEnterBehavior = "cmdIfMultiline"
+preventSleepWhileRunning = true
+keepRemoteControlAwakeWhilePluggedIn = true
+git-show-sidebar-pr-icons = true
+
+[desktop.appearanceLightChromeTheme]
+accent = "#8839ef"
+contrast = 45
+ink = "#4c4f69"
+opaqueWindows = true
+surface = "#eff1f5"
+
+[desktop.appearanceLightChromeTheme.fonts]
+code = "Berkeley Mono"
+ui = "Geist"
+
+[desktop.appearanceLightChromeTheme.semanticColors]
+diffAdded = "#40a02b"
+diffRemoved = "#d20f39"
+skill = "#8839ef"
+
+[desktop.appearanceDarkChromeTheme]
+accent = "#606acc"
+contrast = 60
+ink = "#e3e4e6"
+opaqueWindows = true
+surface = "#0f0f11"
+
+[desktop.appearanceDarkChromeTheme.fonts]
+code = '"Jetbrains Mono"'
+ui = "Inter"
+
+[desktop.appearanceDarkChromeTheme.semanticColors]
+diffAdded = "#69c967"
+diffRemoved = "#ff7e78"
+skill = "#c2a1ff"
+
+[desktop.open-in-target-preferences]
+global = "vscode"
+
+[features]
+hooks = true
+js_repl = false
+
+[tui.model_availability_nux]
+"gpt-5.5" = 2

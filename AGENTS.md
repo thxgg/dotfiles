@@ -31,6 +31,7 @@ dotfiles/
 | Add Arch packages | `linux/packages/*.txt` | Profile-based lists consumed by `linux/setup.sh` |
 | Shell behavior | `common/.config/fish/config.fish` + `common/.config/tmux/tmux.conf` | Primary interactive shell is fish; keep secrets in `~/.env.secrets`, not tracked files |
 | Neovim behavior | `common/.config/nvim` | Lazy plugin specs + core/user modules |
+| Codex setup | `common/.codex` + `common/.agents/skills` | Global Codex config, personal instructions, MCP servers, and user-wide skills |
 | OpenCode setup | `common/.config/opencode` | Agents/commands/skills and local plugin code |
 
 ## Conventions (Project-Specific)
