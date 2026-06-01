@@ -15,5 +15,6 @@ clipboard-read = allow
 clipboard-write = allow
 title = ghostty
 env = TMPDIR=/Users/thxgg/.local/state/tmp
+env = PI_SKIP_TMUX_AUTOSTART=1
 window-padding-y = 0
 window-padding-color = extend
