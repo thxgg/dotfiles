@@ -71,6 +71,150 @@ configure_fish_shell() {
 	fi
 }
 
+set_launchservices_extension_handler() {
+	local extension="${1#.}"
+	local bundle_id="$2"
+	local plist="$HOME/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
+	local count idx existing_tag existing_class
+
+	if [[ -z "$extension" ]]; then
+		return
+	fi
+
+	mkdir -p "${plist:h}"
+
+	if [[ ! -f "$plist" ]]; then
+		plutil -create xml1 "$plist"
+	fi
+
+	if ! plutil -extract LSHandlers raw -expect array "$plist" >/dev/null 2>&1; then
+		plutil -insert LSHandlers -array "$plist" >/dev/null
+	fi
+
+	count="$(plutil -extract LSHandlers raw -expect array "$plist" 2>/dev/null || printf '0')"
+	for (( idx = count - 1; idx >= 0; idx-- )); do
+		existing_tag="$(plutil -extract "LSHandlers.$idx.LSHandlerContentTag" raw -expect string "$plist" 2>/dev/null || true)"
+		existing_class="$(plutil -extract "LSHandlers.$idx.LSHandlerContentTagClass" raw -expect string "$plist" 2>/dev/null || true)"
+
+		if [[ "$existing_tag" == "$extension" && "$existing_class" == "public.filename-extension" ]]; then
+			plutil -remove "LSHandlers.$idx" "$plist" >/dev/null
+		fi
+	done
+
+	count="$(plutil -extract LSHandlers raw -expect array "$plist")"
+	plutil -insert "LSHandlers.$count" -dictionary "$plist" >/dev/null
+	plutil -insert "LSHandlers.$count.LSHandlerContentTag" -string "$extension" "$plist" >/dev/null
+	plutil -insert "LSHandlers.$count.LSHandlerContentTagClass" -string "public.filename-extension" "$plist" >/dev/null
+	plutil -insert "LSHandlers.$count.LSHandlerRoleAll" -string "$bundle_id" "$plist" >/dev/null
+}
+
+set_launchservices_content_type_handler() {
+	local content_type="$1"
+	local bundle_id="$2"
+	local plist="$HOME/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
+	local count idx existing_type
+
+	if [[ -z "$content_type" || "$content_type" == "(null)" ]]; then
+		return
+	fi
+
+	mkdir -p "${plist:h}"
+
+	if [[ ! -f "$plist" ]]; then
+		plutil -create xml1 "$plist"
+	fi
+
+	if ! plutil -extract LSHandlers raw -expect array "$plist" >/dev/null 2>&1; then
+		plutil -insert LSHandlers -array "$plist" >/dev/null
+	fi
+
+	count="$(plutil -extract LSHandlers raw -expect array "$plist" 2>/dev/null || printf '0')"
+	for (( idx = count - 1; idx >= 0; idx-- )); do
+		existing_type="$(plutil -extract "LSHandlers.$idx.LSHandlerContentType" raw -expect string "$plist" 2>/dev/null || true)"
+
+		if [[ "$existing_type" == "$content_type" ]]; then
+			plutil -remove "LSHandlers.$idx" "$plist" >/dev/null
+		fi
+	done
+
+	count="$(plutil -extract LSHandlers raw -expect array "$plist")"
+	plutil -insert "LSHandlers.$count" -dictionary "$plist" >/dev/null
+	plutil -insert "LSHandlers.$count.LSHandlerContentType" -string "$content_type" "$plist" >/dev/null
+	plutil -insert "LSHandlers.$count.LSHandlerRoleAll" -string "$bundle_id" "$plist" >/dev/null
+}
+
+configure_vscode_file_associations() {
+	local vscode_bundle_id="com.microsoft.VSCode"
+	local vscode_app_found=0
+	local extension extension_name tmp_file content_type uti
+	local -a extensions utis
+
+	if ! command -v duti >/dev/null 2>&1; then
+		warn "duti not found; skipping VS Code file association setup"
+		return
+	fi
+
+	if [[ -d "/Applications/Visual Studio Code.app" || -d "$HOME/Applications/Visual Studio Code.app" ]]; then
+		vscode_app_found=1
+	elif command -v mdfind >/dev/null 2>&1 && mdfind "kMDItemCFBundleIdentifier == '$vscode_bundle_id'" | grep -q .; then
+		vscode_app_found=1
+	fi
+
+	if [[ "$vscode_app_found" != "1" ]]; then
+		warn "Visual Studio Code not found; skipping file association setup"
+		return
+	fi
+
+	if [[ -x "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" ]]; then
+		/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "/Applications/Visual Studio Code.app" >/dev/null 2>&1 || true
+	fi
+
+	extensions=(
+		.c .cc .cpp .cxx .h .hh .hpp .hxx .m .mm .metal .swift
+		.rs .go .py .rb .php .java .kt .kts .scala .cs
+		.js .jsx .ts .tsx .mjs .cjs .vue .svelte
+		.css .scss .sass .less
+		.sh .bash .zsh .fish .ps1 .bat .cmd
+		.sql .graphql .gql .proto
+		.md .mdx .txt .text .log .csv .tsv
+		.json .jsonc .json5 .yaml .yml .toml .xml .plist .ini .conf .cfg .properties
+		.env .editorconfig .gitignore .gitattributes .dockerignore
+	)
+
+	utis=(
+		public.text
+		public.plain-text
+		public.source-code
+		public.script
+		public.shell-script
+		public.json
+		public.yaml
+		public.xml
+		com.apple.property-list
+		net.daringfireball.markdown
+	)
+
+	info "Setting VS Code as default for text, code, and config files"
+	for extension in "${extensions[@]}"; do
+		if ! duti -s "$vscode_bundle_id" "$extension" all >/dev/null 2>&1; then
+			set_launchservices_extension_handler "$extension" "$vscode_bundle_id"
+			extension_name="${extension#.}"
+			tmp_file="$(mktemp "${TMPDIR:-/tmp}/vscode-association.XXXXXX.$extension_name")"
+			content_type="$(mdls -name kMDItemContentType -raw "$tmp_file" 2>/dev/null || true)"
+			rm -f "$tmp_file"
+			set_launchservices_content_type_handler "$content_type" "$vscode_bundle_id"
+		fi
+	done
+
+	for uti in "${utis[@]}"; do
+		if ! duti -s "$vscode_bundle_id" "$uti" all >/dev/null 2>&1; then
+			warn "Could not set VS Code default for $uti"
+		fi
+	done
+	killall cfprefsd >/dev/null 2>&1 || true
+	success "VS Code file associations configured"
+}
+
 ret=0
 trap 'ret=$?; if [[ $ret -ne 0 ]]; then error "macOS setup failed"; fi; exit $ret' EXIT
 
@@ -152,6 +296,7 @@ fi
 info "Running post-installation setup"
 
 configure_fish_shell
+configure_vscode_file_associations
 
 # PostgreSQL setup
 if brew list --formula | grep -qx "postgresql@18"; then
