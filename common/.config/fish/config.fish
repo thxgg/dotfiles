@@ -323,3 +323,6 @@ end
 
 set -e __dotfiles_uname
 set -e __dotfiles_fish_path
+
+# Pi
+fish_add_path "/home/thxgg/.vite-plus/js_runtime/node/24.16.0/bin"
