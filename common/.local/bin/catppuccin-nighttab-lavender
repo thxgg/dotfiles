@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: catppuccin-nighttab-lavender [--copy] [--bookmarklet]
+
+Prints a NightTab console snippet that updates existing Catppuccin Latte/Mocha
+custom themes from Sapphire to the repository-standard Lavender accent.
+
+Open NightTab, open DevTools Console, paste the snippet, then refresh.
+Use --copy to place it on the clipboard (wl-copy or pbcopy).
+Use --bookmarklet to print a javascript: URL version instead.
+USAGE
+}
+
+copy=false
+bookmarklet=false
+for arg in "$@"; do
+  case "$arg" in
+    --copy) copy=true ;;
+    --bookmarklet) bookmarklet=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $arg" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+read -r -d '' snippet <<'JS' || true
+(() => {
+  const lavender = {
+    latte: {
+      label: "Latte",
+      name: "Catppuccin Latte Lavender",
+      hsl: { h: 231, s: 97, l: 72 },
+      rgb: { r: 114, g: 135, b: 253 },
+    },
+    mocha: {
+      label: "Mocha",
+      name: "Catppuccin Mocha Lavender",
+      hsl: { h: 232, s: 97, l: 85 },
+      rgb: { r: 180, g: 190, b: 254 },
+    },
+  };
+
+  const config = JSON.parse(localStorage.getItem("nightTab") || "{}");
+  if (!config?.state?.theme) {
+    throw new Error("NightTab config not found. Run this from the NightTab page.");
+  }
+
+  const themes = config.state.theme.custom?.all || [];
+  const upsertLavender = (flavour) => {
+    const target = lavender[flavour];
+    const matcher = new RegExp(`^Catppuccin ${target.label} (Sapphire|Lavender)$`);
+    let index = themes.findIndex((theme) => matcher.test(theme.name));
+
+    if (index === -1) {
+      index = themes.findIndex((theme) => theme.name?.startsWith(`Catppuccin ${target.label} `));
+    }
+
+    if (index === -1) return false;
+
+    themes[index] = {
+      ...themes[index],
+      name: target.name,
+      accent: {
+        ...themes[index].accent,
+        hsl: target.hsl,
+        rgb: target.rgb,
+      },
+    };
+    return true;
+  };
+
+  const updated = [upsertLavender("latte"), upsertLavender("mocha")].filter(Boolean).length;
+
+  const style = config.state.theme.style || localStorage.getItem("nightTabStyle") || "dark";
+  const active = style === "light" ? lavender.latte : lavender.mocha;
+  config.state.theme.accent = {
+    ...config.state.theme.accent,
+    hsl: active.hsl,
+    rgb: active.rgb,
+  };
+
+  localStorage.setItem("nightTab", JSON.stringify(config));
+  localStorage.setItem("nightTabStyle", style);
+  console.log(`NightTab Catppuccin Lavender applied (${updated} custom themes updated). Refreshing…`);
+  location.reload();
+})();
+JS
+
+if "$bookmarklet"; then
+  payload="javascript:$(printf '%s' "$snippet" | tr -d '\n' | sed 's/[[:space:]]\{1,\}/ /g')"
+else
+  payload="$snippet"
+fi
+
+if "$copy"; then
+  if command -v wl-copy >/dev/null 2>&1; then
+    printf '%s' "$payload" | wl-copy
+  elif command -v pbcopy >/dev/null 2>&1; then
+    printf '%s' "$payload" | pbcopy
+  else
+    echo "No supported clipboard command found (wl-copy or pbcopy)." >&2
+    exit 1
+  fi
+  if "$bookmarklet"; then
+    echo "Copied NightTab Lavender bookmarklet snippet to clipboard."
+  else
+    echo "Copied NightTab Lavender snippet to clipboard."
+  fi
+else
+  printf '%s\n' "$payload"
+fi
