@@ -262,8 +262,11 @@
             "wget *": "allow",
             "websocat *": "allow",
             "nmap *": "ask",
-            // Node version management
-            "fnm *": "allow",
+            // Vite+ / Node toolchain
+            "vp env": "allow",
+            "vp env *": "allow",
+            "vpx *": "allow",
+            "vpr *": "allow",
             // dot command
             "dot *": "allow",
             // Process management

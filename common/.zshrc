@@ -177,10 +177,14 @@ export RIPGREP_CONFIG_PATH="$HOME/.ripgreprc"
 # opencode
 export PATH="$HOME/thxgg/.opencode/bin:$PATH"
 
-eval "$(fnm env --use-on-cd --shell zsh)"
+# Drop inherited fnm state while migrating to Vite+.
+path=(${path:#*/fnm_multishells/*})
+unset FNM_ARCH FNM_COREPACK_ENABLED FNM_DIR FNM_LOGLEVEL FNM_MULTISHELL_PATH FNM_NODE_DIST_MIRROR FNM_RESOLVE_ENGINES FNM_VERSION_FILE_STRATEGY
 
 # Vite+ bin (https://viteplus.dev)
-. "$HOME/.vite-plus/env"
+if [[ -f "$HOME/.vite-plus/env" ]]; then
+  . "$HOME/.vite-plus/env"
+fi
 
 # direnv (loads ~/.env and ~/.env.secrets via ~/.envrc + ~/.config/direnv/direnvrc)
 export DIRENV_LOG_FORMAT=

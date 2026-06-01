@@ -71,6 +71,39 @@ configure_fish_shell() {
 	fi
 }
 
+ensure_vite_plus_node() {
+	local vp_home vp_bin
+
+	vp_home="${VP_HOME:-$HOME/.vite-plus}"
+	vp_bin="$vp_home/bin/vp"
+
+	if ! command -v vp >/dev/null 2>&1 && [[ ! -x "$vp_bin" ]]; then
+		if ! command -v curl >/dev/null 2>&1; then
+			warn "curl not found; skipping Vite+ installation"
+			return
+		fi
+
+		info "Installing Vite+"
+		curl -fsSL https://vite.plus | env VP_NODE_MANAGER=yes bash
+	fi
+
+	if command -v vp >/dev/null 2>&1; then
+		vp_bin="$(command -v vp)"
+	elif [[ -x "$vp_bin" ]]; then
+		export PATH="${vp_bin:h}:$PATH"
+	else
+		warn "Vite+ not found; skipping Node.js setup"
+		return
+	fi
+
+	info "Setting up Node.js versions with Vite+"
+	VP_NODE_MANAGER=yes "$vp_bin" env setup --refresh
+	"$vp_bin" env on
+	"$vp_bin" env install 14
+	"$vp_bin" env install lts
+	"$vp_bin" env default lts
+}
+
 set_launchservices_extension_handler() {
 	local extension="${1#.}"
 	local bundle_id="$2"
@@ -310,14 +343,8 @@ if brew list --formula | grep -qx "redis"; then
 	brew services start redis
 fi
 
-# Node.js setup with fnm
-if command -v fnm &>/dev/null; then
-	info "Setting up Node.js versions with fnm"
-	eval "$(fnm env --use-on-cd)"
-	fnm install 14
-	fnm install lts-latest
-	fnm default lts-latest
-fi
+# Node.js setup with Vite+
+ensure_vite_plus_node
 
 # Python CLI setup with pipx
 if command -v pipx &>/dev/null; then

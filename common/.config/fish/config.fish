@@ -129,6 +129,13 @@ if not set -q JAVA_HOME; and test "$__dotfiles_uname" = Darwin; and test -x /usr
     end
 end
 
+# Drop inherited fnm state while migrating to Vite+.
+set -gx PATH (string match -v '*/fnm_multishells/*' $PATH)
+for __dotfiles_fnm_var in FNM_ARCH FNM_COREPACK_ENABLED FNM_DIR FNM_LOGLEVEL FNM_MULTISHELL_PATH FNM_NODE_DIST_MIRROR FNM_RESOLVE_ENGINES FNM_VERSION_FILE_STRATEGY
+    set -e $__dotfiles_fnm_var
+end
+set -e __dotfiles_fnm_var
+
 if test -f "$HOME/.vite-plus/env.fish"
     source "$HOME/.vite-plus/env.fish"
 end
@@ -301,10 +308,6 @@ if status is-interactive
 
     if type -q zoxide
         zoxide init fish | source
-    end
-
-    if type -q fnm
-        fnm env --use-on-cd --shell fish | source
     end
 
     if type -q starship
