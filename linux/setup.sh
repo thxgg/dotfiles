@@ -497,11 +497,23 @@ enable_service() {
 	sudo systemctl enable --now "$service"
 }
 
+disable_service() {
+	local service="$1"
+
+	if ! systemctl list-unit-files "$service" --no-legend &>/dev/null; then
+		warn "Service not found, skipping: $service"
+		return
+	fi
+
+	info "Disabling service: $service"
+	sudo systemctl disable --now "$service"
+}
+
 info "Running post-install service setup"
 enable_service docker.service
 enable_service valkey.service
 enable_service redis.service
-enable_service tailscaled.service
+disable_service tailscaled.service
 
 if package_is_requested postgresql18; then
 	initialize_postgresql18_cluster
