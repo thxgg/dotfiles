@@ -1,0 +1,608 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+# Resolve this script even when invoked through ~/.local/bin/dot.
+script_path="$0"
+while [[ -L "$script_path" ]]; do
+	link_target="$(readlink "$script_path")"
+	if [[ "$link_target" == /* ]]; then
+		script_path="$link_target"
+	else
+		script_path="${script_path:h}/$link_target"
+	fi
+done
+
+DOTFILES_DIR="${script_path:A:h}"
+SCRIPT_NAME="dot"
+VERSION="0.1.0"
+
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[0;33m'
+BLUE=$'\033[0;34m'
+CYAN=$'\033[0;36m'
+BOLD=$'\033[1m'
+RESET=$'\033[0m'
+
+info() {
+	printf "${CYAN}[INFO]${RESET} %s\n" "$1"
+}
+
+success() {
+	printf "${GREEN}[OK]${RESET} %s\n" "$1"
+}
+
+warn() {
+	printf "${YELLOW}[WARN]${RESET} %s\n" "$1"
+}
+
+error() {
+	printf "${RED}[ERROR]${RESET} %s\n" "$1" >&2
+}
+
+header() {
+	printf "\n${BOLD}${BLUE}==>${RESET} ${BOLD}%s${RESET}\n" "$1"
+}
+
+command_exists() {
+	command -v "$1" >/dev/null 2>&1
+}
+
+confirm() {
+	local prompt="${1:-Continue?}"
+	local default="${2:-n}"
+	local response suffix
+
+	if [[ "$default" == "y" ]]; then
+		suffix='[Y/n]'
+	else
+		suffix='[y/N]'
+	fi
+
+	if [[ ! -t 0 || ! -t 1 ]]; then
+		[[ "$default" == "y" ]]
+		return
+	fi
+
+	printf '%s %s ' "$prompt" "$suffix"
+	read -r response
+	case "$response" in
+		[yY]|[yY][eE][sS]) return 0 ;;
+		[nN]|[nN][oO]) return 1 ;;
+		'') [[ "$default" == "y" ]] ;;
+		*) return 1 ;;
+	esac
+}
+
+run_repo_script() {
+	local script_name="$1"
+	shift
+	local script_path="$DOTFILES_DIR/$script_name"
+
+	if [[ ! -f "$script_path" ]]; then
+		error "Required script not found: $script_path"
+		return 1
+	fi
+
+	zsh "$script_path" "$@"
+}
+
+usage() {
+	cat <<EOF
+${BOLD}${SCRIPT_NAME}${RESET} - Dotfiles management tool
+Version: ${VERSION}
+
+${BOLD}USAGE:${RESET}
+    ${SCRIPT_NAME} [OPTIONS] COMMAND [ARGS]
+
+${BOLD}COMMANDS:${RESET}
+    init              Run full machine setup via ./setup.sh
+    update            Pull latest repo changes, update packages, re-stow, update pi
+    stow              Apply links via ./safe-stow.sh
+    unstow            Remove links via ./unstow.sh
+    doctor            Validate symlinks and setup health via ./doctor.sh
+    check-packages    Check OS package manifest installation status
+    package list      List package manifests
+    benchmark-shell   Benchmark Fish shell startup time
+    completions       Generate Fish shell completions for dot
+    edit              Open this repo in \$EDITOR
+    link              Symlink dot into ~/.local/bin
+    unlink            Remove dot symlinks from common PATH locations
+    help              Show this help
+
+${BOLD}OPTIONS:${RESET}
+    --version         Show version information
+    -h, --help        Show this help
+
+${BOLD}EXAMPLES:${RESET}
+    ${SCRIPT_NAME} init --skip-network-check
+    ${SCRIPT_NAME} stow --only-config nvim,ghostty
+    ${SCRIPT_NAME} doctor --only-config nvim
+    ${SCRIPT_NAME} update --skip-packages
+    ${SCRIPT_NAME} check-packages
+    ${SCRIPT_NAME} package list linux
+EOF
+}
+
+cmd_init() {
+	header "Initializing dotfiles"
+	run_repo_script setup.sh "$@"
+}
+
+cmd_stow() {
+	header "Applying stow links"
+	run_repo_script safe-stow.sh "$@"
+}
+
+cmd_unstow() {
+	header "Removing stow links"
+	run_repo_script unstow.sh "$@"
+}
+
+cmd_doctor() {
+	header "Running dotfiles doctor"
+	run_repo_script doctor.sh "$@"
+}
+
+cmd_edit() {
+	local editor="${EDITOR:-nvim}"
+
+	if ! command_exists "$editor"; then
+		error "Editor not found: $editor"
+		return 1
+	fi
+
+	exec "$editor" "$DOTFILES_DIR"
+}
+
+cmd_link() {
+	header "Installing dot command"
+
+	local target_dir="${DOTFILES_BIN_DIR:-$HOME/.local/bin}"
+	local link_path="$target_dir/dot"
+	mkdir -p "$target_dir"
+
+	if [[ -e "$link_path" && ! -L "$link_path" ]]; then
+		error "Refusing to replace non-symlink: $link_path"
+		return 1
+	fi
+
+	ln -sfn "$DOTFILES_DIR/dot" "$link_path"
+	success "Linked $link_path -> $DOTFILES_DIR/dot"
+
+	case ":$PATH:" in
+		*":$target_dir:"*) success "$target_dir is already in PATH" ;;
+		*) warn "$target_dir is not in PATH" ;;
+	esac
+}
+
+cmd_unlink() {
+	header "Uninstalling dot command"
+
+	local paths=(
+		"$HOME/.local/bin/dot"
+		"/usr/local/bin/dot"
+		"/opt/homebrew/bin/dot"
+	)
+	local removed=0 path
+
+	for path in "${paths[@]}"; do
+		if [[ -L "$path" ]]; then
+			rm "$path"
+			success "Removed $path"
+			removed=1
+		fi
+	done
+
+	if [[ $removed -eq 0 ]]; then
+		warn "No dot symlink found"
+	fi
+}
+
+update_repo() {
+	header "Updating repository"
+
+	if [[ -d "$DOTFILES_DIR/.jj" ]] && command_exists jj; then
+		info "Detected jj-managed repository"
+		jj git fetch -R "$DOTFILES_DIR"
+		jj -R "$DOTFILES_DIR" rebase -d 'trunk()'
+		success "Repository updated with jj"
+		return
+	fi
+
+	if ! git -C "$DOTFILES_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+		warn "Not a git repository; skipping pull"
+		return
+	fi
+
+	git -C "$DOTFILES_DIR" pull --ff-only
+	success "Repository updated with git"
+}
+
+update_packages() {
+	header "Updating OS packages"
+
+	case "$OSTYPE" in
+		darwin*)
+			if ! command_exists brew; then
+				warn "Homebrew not found; skipping package update"
+				return
+			fi
+
+			brew update
+			brew upgrade
+			if [[ -f "$DOTFILES_DIR/macos/Brewfile" ]]; then
+				brew bundle --file="$DOTFILES_DIR/macos/Brewfile"
+			fi
+			brew cleanup
+			;;
+		linux-gnu*)
+			if command_exists yay; then
+				yay -Syu --needed
+			elif command_exists pacman; then
+				warn "yay not found; using pacman for repo packages only"
+				sudo pacman -Syu
+			else
+				warn "No supported Linux package manager found; skipping package update"
+				return
+			fi
+			;;
+		*)
+			warn "Unsupported OSTYPE for package update: $OSTYPE"
+			return
+			;;
+	esac
+
+	success "OS packages updated"
+}
+
+update_pi() {
+	header "Updating pi"
+
+	if ! command_exists pi; then
+		warn "pi not found; skipping"
+		return
+	fi
+
+	(cd "$DOTFILES_DIR" && pi update)
+	success "pi updated"
+}
+
+cmd_update() {
+	local skip_packages=0
+	local skip_stow=0
+	local skip_pi=0
+
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--skip-packages)
+				skip_packages=1
+				shift
+				;;
+			--skip-stow)
+				skip_stow=1
+				shift
+				;;
+			--skip-pi)
+				skip_pi=1
+				shift
+				;;
+			-h|--help)
+				cat <<EOF
+Usage: ${SCRIPT_NAME} update [options]
+
+Options:
+  --skip-packages  Skip Homebrew/yay updates
+  --skip-stow      Skip re-applying stow links
+  --skip-pi        Skip pi update
+  --help           Show this help
+EOF
+				return
+				;;
+			*)
+				error "Unknown update option: $1"
+				return 1
+				;;
+		esac
+	done
+
+	update_repo
+	[[ $skip_packages -eq 1 ]] || update_packages
+	[[ $skip_stow -eq 1 ]] || cmd_stow
+	[[ $skip_pi -eq 1 ]] || update_pi
+
+	if [[ "$OSTYPE" == darwin* && -x "$HOME/.local/bin/theme-mode" ]]; then
+		header "Refreshing macOS theme mode"
+		"$HOME/.local/bin/theme-mode" --quiet set auto || warn "Could not refresh theme mode"
+	fi
+
+	success "Update complete"
+}
+
+read_brewfile_packages() {
+	local brewfile="$1"
+	local kind="$2"
+
+	[[ -f "$brewfile" ]] || return
+	awk -v kind="$kind" '
+		$1 == kind && match($0, /"[^"]+"/) {
+			print substr($0, RSTART + 1, RLENGTH - 2)
+		}
+	' "$brewfile"
+}
+
+cmd_package_list() {
+	local target="${1:-all}"
+	local brewfile="$DOTFILES_DIR/macos/Brewfile"
+	local profile_file profile
+
+	case "$target" in
+		all|macos)
+			if [[ -f "$brewfile" ]]; then
+				header "macOS Brewfile"
+				printf "${BOLD}Formulae:${RESET}\n"
+				read_brewfile_packages "$brewfile" brew | sed 's/^/  - /'
+				printf "\n${BOLD}Casks:${RESET}\n"
+				read_brewfile_packages "$brewfile" cask | sed 's/^/  - /'
+			else
+				warn "Brewfile not found: $brewfile"
+			fi
+			[[ "$target" == "macos" ]] && return
+			;&
+		linux)
+			header "Linux package profiles"
+			for profile_file in "$DOTFILES_DIR"/linux/packages/*.txt; do
+				[[ -f "$profile_file" ]] || continue
+				profile="${profile_file:t:r}"
+				printf "${BOLD}%s:${RESET}\n" "$profile"
+				grep -vE '^[[:space:]]*(#|$)' "$profile_file" | sed 's/^/  - /'
+				printf '\n'
+			done
+			;;
+		*)
+			error "Unknown package list target: $target"
+			printf 'Use: %s package list [all|macos|linux]\n' "$SCRIPT_NAME"
+			return 1
+			;;
+	esac
+}
+
+cmd_package() {
+	local subcommand="${1:-list}"
+	[[ $# -gt 0 ]] && shift
+
+	case "$subcommand" in
+		list)
+			cmd_package_list "$@"
+			;;
+		-h|--help|help)
+			cat <<EOF
+Usage: ${SCRIPT_NAME} package COMMAND [args]
+
+Commands:
+  list [all|macos|linux]  List tracked package manifests
+
+Package add/remove is intentionally left to the declarative manifests for now:
+  macos/Brewfile
+  linux/packages/*.txt
+EOF
+			;;
+		*)
+			error "Unknown package subcommand: $subcommand"
+			return 1
+			;;
+	esac
+}
+
+cmd_check_packages() {
+	case "$OSTYPE" in
+		darwin*)
+			header "Checking macOS packages"
+			if ! command_exists brew; then
+				error "Homebrew not found"
+				return 1
+			fi
+			brew bundle check --file="$DOTFILES_DIR/macos/Brewfile"
+			;;
+		linux-gnu*)
+			header "Checking Linux packages"
+			if ! command_exists pacman; then
+				error "pacman not found"
+				return 1
+			fi
+
+			local profiles=(core-cli core-apps desktop-hyprland)
+			local profile profile_file pkg missing=()
+			for profile in "${profiles[@]}"; do
+				profile_file="$DOTFILES_DIR/linux/packages/$profile.txt"
+				[[ -f "$profile_file" ]] || continue
+				while IFS= read -r pkg || [[ -n "$pkg" ]]; do
+					pkg="${pkg%%#*}"
+					pkg="${pkg#${pkg%%[![:space:]]*}}"
+					pkg="${pkg%${pkg##*[![:space:]]}}"
+					[[ -z "$pkg" ]] && continue
+					pacman -Q "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+				done < "$profile_file"
+			done
+
+			if [[ ${#missing[@]} -eq 0 ]]; then
+				success "Default Linux profile packages are installed"
+			else
+				warn "Missing packages (${#missing[@]}):"
+				printf '  - %s\n' "${missing[@]}"
+				return 1
+			fi
+			;;
+		*)
+			error "Unsupported OSTYPE: $OSTYPE"
+			return 1
+			;;
+	esac
+}
+
+cmd_benchmark_shell() {
+	local runs=10
+	local verbose=0
+
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			-r|--runs)
+				if [[ $# -lt 2 ]]; then
+					error "--runs requires a value"
+					return 1
+				fi
+				runs="$2"
+				shift 2
+				;;
+			-v|--verbose)
+				verbose=1
+				shift
+				;;
+			-h|--help)
+				cat <<EOF
+Usage: ${SCRIPT_NAME} benchmark-shell [options]
+
+Options:
+  -r, --runs NUM  Number of runs (default: 10)
+  -v, --verbose   Print individual timings
+  --help          Show this help
+EOF
+				return
+				;;
+			*)
+				error "Unknown benchmark-shell option: $1"
+				return 1
+				;;
+		esac
+	done
+
+	if ! [[ "$runs" =~ '^[0-9]+$' ]] || [[ "$runs" -lt 1 || "$runs" -gt 100 ]]; then
+		error "runs must be an integer between 1 and 100"
+		return 1
+	fi
+
+	if ! command_exists fish; then
+		error "fish is not installed"
+		return 1
+	fi
+
+	if ! command_exists python3; then
+		error "python3 is required for benchmarking"
+		return 1
+	fi
+
+	header "Benchmarking Fish startup"
+	python3 - "$runs" "$verbose" <<'PY'
+import statistics
+import subprocess
+import sys
+import time
+
+runs = int(sys.argv[1])
+verbose = sys.argv[2] == "1"
+times = []
+for i in range(runs):
+    start = time.perf_counter()
+    subprocess.run(["fish", "-c", "exit 0"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    elapsed = time.perf_counter() - start
+    times.append(elapsed)
+    if verbose:
+        print(f"Run {i + 1:02d}: {elapsed * 1000:.1f} ms")
+
+avg = statistics.mean(times)
+print(f"Average: {avg * 1000:.1f} ms")
+print(f"Fastest: {min(times) * 1000:.1f} ms")
+print(f"Slowest: {max(times) * 1000:.1f} ms")
+PY
+}
+
+cmd_completions() {
+	header "Generating Fish completions"
+
+	local completions_dir="$DOTFILES_DIR/common/.config/fish/completions"
+	local completions_file="$completions_dir/dot.fish"
+	mkdir -p "$completions_dir"
+
+	cat > "$completions_file" <<'EOF'
+# Fish shell completions for dot
+
+complete -c dot -f
+complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, stow links, and pi"
+complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
+complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
+complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
+complete -c dot -n "__fish_use_subcommand" -a "check-packages" -d "Check package manifest status"
+complete -c dot -n "__fish_use_subcommand" -a "package" -d "Package manifest helpers"
+complete -c dot -n "__fish_use_subcommand" -a "benchmark-shell" -d "Benchmark Fish startup"
+complete -c dot -n "__fish_use_subcommand" -a "completions" -d "Generate Fish completions"
+complete -c dot -n "__fish_use_subcommand" -a "edit" -d "Open dotfiles in editor"
+complete -c dot -n "__fish_use_subcommand" -a "link" -d "Install dot command in PATH"
+complete -c dot -n "__fish_use_subcommand" -a "unlink" -d "Remove dot command symlinks"
+complete -c dot -n "__fish_use_subcommand" -a "help" -d "Show help"
+
+complete -c dot -l version -d "Show version"
+complete -c dot -s h -l help -d "Show help"
+
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi update"
+
+complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
+complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l only-config -d "Only operate on selected ~/.config components" -x
+
+complete -c dot -n "__fish_seen_subcommand_from package; and not __fish_seen_subcommand_from list help" -a "list" -d "List manifests"
+complete -c dot -n "__fish_seen_subcommand_from package; and __fish_seen_subcommand_from list" -a "all macos linux"
+
+complete -c dot -n "__fish_seen_subcommand_from benchmark-shell" -s r -l runs -d "Number of benchmark runs" -x
+complete -c dot -n "__fish_seen_subcommand_from benchmark-shell" -s v -l verbose -d "Print individual timings"
+EOF
+
+	success "Generated $completions_file"
+	info "Run '${SCRIPT_NAME} stow --only-config fish' or re-run '${SCRIPT_NAME} stow' to link it"
+}
+
+main() {
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--version)
+				printf '%s version %s\n' "$SCRIPT_NAME" "$VERSION"
+				return
+				;;
+			-h|--help)
+				usage
+				return
+				;;
+			*)
+				break
+				;;
+		esac
+	done
+
+	local cmd="${1:-help}"
+	[[ $# -gt 0 ]] && shift
+
+	case "$cmd" in
+		init) cmd_init "$@" ;;
+		update) cmd_update "$@" ;;
+		stow) cmd_stow "$@" ;;
+		unstow) cmd_unstow "$@" ;;
+		doctor) cmd_doctor "$@" ;;
+		check-packages) cmd_check_packages "$@" ;;
+		package) cmd_package "$@" ;;
+		benchmark-shell) cmd_benchmark_shell "$@" ;;
+		completions) cmd_completions "$@" ;;
+		edit) cmd_edit "$@" ;;
+		link) cmd_link "$@" ;;
+		unlink) cmd_unlink "$@" ;;
+		help) usage ;;
+		*)
+			error "Unknown command: $cmd"
+			printf "Run '%s help' for usage.\n" "$SCRIPT_NAME" >&2
+			return 1
+			;;
+	esac
+}
+
+main "$@"

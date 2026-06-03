@@ -13,7 +13,7 @@ Stow payload is split into shared + OS-specific roots:
 ## Quick Start
 
 1. Clone this repository.
-2. Run `./setup.sh`.
+2. Run `./dot init`.
 3. The setup script runs OS-specific package setup, then runs safe stow.
 
 Useful setup flags:
@@ -21,7 +21,16 @@ Useful setup flags:
 - `--skip-user-dirs`
 - `--skip-network-check`
 
-If you only want stow linking without package installation, run `./safe-stow.sh`.
+The root `dot` CLI wraps the repo scripts for day-to-day use:
+
+- `./dot init` runs full setup via `setup.sh`
+- `./dot update` pulls latest changes, updates OS packages, re-stows, and runs `pi update`
+- `./dot stow` applies links via `safe-stow.sh`
+- `./dot unstow` removes links via `unstow.sh`
+- `./dot doctor` validates symlink health via `doctor.sh`
+- `./dot link` installs `dot` into `~/.local/bin`
+
+If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`.
 
 If you update terminal or tmux config and use long-lived tmux sessions, fully restart the tmux server afterward so refreshed GUI/session environment variables are picked up:
 
@@ -39,6 +48,7 @@ This is useful for sharing one part of your setup (for example just Neovim) with
 
 Validate key symlinks and stow setup health:
 
+- `./dot doctor`
 - `./doctor.sh`
 
 ## Git Hooks
@@ -60,6 +70,7 @@ Optional bypass for emergency local commits:
 - `macos/home/`: macOS-only stow payload mirrored to `$HOME`
 - `linux/`: Arch Linux setup (`yay` package profiles, `setup.sh`)
 - `linux/home/`: Linux-only stow payload mirrored to `$HOME`
+- `dot`: convenience CLI wrapping setup, update, stow, doctor, and package checks
 - `setup.sh`: top-level setup entrypoint
 - `safe-stow.sh`: conflict-aware stow with automatic backups
 - `unstow.sh`: remove stow links for active roots on current OS
