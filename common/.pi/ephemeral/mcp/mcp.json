@@ -1,32 +1,12 @@
 {
   "mcpServers": {
-    "playwright": {
+    "linear": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest"]
-    },
-    "shortcut": {
-      "command": "npx",
-      "args": ["-y", "@shortcut/mcp@latest"],
-      "env": {
-        "SHORTCUT_API_TOKEN": "${SHORTCUT_API_TOKEN}"
-      }
-    },
-    "sonarqube": {
-      "command": "docker",
       "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "SONARQUBE_TOKEN",
-        "-e",
-        "SONARQUBE_URL",
-        "mcp/sonarqube"
+        "-y",
+        "mcp-remote",
+        "https://mcp.linear.app/mcp"
       ],
-      "env": {
-        "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN}",
-        "SONARQUBE_URL": "https://sonar.codehospitality.app"
-      },
       "lifecycle": "lazy"
     },
     "db_staging": {
@@ -63,14 +43,34 @@
       },
       "lifecycle": "lazy"
     },
-    "heroku": {
-      "command": "heroku",
-      "args": ["mcp:start"],
+    "stripe-business": {
+      "url": "https://mcp.stripe.com",
+      "auth": "oauth",
       "lifecycle": "lazy"
     },
-    "linear": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+    "sonarqube": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "SONARQUBE_TOKEN",
+        "-e",
+        "SONARQUBE_URL",
+        "mcp/sonarqube"
+      ],
+      "env": {
+        "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN}",
+        "SONARQUBE_URL": "https://sonar.codehospitality.app"
+      },
+      "lifecycle": "lazy"
+    },
+    "heroku": {
+      "command": "heroku",
+      "args": [
+        "mcp:start"
+      ],
       "lifecycle": "lazy"
     },
     "aws-mcp": {
@@ -83,11 +83,6 @@
         "--metadata",
         "AWS_REGION=eu-west-2"
       ],
-      "lifecycle": "lazy"
-    },
-    "stripe-business": {
-      "url": "https://mcp.stripe.com",
-      "auth": "oauth",
       "lifecycle": "lazy"
     },
     "stripe-business-prod": {
