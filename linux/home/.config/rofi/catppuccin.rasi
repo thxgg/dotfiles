@@ -1,0 +1,192 @@
+* {
+  accent:                      @lavender;
+  background:                  @base;
+  background-alt:              @surface0;
+  foreground:                  @text;
+  foreground-muted:            @subtext0;
+  border:                      @surface1;
+  urgent:                      @red;
+
+  normal-background:           transparent;
+  normal-foreground:           @foreground;
+  active-background:           transparent;
+  active-foreground:           @accent;
+  urgent-background:           transparent;
+  urgent-foreground:           @urgent;
+
+  alternate-normal-background: @background-alt;
+  alternate-normal-foreground: @foreground;
+  alternate-active-background: @background-alt;
+  alternate-active-foreground: @accent;
+  alternate-urgent-background: @background-alt;
+  alternate-urgent-foreground: @urgent;
+
+  selected-normal-background:  @accent;
+  selected-normal-foreground:  @base;
+  selected-active-background:  @accent;
+  selected-active-foreground:  @base;
+  selected-urgent-background:  @urgent;
+  selected-urgent-foreground:  @base;
+}
+
+window {
+  location: center;
+  anchor: center;
+  width: 760px;
+  background-color: @background;
+  border: 1px;
+  border-color: @border;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+mainbox {
+  background-color: transparent;
+  children: [ "inputbar", "message", "listview", "mode-switcher" ];
+  spacing: 10px;
+}
+
+inputbar {
+  background-color: @background-alt;
+  border: 1px;
+  border-color: @border;
+  border-radius: 10px;
+  children: [ "prompt", "textbox-prompt-colon", "entry", "case-indicator" ];
+  padding: 0;
+  spacing: 0;
+}
+
+prompt {
+  background-color: transparent;
+  expand: false;
+  padding: 11px 12px;
+  text-color: @foreground;
+}
+
+textbox-prompt-colon {
+  background-color: transparent;
+  expand: false;
+  str: "";
+  text-color: @foreground-muted;
+}
+
+entry {
+  background-color: transparent;
+  cursor: text;
+  expand: true;
+  padding: 11px 12px 11px 0;
+  placeholder: "Type to filter";
+  placeholder-color: @foreground-muted;
+  text-color: @foreground;
+}
+
+case-indicator {
+  background-color: transparent;
+  expand: false;
+  padding: 11px 12px 11px 0;
+  text-color: @foreground-muted;
+}
+
+message {
+  background-color: @background-alt;
+  border: 1px;
+  border-color: @border;
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-color: @foreground;
+}
+
+textbox {
+  background-color: transparent;
+  text-color: @foreground;
+}
+
+listview {
+  background-color: transparent;
+  border: 0px;
+  columns: 1;
+  fixed-height: 0;
+  lines: 9;
+  scrollbar: false;
+  spacing: 6px;
+}
+
+element {
+  background-color: @normal-background;
+  border: 0px;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 9px 10px;
+  spacing: 10px;
+  text-color: @normal-foreground;
+}
+
+element normal.normal {
+  background-color: @normal-background;
+  text-color: @normal-foreground;
+}
+
+element normal.active {
+  background-color: @active-background;
+  text-color: @active-foreground;
+}
+
+element normal.urgent {
+  background-color: @urgent-background;
+  text-color: @urgent-foreground;
+}
+
+element alternate.normal {
+  background-color: @alternate-normal-background;
+  text-color: @alternate-normal-foreground;
+}
+
+element alternate.active {
+  background-color: @alternate-active-background;
+  text-color: @alternate-active-foreground;
+}
+
+element alternate.urgent {
+  background-color: @alternate-urgent-background;
+  text-color: @alternate-urgent-foreground;
+}
+
+element selected.normal,
+element selected.active,
+element selected.urgent {
+  background-color: @selected-normal-background;
+  text-color: @selected-normal-foreground;
+}
+
+element-icon {
+  background-color: transparent;
+  size: 1.15em;
+  text-color: inherit;
+}
+
+element-text {
+  background-color: transparent;
+  highlight: inherit;
+  text-color: inherit;
+}
+
+mode-switcher {
+  background-color: transparent;
+  spacing: 8px;
+}
+
+button {
+  background-color: @background-alt;
+  border: 1px;
+  border-color: @border;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 8px 10px;
+  text-color: @foreground;
+}
+
+button selected {
+  background-color: @accent;
+  border-color: @accent;
+  text-color: @base;
+}
