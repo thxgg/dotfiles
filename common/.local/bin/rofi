@@ -15,7 +15,7 @@ for arg in "$@"; do
 done
 
 mode="$(theme_current_mode)"
-theme_path="$HOME/.config/rofi/cloudflare-$mode.rasi"
+theme_path="$HOME/.config/rofi/catppuccin-$mode.rasi"
 if [[ ! -f "$theme_path" ]]; then
   theme_exec_real rofi "$@"
 fi
