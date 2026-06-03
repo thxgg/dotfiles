@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Triage
 
-Move Linear issues through a small state machine of triage roles. Use **Linear** as the default issue tracker unless the current repo's `AGENTS.md` or user says otherwise; treat issue IDs, comments, statuses, and labels as the source of truth.
+Move issues on the project issue tracker through a small state machine of triage roles.
 
 Every comment or issue posted to the issue tracker during triage **must** start with this disclaimer:
 
@@ -36,17 +36,17 @@ Five **state** roles:
 
 Every triaged issue should carry exactly one category role and one state role. If state roles conflict, flag it and ask the maintainer before doing anything else.
 
-These are canonical role names — map them onto the corresponding Linear labels/statuses used by the workspace. If the mapping is unclear, inspect nearby Linear issues or ask the maintainer before changing anything.
+These are canonical role names — the actual label strings used in the issue tracker may differ. The mapping should have been provided to you - run `/setup-matt-pocock-skills` if not.
 
 State transitions: an unlabeled issue normally goes to `needs-triage` first; from there it moves to `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`. `needs-info` returns to `needs-triage` once the reporter replies. The maintainer can override at any time — flag transitions that look unusual and ask before proceeding.
 
 ## Invocation
 
-The maintainer invokes `/skill:triage` and describes what they want in natural language. Interpret the request against Linear and act. Examples:
+The maintainer invokes `/triage` and describes what they want in natural language. Interpret the request and act. Examples:
 
 - "Show me anything that needs my attention"
-- "Let's look at CODE-42"
-- "Move CODE-42 to ready-for-agent"
+- "Let's look at #42"
+- "Move #42 to ready-for-agent"
 - "What's ready for agents to pick up?"
 
 ## Show what needs attention
@@ -67,7 +67,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
 
 3. **Reproduce (bugs only).** Before any grilling, attempt reproduction: read the reporter's steps, trace the relevant code, run tests or commands. Report what happened — successful repro with code path, failed repro, or insufficient detail (a strong `needs-info` signal). A confirmed repro makes a much stronger agent brief.
 
-4. **Grill (if needed).** If the issue needs fleshing out, ask the maintainer to continue with `/skill:grill-with-docs` or load that skill explicitly when they approve.
+4. **Grill (if needed).** If the issue needs fleshing out, run a `/grill-with-docs` session.
 
 5. **Apply the outcome:**
    - `ready-for-agent` — post an agent brief comment ([AGENT-BRIEF.md](AGENT-BRIEF.md)).
