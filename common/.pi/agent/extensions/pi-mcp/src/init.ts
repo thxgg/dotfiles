@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.js";
 import type { ToolMetadata } from "./types.js";
 import { existsSync } from "node:fs";
@@ -53,7 +53,13 @@ export async function initializeMcp(
     completedUiSessions: [],
     openBrowser: (url: string) => openUrl(pi, url, process.env.BROWSER),
     ui,
-    sendMessage: (message, options) => pi.sendMessage(message, options),
+    sendMessage: (message, options) => pi.sendMessage(
+      {
+        ...message,
+        display: message.display !== undefined,
+      },
+      options,
+    ),
   };
 
   const serverEntries = Object.entries(config.mcpServers);

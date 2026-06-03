@@ -1,4 +1,4 @@
-import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.js";
 import type { DirectToolSpec, McpConfig, McpContent } from "./types.js";
 import type { MetadataCache } from "./metadata-cache.js";
@@ -218,6 +218,9 @@ export function createDirectToolExecutor(
     try {
       state.manager.touch(spec.serverName);
       state.manager.incrementInFlight(spec.serverName);
+      const toolArgs = params && typeof params === "object" && !Array.isArray(params)
+        ? params as Record<string, unknown>
+        : {};
 
       if (spec.resourceUri) {
         const result = await connection.client.readResource({ uri: spec.resourceUri });
@@ -236,7 +239,7 @@ export function createDirectToolExecutor(
         ? await maybeStartUiSession(state, {
             serverName: spec.serverName,
             toolName: spec.originalName,
-            toolArgs: params ?? {},
+            toolArgs,
             uiResourceUri: spec.uiResourceUri!,
             streamMode: spec.uiStreamMode,
           })
@@ -244,7 +247,7 @@ export function createDirectToolExecutor(
 
       const resultPromise = connection.client.callTool({
         name: spec.originalName,
-        arguments: params ?? {},
+        arguments: toolArgs,
         _meta: uiSession?.requestMeta,
       });
 
