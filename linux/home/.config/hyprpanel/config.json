@@ -385,9 +385,6 @@
         "dashboard",
         "workspaces"
       ],
-      "middle": [
-        "media"
-      ],
       "right": [
         "systray",
         "network",
@@ -447,7 +444,7 @@
   "menus.dashboard.shortcuts.left.shortcut2.icon": "󰔎",
   "menus.dashboard.shortcuts.left.shortcut3.icon": "",
   "menus.dashboard.shortcuts.left.shortcut4.icon": "",
-  "menus.dashboard.shortcuts.left.shortcut4.command": "env XMODIFIERS=@im=fcitx discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland --enable-wayland-ime",
+  "menus.dashboard.shortcuts.left.shortcut4.command": "discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland",
   "menus.dashboard.shortcuts.left.shortcut4.tooltip": "Discord",
   "menus.dashboard.shortcuts.left.shortcut2.tooltip": "Toggle Theme",
   "menus.dashboard.shortcuts.left.shortcut2.command": "bash -lc '$HOME/.local/bin/theme-mode toggle'",
