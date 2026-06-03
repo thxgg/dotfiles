@@ -104,8 +104,8 @@ ensure_vite_plus_node() {
 	info "Setting up Node.js versions with Vite+"
 	VP_NODE_MANAGER=yes "$vp_bin" env setup --refresh
 	"$vp_bin" env on
-	"$vp_bin" env install 14
-	"$vp_bin" env install 17
+	"$vp_bin" env install 14 || warn "Could not install legacy Node.js 14 with Vite+; continuing"
+	"$vp_bin" env install 17 || warn "Could not install legacy Node.js 17 with Vite+; continuing"
 	"$vp_bin" env install lts
 	"$vp_bin" env default lts
 }

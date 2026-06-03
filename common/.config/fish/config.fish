@@ -7,6 +7,13 @@ for __dotfiles_bootstrap_path in /opt/homebrew/bin /opt/homebrew/sbin /usr/local
 end
 set -e __dotfiles_bootstrap_path
 
+# fish 4.x terminal probes can leak raw replies in Ghostty/tmux after
+# interrupting TTY-owning dev servers. Keep query-term disabled; feature flags
+# are read at fish startup, so this guard restores the universal for next shell.
+if not contains -- no-query-term $fish_features
+    set -Ua fish_features no-query-term
+end
+
 # Set PI_SKIP_TMUX_AUTOSTART=1 to bypass this when testing fish outside tmux.
 if status is-interactive
     if not set -q PI_SKIP_TMUX_AUTOSTART; and type -q tmux; and test -z "$TMUX"; and test -z "$INSIDE_EMACS"; and test -z "$VSCODE_PID"
@@ -325,4 +332,8 @@ set -e __dotfiles_uname
 set -e __dotfiles_fish_path
 
 # Pi
-fish_add_path "/home/thxgg/.vite-plus/js_runtime/node/24.16.0/bin"
+set -l __dotfiles_pi_node_bin "$HOME/.vite-plus/js_runtime/node/24.16.0/bin"
+if test -d "$__dotfiles_pi_node_bin"
+    fish_add_path "$__dotfiles_pi_node_bin"
+end
+set -e __dotfiles_pi_node_bin
