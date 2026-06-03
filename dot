@@ -107,7 +107,7 @@ ${BOLD}COMMANDS:${RESET}
     benchmark-shell   Benchmark Fish shell startup time
     completions       Generate Fish shell completions for dot
     edit              Open this repo in \$EDITOR
-    link              Symlink dot into ~/.local/bin
+    link              Symlink dot into ~/.local/bin (normally automatic)
     unlink            Remove dot symlinks from common PATH locations
     help              Show this help
 
@@ -538,7 +538,7 @@ complete -c dot -n "__fish_use_subcommand" -a "package" -d "Package manifest hel
 complete -c dot -n "__fish_use_subcommand" -a "benchmark-shell" -d "Benchmark Fish startup"
 complete -c dot -n "__fish_use_subcommand" -a "completions" -d "Generate Fish completions"
 complete -c dot -n "__fish_use_subcommand" -a "edit" -d "Open dotfiles in editor"
-complete -c dot -n "__fish_use_subcommand" -a "link" -d "Install dot command in PATH"
+complete -c dot -n "__fish_use_subcommand" -a "link" -d "Repair dot command symlink"
 complete -c dot -n "__fish_use_subcommand" -a "unlink" -d "Remove dot command symlinks"
 complete -c dot -n "__fish_use_subcommand" -a "help" -d "Show help"
 

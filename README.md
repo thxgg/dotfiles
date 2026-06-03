@@ -14,7 +14,7 @@ Stow payload is split into shared + OS-specific roots:
 
 1. Clone this repository.
 2. Run `./dot init`.
-3. The setup script runs OS-specific package setup, then runs safe stow.
+3. The setup script runs OS-specific package setup, runs safe stow, and links `dot` into `~/.local/bin`.
 
 Useful setup flags:
 
@@ -28,9 +28,9 @@ The root `dot` CLI wraps the repo scripts for day-to-day use:
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health via `doctor.sh`
-- `./dot link` installs `dot` into `~/.local/bin`
+- `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
 
-If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`.
+After setup, use `dot` from anywhere in a new shell. If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`; both also refresh the `~/.local/bin/dot` symlink.
 
 If you update terminal or tmux config and use long-lived tmux sessions, fully restart the tmux server afterward so refreshed GUI/session environment variables are picked up:
 

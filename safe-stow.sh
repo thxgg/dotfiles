@@ -8,6 +8,7 @@ STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
 STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$STOW_DIR/scripts/lib/stow-roots.zsh"
+DOT_COMMAND_TARGET=".local/bin/dot"
 SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
@@ -465,6 +466,38 @@ link_special_leaf_paths() {
     done
 }
 
+link_dot_command() {
+    local source_path="$STOW_DIR/dot"
+    local source_path_abs="${source_path:A}"
+    local target_path="$TARGET_DIR/$DOT_COMMAND_TARGET"
+    local target_dir="${target_path:h}"
+
+    if [[ ! -f "$source_path" ]]; then
+        echo "Warning: dot command source missing: $source_path"
+        return 0
+    fi
+
+    mkdir -p "$target_dir"
+
+    if is_managed_target "$target_path" "$source_path_abs"; then
+        echo "dot command already linked: $target_path"
+    else
+        if [[ -e "$target_path" && ! -L "$target_path" ]]; then
+            echo "Error: $target_path still exists after conflict handling"
+            echo "Refusing to overwrite unknown content while linking dot command."
+            exit 1
+        fi
+
+        ln -sfn "$source_path_abs" "$target_path"
+        echo "Linked dot command: $target_path -> $source_path_abs"
+    fi
+
+    case ":$PATH:" in
+        *":$target_dir:"*) ;;
+        *) echo "Note: $target_dir is not currently in PATH; stowed shell config adds it for new shells" ;;
+    esac
+}
+
 stow_root() {
     local root="$1"
     local package_dir="$STOW_DIR/$root"
@@ -530,6 +563,17 @@ for item in "${deploy_paths[@]}"; do
     fi
 done
 
+if [[ $include_deploy_paths -eq 1 ]]; then
+    target_path="$TARGET_DIR/$DOT_COMMAND_TARGET"
+    source_path="$STOW_DIR/dot"
+
+    if needs_backup "$target_path" "$source_path"; then
+        if record_conflict_path "$target_path"; then
+            echo "Found conflict: $target_path"
+        fi
+    fi
+fi
+
 for child in "${config_children[@]}"; do
     ancestor_conflict=""
     source_root="${config_child_sources[$child]}"
@@ -582,6 +626,7 @@ if [[ $include_deploy_paths -eq 1 ]]; then
         stow_root "$root"
     done
     link_special_leaf_paths
+    link_dot_command
 fi
 
 link_config_children
