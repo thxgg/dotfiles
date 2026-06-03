@@ -11,7 +11,7 @@ complete -c dot -n "__fish_use_subcommand" -a "package" -d "Package manifest hel
 complete -c dot -n "__fish_use_subcommand" -a "benchmark-shell" -d "Benchmark Fish startup"
 complete -c dot -n "__fish_use_subcommand" -a "completions" -d "Generate Fish completions"
 complete -c dot -n "__fish_use_subcommand" -a "edit" -d "Open dotfiles in editor"
-complete -c dot -n "__fish_use_subcommand" -a "link" -d "Install dot command in PATH"
+complete -c dot -n "__fish_use_subcommand" -a "link" -d "Repair dot command symlink"
 complete -c dot -n "__fish_use_subcommand" -a "unlink" -d "Remove dot command symlinks"
 complete -c dot -n "__fish_use_subcommand" -a "help" -d "Show help"
 

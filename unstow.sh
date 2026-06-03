@@ -6,6 +6,7 @@ SCRIPT_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
 STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
+DOT_COMMAND_TARGET=".local/bin/dot"
 SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
@@ -227,6 +228,20 @@ unlink_special_leaf_paths() {
     done
 }
 
+unlink_dot_command() {
+    local source_path="$SCRIPT_DIR/dot"
+    local target_path="$TARGET_DIR/$DOT_COMMAND_TARGET"
+
+    [[ -L "$target_path" ]] || return 0
+
+    if [[ "${target_path:A}" == "${source_path:A}" ]]; then
+        rm "$target_path"
+        echo "Removed ~/$DOT_COMMAND_TARGET"
+    else
+        echo "Skipping ~/$DOT_COMMAND_TARGET (points elsewhere)"
+    fi
+}
+
 if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" strict; then
     echo "Error: $DOTFILES_STOW_RESOLVE_ERROR"
     exit 1
@@ -258,6 +273,7 @@ if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
         unstow_root "$root"
     done
     unlink_special_leaf_paths
+    unlink_dot_command
 fi
 
 unlink_config_children

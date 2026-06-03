@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 TARGET_ROOT="$HOME"
 STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
+DOT_COMMAND_TARGET=".local/bin/dot"
 SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
@@ -342,6 +343,38 @@ check_expected_paths() {
     done
 }
 
+check_dot_command_link() {
+    local source_path="$SCRIPT_DIR/dot"
+    local target_path="$TARGET_ROOT/$DOT_COMMAND_TARGET"
+    local target_dir="${target_path:h}"
+    local resolved_target expected_target
+
+    if [[ ! -f "$source_path" ]]; then
+        print_status FAIL "dot command source is missing: $source_path"
+        return
+    fi
+
+    if [[ -L "$target_path" ]]; then
+        resolved_target="${target_path:A}"
+        expected_target="${source_path:A}"
+
+        if [[ "$resolved_target" == "$expected_target" ]]; then
+            print_status OK "$DOT_COMMAND_TARGET -> $source_path"
+        else
+            print_status WARN "$DOT_COMMAND_TARGET points to $resolved_target (expected $expected_target)"
+        fi
+    elif [[ -e "$target_path" ]]; then
+        print_status WARN "$DOT_COMMAND_TARGET exists but is not a symlink"
+    else
+        print_status FAIL "$DOT_COMMAND_TARGET is missing"
+    fi
+
+    case ":$PATH:" in
+        *":$target_dir:"*) print_status OK "$target_dir is in PATH" ;;
+        *) print_status WARN "$target_dir is not in PATH for this shell" ;;
+    esac
+}
+
 if [[ $LIST_CONFIG_ONLY -eq 0 ]]; then
     if ! command -v stow >/dev/null 2>&1; then
         print_status WARN "stow not found in PATH"
@@ -391,6 +424,7 @@ else
     check_config_child_links
     if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
         check_expected_paths
+        check_dot_command_link
     fi
 fi
 
