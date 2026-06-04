@@ -289,6 +289,58 @@ is_managed_target() {
     [[ "${target:A}" == "${source:A}" ]]
 }
 
+relative_path_from() {
+    local from_dir="${1:A}"
+    local to_path="${2:A}"
+    local -a from_parts to_parts relative_parts
+    local part
+
+    from_parts=(${(@s:/:)${from_dir#/}})
+    to_parts=(${(@s:/:)${to_path#/}})
+
+    while [[ ${#from_parts[@]} -gt 0 && ${#to_parts[@]} -gt 0 && "${from_parts[1]}" == "${to_parts[1]}" ]]; do
+        shift from_parts
+        shift to_parts
+    done
+
+    relative_parts=()
+    for part in "${from_parts[@]}"; do
+        [[ -n "$part" ]] && relative_parts+=(..)
+    done
+    relative_parts+=("${to_parts[@]}")
+
+    if [[ ${#relative_parts[@]} -eq 0 ]]; then
+        print -r -- .
+    else
+        print -r -- "${(j:/:)relative_parts}"
+    fi
+}
+
+# GNU Stow does not treat absolute symlinks as owned by a package, even when
+# they resolve to the correct source. Normalize those links before invoking
+# stow so a previous manual/safe-stow absolute link does not abort the run.
+normalize_managed_stow_symlinks() {
+    local item source_root source_path source_path_abs target_path target_dir link_target relative_target
+
+    for item in "${deploy_paths[@]}"; do
+        source_root="${deploy_sources[$item]}"
+        source_path="$STOW_DIR/$source_root/$item"
+        source_path_abs="${source_path:A}"
+        target_path="$TARGET_DIR/$item"
+
+        [[ -L "$target_path" ]] || continue
+        is_managed_target "$target_path" "$source_path_abs" || continue
+
+        link_target="$(readlink "$target_path")"
+        [[ "$link_target" == /* ]] || continue
+
+        target_dir="${target_path:h}"
+        relative_target="$(relative_path_from "$target_dir" "$source_path_abs")"
+        ln -sfn "$relative_target" "$target_path"
+        echo "Normalized stow link: $target_path -> $relative_target"
+    done
+}
+
 # Function to check if a path exists and should be backed up
 needs_backup() {
     local target="$1"
@@ -622,6 +674,7 @@ fi
 
 # Perform the stow operation
 if [[ $include_deploy_paths -eq 1 ]]; then
+    normalize_managed_stow_symlinks
     for root in "${package_roots[@]}"; do
         stow_root "$root"
     done
