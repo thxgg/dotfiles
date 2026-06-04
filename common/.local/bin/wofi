@@ -6,10 +6,25 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd)"
 # shellcheck source=/dev/null
 . "$SCRIPT_DIR/theme-lib.sh"
 
+use_private_config=false
+expect_show_mode=false
 for arg in "$@"; do
+  if [[ "$expect_show_mode" == true ]]; then
+    if [[ "$arg" == dmenu ]]; then
+      use_private_config=true
+    fi
+    expect_show_mode=false
+  fi
+
   case "$arg" in
     --style|-s|--color|-C)
       theme_exec_real wofi "$@"
+      ;;
+    --dmenu|-d|--show=dmenu|-S=dmenu)
+      use_private_config=true
+      ;;
+    --show|-S)
+      expect_show_mode=true
       ;;
   esac
 done
@@ -23,6 +38,28 @@ fi
 extra=()
 if [[ "$mode" == dark ]]; then
   extra+=(--gtk-dark)
+fi
+
+if [[ "$use_private_config" == true ]]; then
+  # Wofi loads ~/.config/gtk-3.0/gtk.css at GTK's user-CSS priority,
+  # which can override Wofi's own --style file. For dmenu prompts, run Wofi
+  # with a tiny private XDG config home so global GTK theming does not leak in.
+  # Keep this scoped to dmenu so app launchers do not pass the private config
+  # home to programs they spawn.
+  private_config_home="$(theme_runtime_dir)/wofi-xdg-config"
+  mkdir -p "$private_config_home/gtk-3.0"
+  if [[ "$mode" == dark ]]; then
+    gtk_prefer_dark=1
+  else
+    gtk_prefer_dark=0
+  fi
+  unset GTK_THEME
+  cat >"$private_config_home/gtk-3.0/settings.ini" <<EOF
+[Settings]
+gtk-theme-name=Default
+gtk-application-prefer-dark-theme=$gtk_prefer_dark
+EOF
+  export XDG_CONFIG_HOME="$private_config_home"
 fi
 
 theme_exec_real wofi --style "$style_path" "${extra[@]}" "$@"

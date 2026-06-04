@@ -11,67 +11,206 @@
 @define-color lavender #b4befe;
 @define-color text #cdd6f4;
 @define-color subtext0 #a6adc8;
-@define-color overlay0 #6c7086;
+@define-color surface2 #585b70;
 @define-color surface1 #45475a;
 @define-color surface0 #313244;
 @define-color base #1e1e2e;
 @define-color mantle #181825;
+@define-color crust #11111b;
 
-window {
+* {
+  background-image: none;
+  box-shadow: none;
+  outline-color: transparent;
+  outline-style: none;
+  text-shadow: none;
+  color: @text;
+}
+
+window,
+window#window,
+#window {
   margin: 0;
-  border: 1px solid @surface1;
-  border-radius: 12px;
+  border: 0;
+  border-radius: 16px;
+  background-color: transparent;
+  color: @text;
+}
+
+window#window > box,
+window#window > box#outer-box,
+#outer-box {
+  padding: 12px;
+  border: 2px solid @lavender;
+  border-radius: 16px;
   background-color: @base;
   color: @text;
 }
 
+window#window entry#input,
+window#window searchentry#input,
+entry#input,
+searchentry#input,
 #input {
-  margin: 10px;
-  padding: 10px;
-  border: 0;
-  border-radius: 8px;
+  min-height: 22px;
+  margin: 0 0 10px 0;
+  padding: 9px 12px;
+  border: 1px solid @surface1;
+  border-radius: 10px;
   background-color: @surface0;
   color: @text;
+  caret-color: @text;
 }
 
+window#window entry#input:focus,
+window#window searchentry#input:focus,
+entry#input:focus,
+searchentry#input:focus,
 #input:focus {
+  border-color: @lavender;
   box-shadow: inset 0 0 0 1px @lavender;
-}
-
-#inner-box {
-  margin: 0 10px 10px;
-  background-color: transparent;
-}
-
-#outer-box,
-#scroll {
-  margin: 0;
-  background-color: transparent;
-}
-
-#entry {
-  padding: 8px;
-  border-radius: 8px;
-  color: @text;
-}
-
-#entry:nth-child(even) {
   background-color: @surface0;
 }
 
-#entry:selected {
+window#window entry#input *,
+window#window entry#input text,
+window#window searchentry#input *,
+window#window searchentry#input text,
+entry#input *,
+entry#input text,
+searchentry#input *,
+searchentry#input text,
+#input *,
+#input text {
+  background-color: transparent;
+  color: @text;
+}
+
+window#window entry#input image,
+window#window searchentry#input image,
+entry#input image,
+searchentry#input image,
+#input image {
+  background-color: transparent;
+  color: @subtext0;
+}
+
+window#window entry#input selection,
+window#window searchentry#input selection,
+entry#input selection,
+searchentry#input selection,
+#input selection {
   background-color: @lavender;
   color: @base;
 }
 
-#entry:selected #text {
+#inner-box,
+#scroll,
+#scroll viewport,
+#scroll undershoot,
+#scroll overshoot {
+  margin: 0;
+  background-color: transparent;
+}
+
+#scroll scrollbar,
+#scroll scrollbar trough,
+#scroll scrollbar button {
+  border: 0;
+  background-color: transparent;
+  color: @text;
+}
+
+#scroll scrollbar slider {
+  min-width: 6px;
+  min-height: 6px;
+  margin: 2px;
+  border: 0;
+  border-radius: 999px;
+  background-color: @surface1;
+}
+
+#scroll scrollbar slider:hover {
+  background-color: @lavender;
+}
+
+#scroll scrollbar slider:active {
+  background-color: @blue;
+}
+
+flowboxchild#entry,
+#entry {
+  margin: 2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background-color: transparent;
+  color: @text;
+}
+
+flowboxchild#entry > .entry,
+#entry > .entry,
+#unselected,
+#selected {
+  min-height: 20px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background-color: transparent;
+  color: @text;
+}
+
+flowboxchild#entry:nth-child(even) > #unselected,
+#entry:nth-child(even) > #unselected,
+#entry:nth-child(even) {
+  background-color: @surface0;
+}
+
+flowboxchild#entry:hover > #unselected,
+#entry:hover > #unselected,
+#entry:hover {
+  background-color: @surface1;
+}
+
+#entry label,
+#entry #text,
+#unselected label,
+#unselected #text,
+#selected label,
+#selected #text,
+#text {
+  background-color: transparent;
+  color: @text;
+}
+
+#img,
+#entry image,
+#unselected image,
+#selected image {
+  margin-right: 8px;
+  background-color: transparent;
+  color: @text;
+}
+
+flowboxchild#entry:selected,
+#entry:selected {
+  background-color: transparent;
+}
+
+flowboxchild#entry:selected > #selected,
+#entry:selected > #selected,
+#selected {
+  border-color: @lavender;
+  background-color: @lavender;
   color: @base;
 }
 
-#text {
-  color: inherit;
-}
-
-#img {
-  margin-right: 8px;
+flowboxchild#entry:selected > #selected *,
+#entry:selected > #selected *,
+#selected *,
+#selected label,
+#selected #text,
+#selected image {
+  background-color: transparent;
+  color: @base;
 }
