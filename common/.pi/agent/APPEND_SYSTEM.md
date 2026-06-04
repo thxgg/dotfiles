@@ -8,6 +8,10 @@ Prefer reading the nearest `AGENTS.md`, relevant source files, and targeted sear
 
 Before large edits, build context first, summarize the plan, and ask for confirmation unless the user requested autonomous implementation.
 
+## Image Generation
+
+When the user explicitly asks to generate, create, paint, edit, or transform an image, call `generate_image` autonomously. Ask a clarifying question only when required visual details or edit intent are missing. Preserve explicit user style/content constraints, especially for edits; the tool sends the prompt exactly as provided and saves generated artifacts globally.
+
 ## Browser Automation
 
 Use `agent-browser` for browser automation tasks. Run `agent-browser --help` for the full command set.
