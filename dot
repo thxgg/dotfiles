@@ -265,7 +265,16 @@ update_pi() {
 		return
 	fi
 
-	(cd "$DOTFILES_DIR" && pi update)
+	local -a pi_update_env
+	pi_update_env=(env CARGO_NET_GIT_FETCH_WITH_CLI=true)
+
+	# Cargo nightly 1.94 has a regression resolving glimpseui's SSH-style
+	# gtk4-layer-shell submodule URL. Prefer stable when rustup has it.
+	if command_exists rustup && rustup toolchain list 2>/dev/null | grep -q '^stable'; then
+		pi_update_env+=(RUSTUP_TOOLCHAIN=stable)
+	fi
+
+	(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update)
 	success "pi updated"
 }
 
