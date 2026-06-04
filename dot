@@ -273,6 +273,7 @@ cmd_update() {
 	local skip_packages=0
 	local skip_stow=0
 	local skip_pi=0
+	local -a failed_steps=()
 
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
@@ -308,13 +309,35 @@ EOF
 	done
 
 	update_repo
-	[[ $skip_packages -eq 1 ]] || update_packages
-	[[ $skip_stow -eq 1 ]] || cmd_stow
-	[[ $skip_pi -eq 1 ]] || update_pi
+	if [[ $skip_packages -eq 0 ]]; then
+		if ! update_packages; then
+			failed_steps+=(packages)
+			warn "Package update failed; continuing with remaining update steps"
+		fi
+	fi
+
+	if [[ $skip_stow -eq 0 ]]; then
+		if ! cmd_stow; then
+			failed_steps+=(stow)
+			warn "Stow failed; continuing with remaining update steps"
+		fi
+	fi
+
+	if [[ $skip_pi -eq 0 ]]; then
+		if ! update_pi; then
+			failed_steps+=(pi)
+			warn "pi update failed; continuing with remaining update steps"
+		fi
+	fi
 
 	if [[ "$OSTYPE" == darwin* && -x "$HOME/.local/bin/theme-mode" ]]; then
 		header "Refreshing macOS theme mode"
 		"$HOME/.local/bin/theme-mode" --quiet set auto || warn "Could not refresh theme mode"
+	fi
+
+	if [[ ${#failed_steps[@]} -gt 0 ]]; then
+		error "Update completed with failed step(s): ${failed_steps[*]}"
+		return 1
 	fi
 
 	success "Update complete"
