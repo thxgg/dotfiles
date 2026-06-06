@@ -1,7 +1,7 @@
 notify = ["/Users/thxgg/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
 personality = "pragmatic"
 model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "high"
 service_tier = "fast"
 approval_policy = "never"
 approvals_reviewer = "user"
@@ -83,6 +83,10 @@ enabled = true
 
 [mcp_servers.grep_app]
 url = "https://mcp.grep.app/"
+enabled = true
+
+[mcp_servers.mobbin]
+url = "https://api.mobbin.com/mcp"
 enabled = true
 
 # Transferred from Pi's ephemeral MCP catalog. Keep these disabled globally
