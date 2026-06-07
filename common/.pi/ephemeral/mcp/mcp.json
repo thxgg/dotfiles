@@ -73,14 +73,25 @@
       ],
       "lifecycle": "lazy"
     },
-    "hubspot": {
+    "hubspot_staging": {
       "command": "npx",
       "args": [
         "-y",
         "@hubspot/mcp-server"
       ],
       "env": {
-        "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN}"
+        "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING}"
+      },
+      "lifecycle": "lazy"
+    },
+    "hubspot_prod": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@hubspot/mcp-server"
+      ],
+      "env": {
+        "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD}"
       },
       "lifecycle": "lazy"
     },

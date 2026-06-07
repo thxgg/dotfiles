@@ -12,11 +12,19 @@
             "oauth": {},
             "enabled": true
         },
-        "hubspot": {
+        "hubspot_staging": {
             "type": "local",
             "command": ["npx", "-y", "@hubspot/mcp-server"],
             "environment": {
-                "PRIVATE_APP_ACCESS_TOKEN": "{env:HUBSPOT_PRIVATE_APP_ACCESS_TOKEN}"
+                "PRIVATE_APP_ACCESS_TOKEN": "{env:HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING}"
+            },
+            "enabled": true
+        },
+        "hubspot_prod": {
+            "type": "local",
+            "command": ["npx", "-y", "@hubspot/mcp-server"],
+            "environment": {
+                "PRIVATE_APP_ACCESS_TOKEN": "{env:HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD}"
             },
             "enabled": true
         },
