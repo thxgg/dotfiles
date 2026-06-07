@@ -89,11 +89,19 @@ enabled = true
 url = "https://api.mobbin.com/mcp"
 enabled = true
 
-# HubSpot CRM MCP. Add HUBSPOT_PRIVATE_APP_ACCESS_TOKEN to ~/.env.secrets.
-[mcp_servers.hubspot]
+# HubSpot CRM MCP. Add HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING and
+# HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD to ~/.env.secrets.
+[mcp_servers.hubspot_staging]
 command = "sh"
-args = ["-lc", 'PRIVATE_APP_ACCESS_TOKEN="$HUBSPOT_PRIVATE_APP_ACCESS_TOKEN" exec npx -y @hubspot/mcp-server']
-env_vars = ["HUBSPOT_PRIVATE_APP_ACCESS_TOKEN"]
+args = ["-lc", 'PRIVATE_APP_ACCESS_TOKEN="$HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING" exec npx -y @hubspot/mcp-server']
+env_vars = ["HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING"]
+default_tools_approval_mode = "prompt"
+enabled = true
+
+[mcp_servers.hubspot_prod]
+command = "sh"
+args = ["-lc", 'PRIVATE_APP_ACCESS_TOKEN="$HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD" exec npx -y @hubspot/mcp-server']
+env_vars = ["HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD"]
 default_tools_approval_mode = "prompt"
 enabled = true
 
