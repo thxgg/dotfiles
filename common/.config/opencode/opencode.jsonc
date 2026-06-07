@@ -12,6 +12,14 @@
             "oauth": {},
             "enabled": true
         },
+        "hubspot": {
+            "type": "local",
+            "command": ["npx", "-y", "@hubspot/mcp-server"],
+            "environment": {
+                "PRIVATE_APP_ACCESS_TOKEN": "{env:HUBSPOT_PRIVATE_APP_ACCESS_TOKEN}"
+            },
+            "enabled": true
+        },
         "opensrc": {
             "type": "local",
             "command": [
