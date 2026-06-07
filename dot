@@ -98,7 +98,7 @@ ${BOLD}USAGE:${RESET}
 
 ${BOLD}COMMANDS:${RESET}
     init              Run full machine setup via ./setup.sh
-    update            Pull latest repo changes, update packages, re-stow, update pi
+    update            Pull latest repo changes, update packages, Neovim, stow, and pi
     stow              Apply links via ./safe-stow.sh
     unstow            Remove links via ./unstow.sh
     doctor            Validate symlinks and setup health via ./doctor.sh
@@ -278,10 +278,118 @@ update_pi() {
 	success "pi updated"
 }
 
+update_nvim() {
+	header "Updating Neovim plugins and tools"
+
+	if ! command_exists nvim; then
+		warn "nvim not found; skipping"
+		return
+	fi
+
+	info "Updating, syncing, cleaning, and checking Lazy.nvim plugins"
+	nvim --headless \
+		"+Lazy! update" \
+		"+Lazy! sync" \
+		"+Lazy! clean" \
+		"+Lazy! check" \
+		+qa
+
+	info "Updating Mason registries and installed packages"
+	local mason_script mason_status
+	mason_script="$(mktemp "${TMPDIR:-/tmp}/dot-mason-update.XXXXXX")"
+	cat > "$mason_script" <<'LUA'
+local ok_registry, registry = pcall(require, "mason-registry")
+if not ok_registry then
+	error("mason-registry unavailable: " .. tostring(registry))
+end
+
+local registry_done = false
+local registry_success = false
+registry.update(function(success)
+	registry_success = success
+	registry_done = true
+end)
+
+if not vim.wait(300000, function()
+	return registry_done
+end, 100) then
+	error("Timed out updating Mason registries")
+end
+
+if not registry_success then
+	error("Failed to update Mason registries")
+end
+
+local failures = {}
+local pending = 0
+local scheduled = 0
+
+for _, pkg in ipairs(registry.get_installed_packages()) do
+	local current = pkg:get_installed_version()
+	local ok_latest, latest = pcall(function()
+		return pkg:get_latest_version()
+	end)
+	local ok_installable, installable = pcall(function()
+		return latest ~= nil and current ~= latest and pkg:is_installable({ version = latest })
+	end)
+
+	if ok_latest and ok_installable and installable then
+		scheduled = scheduled + 1
+		pending = pending + 1
+		print(("Updating Mason package: %s (%s -> %s)"):format(pkg.name, tostring(current), tostring(latest)))
+		local ok_install, install_err = pcall(function()
+			pkg:install({ version = latest }, function(success, err)
+				if not success then
+					table.insert(failures, pkg.name .. ": " .. tostring(err))
+				end
+				pending = pending - 1
+			end)
+		end)
+		if not ok_install then
+			table.insert(failures, pkg.name .. ": " .. tostring(install_err))
+			pending = pending - 1
+		end
+	elseif not ok_latest then
+		table.insert(failures, pkg.name .. ": failed to determine latest version: " .. tostring(latest))
+	elseif not ok_installable then
+		table.insert(failures, pkg.name .. ": failed installability check: " .. tostring(installable))
+	end
+end
+
+if pending > 0 and not vim.wait(1800000, function()
+	return pending == 0
+end, 500) then
+	error("Timed out updating Mason packages")
+end
+
+if #failures > 0 then
+	error("Mason package update failed:\n" .. table.concat(failures, "\n"))
+end
+
+if scheduled == 0 then
+	print("All Mason packages are up-to-date")
+else
+	print(("Updated %d Mason package(s)"):format(scheduled))
+end
+LUA
+	nvim --headless -c "luafile $mason_script" +qa
+	mason_status=$?
+	rm -f "$mason_script"
+	if [[ $mason_status -ne 0 ]]; then
+		return $mason_status
+	fi
+
+	info "Updating Tree-sitter parsers"
+	nvim --headless "+lua require('nvim-treesitter').update():wait(300000)" +qa
+
+	success "Neovim plugins and tools updated"
+}
+
 cmd_update() {
 	local skip_packages=0
 	local skip_stow=0
 	local skip_pi=0
+	local skip_nvim=0
 	local -a failed_steps=()
 
 	while [[ $# -gt 0 ]]; do
@@ -298,6 +406,10 @@ cmd_update() {
 				skip_pi=1
 				shift
 				;;
+			--skip-nvim)
+				skip_nvim=1
+				shift
+				;;
 			-h|--help)
 				cat <<EOF
 Usage: ${SCRIPT_NAME} update [options]
@@ -306,6 +418,7 @@ Options:
   --skip-packages  Skip Homebrew/yay updates
   --skip-stow      Skip re-applying stow links
   --skip-pi        Skip pi update
+  --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
   --help           Show this help
 EOF
 				return
@@ -329,6 +442,13 @@ EOF
 		if ! cmd_stow; then
 			failed_steps+=(stow)
 			warn "Stow failed; continuing with remaining update steps"
+		fi
+	fi
+
+	if [[ $skip_nvim -eq 0 ]]; then
+		if ! update_nvim; then
+			failed_steps+=(nvim)
+			warn "Neovim update failed; continuing with remaining update steps"
 		fi
 	fi
 
@@ -561,7 +681,7 @@ cmd_completions() {
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, stow links, and pi"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, and pi"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -580,6 +700,7 @@ complete -c dot -s h -l help -d "Show help"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l only-config -d "Only operate on selected ~/.config components" -x

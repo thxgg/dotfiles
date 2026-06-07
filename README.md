@@ -24,7 +24,7 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS packages, re-stows, and runs `pi update`
+- `./dot update` pulls latest changes, updates OS packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, and runs `pi update`
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health via `doctor.sh`
