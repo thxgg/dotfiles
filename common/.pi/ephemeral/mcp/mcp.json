@@ -73,6 +73,17 @@
       ],
       "lifecycle": "lazy"
     },
+    "hubspot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@hubspot/mcp-server"
+      ],
+      "env": {
+        "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN}"
+      },
+      "lifecycle": "lazy"
+    },
     "aws-mcp": {
       "command": "uvx",
       "args": [

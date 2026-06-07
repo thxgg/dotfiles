@@ -89,6 +89,14 @@ enabled = true
 url = "https://api.mobbin.com/mcp"
 enabled = true
 
+# HubSpot CRM MCP. Add HUBSPOT_PRIVATE_APP_ACCESS_TOKEN to ~/.env.secrets.
+[mcp_servers.hubspot]
+command = "sh"
+args = ["-lc", 'PRIVATE_APP_ACCESS_TOKEN="$HUBSPOT_PRIVATE_APP_ACCESS_TOKEN" exec npx -y @hubspot/mcp-server']
+env_vars = ["HUBSPOT_PRIVATE_APP_ACCESS_TOKEN"]
+default_tools_approval_mode = "prompt"
+enabled = true
+
 # Transferred from Pi's ephemeral MCP catalog. Keep these disabled globally
 # because Pi made them opt-in per project/session rather than always-on.
 [mcp_servers.playwright]
