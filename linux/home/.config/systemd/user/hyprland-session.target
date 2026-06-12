@@ -1,0 +1,6 @@
+[Unit]
+Description=Hyprland graphical user session
+Wants=graphical-session-pre.target
+Wants=graphical-session.target
+After=graphical-session-pre.target
+BindsTo=graphical-session.target
