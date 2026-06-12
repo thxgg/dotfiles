@@ -4,7 +4,10 @@ return {
 		"saghen/blink.lib",
 	},
 	build = function()
-		require("blink.cmp").build():pwait()
+		-- Lazy can rebuild after blink.cmp was already loaded in the current
+		-- session. Reload it so the native helper targets the post-update commit.
+		package.loaded["blink.cmp"] = nil
+		require("blink.cmp").build({ force = true }):pwait()
 	end,
 	opts = {
 		keymap = { preset = "default" },
