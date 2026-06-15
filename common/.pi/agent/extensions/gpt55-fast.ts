@@ -6,6 +6,7 @@ type JsonRecord = Record<string, unknown>;
 const PROVIDER = "openai-codex";
 const BASE_MODEL = "gpt-5.5";
 const FAST_MODEL = "gpt-5.5-fast";
+const ONE_MILLION_MODEL = "gpt-5.5-1m";
 const STATUS_KEY = "gpt55-fast";
 const FAST_SERVICE_TIER = "priority";
 
@@ -17,6 +18,10 @@ function isBaseGpt55(model: PiModel | undefined): boolean {
 
 function isFastGpt55(model: PiModel | undefined): boolean {
   return model?.provider === PROVIDER && model.id === FAST_MODEL;
+}
+
+function isOneMillionGpt55(model: PiModel | undefined): boolean {
+  return model?.provider === PROVIDER && model.id === ONE_MILLION_MODEL;
 }
 
 function isSupportedModel(model: PiModel | undefined): boolean {
@@ -145,17 +150,20 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_provider_request", (event, ctx) => {
-    if (!isFastActive(ctx.model)) return undefined;
+    const shouldUseFastTier = isFastActive(ctx.model);
+    const shouldRewriteOneMillionAlias = isOneMillionGpt55(ctx.model);
+    if (!shouldUseFastTier && !shouldRewriteOneMillionAlias) return undefined;
 
     const payload = asRecord(event.payload);
     if (!payload) return undefined;
 
     return {
       ...payload,
-      // The local alias is for Pi's model selector only. Codex expects the
-      // upstream model id plus service_tier=priority for Fast mode.
+      // Local aliases are for Pi's selector/metadata only. The Codex backend
+      // expects the upstream GPT-5.5 model id; Fast additionally uses the
+      // priority service tier.
       model: BASE_MODEL,
-      service_tier: FAST_SERVICE_TIER,
+      ...(shouldUseFastTier ? { service_tier: FAST_SERVICE_TIER } : {}),
     };
   });
 }
