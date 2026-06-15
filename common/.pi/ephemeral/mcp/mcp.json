@@ -62,7 +62,7 @@
       ],
       "env": {
         "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN}",
-        "SONARQUBE_URL": "https://sonar.codehospitality.app"
+        "SONARQUBE_URL": "https://sonarcloud.io"
       },
       "lifecycle": "lazy"
     },
