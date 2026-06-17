@@ -17,7 +17,7 @@ import {
   type ExtensionContext,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -25,6 +25,7 @@ const WIDGET_KEY = "session-recap";
 const STATUS_KEY = "session-recap";
 const CUSTOM_TYPE = "session-recap";
 const WIDGET_PADDING = "  ";
+const RECAP_CONTINUATION_PADDING = "         ";
 
 const ENABLE_FOCUS_EVENTS = "\x1b[?1004h";
 const DISABLE_FOCUS_EVENTS = "\x1b[?1004l";
@@ -310,8 +311,17 @@ function showRecapWidget(ctx: ExtensionContext, text: string): void {
     WIDGET_KEY,
     (_tui, theme) => ({
       render(width: number): string[] {
-        const line = truncateToWidth(`${WIDGET_PADDING}recap: ${text}`, Math.max(1, width), "…");
-        return [theme.fg("dim", line)];
+        const contentWidth = Math.max(1, width - RECAP_CONTINUATION_PADDING.length);
+        const recapLines = wrapTextWithAnsi(text, contentWidth);
+        const renderedLines = (recapLines.length > 0 ? recapLines : [""]).map((line, index) => {
+          if (index === 0) {
+            return `${WIDGET_PADDING}${theme.fg("text", theme.bold("recap: "))}${theme.fg("dim", line)}`;
+          }
+
+          return theme.fg("dim", `${RECAP_CONTINUATION_PADDING}${line}`);
+        });
+
+        return [...renderedLines, ""];
       },
       invalidate(): void {
         // No cached render state.
