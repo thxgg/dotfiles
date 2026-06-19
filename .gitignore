@@ -7,6 +7,9 @@ common/.config/opencode/worktrees/
 common/.config/opencode/package-lock.json
 common/.config/zed/prompts/
 common/.config/atuin/atuin-receipt.json
+common/.config/herdr/release-notes.json
+common/.config/herdr/session.json
+common/.config/herdr/session-history.json
 .claude/settings.local.json
 
 # Pi local state
