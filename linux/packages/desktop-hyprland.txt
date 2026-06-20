@@ -11,6 +11,7 @@ grim
 nwg-displays
 xdg-desktop-portal-hyprland
 xwaylandvideobridge
+wl-clip-persist
 brightnessctl
 playerctl
 hyprsome-git
