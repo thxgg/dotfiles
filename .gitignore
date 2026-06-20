@@ -10,6 +10,7 @@ common/.config/atuin/atuin-receipt.json
 common/.config/herdr/release-notes.json
 common/.config/herdr/session.json
 common/.config/herdr/session-history.json
+common/.config/herdr/*.log
 .claude/settings.local.json
 
 # Pi local state
