@@ -2,7 +2,7 @@
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, and pi"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, pi, and pi extensions"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -20,7 +20,7 @@ complete -c dot -s h -l help -d "Show help"
 
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
