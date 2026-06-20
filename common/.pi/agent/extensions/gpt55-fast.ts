@@ -1,17 +1,28 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { clampThinkingLevel, getApiProvider, type Model, type SimpleStreamOptions, type StreamOptions } from "@earendil-works/pi-ai";
+import type { AssistantMessageEventStream, Context } from "@earendil-works/pi-ai";
 
 type PiModel = NonNullable<ExtensionContext["model"]>;
 type JsonRecord = Record<string, unknown>;
+type CodexProvider = NonNullable<ReturnType<typeof getApiProvider>>;
 
 const PROVIDER = "openai-codex";
+const CODEX_API = "openai-codex-responses";
 const BASE_MODEL = "gpt-5.5";
 const FAST_MODEL = "gpt-5.5-fast";
 const ONE_MILLION_MODEL = "gpt-5.5-1m";
 const STATUS_KEY = "gpt55-fast";
 const FAST_SERVICE_TIER = "priority";
+const BASE_COST = {
+  input: 5,
+  output: 30,
+  cacheRead: 0.5,
+  cacheWrite: 0,
+};
+const PROVIDER_PROBE_JWT =
+  "e30.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF9waV9leHRlbnNpb25fcHJvYmUifX0.sig";
 
 let fastEnabledForBaseModel = false;
-let normalizingAliasModel = false;
 
 function isBaseGpt55(model: PiModel | undefined): boolean {
   return model?.provider === PROVIDER && model.id === BASE_MODEL;
@@ -25,12 +36,35 @@ function isOneMillionGpt55(model: PiModel | undefined): boolean {
   return model?.provider === PROVIDER && model.id === ONE_MILLION_MODEL;
 }
 
+function isToggleableGpt55(model: PiModel | undefined): boolean {
+  return isBaseGpt55(model) || isOneMillionGpt55(model);
+}
+
 function isSupportedModel(model: PiModel | undefined): boolean {
-  return isBaseGpt55(model) || isFastGpt55(model);
+  return isToggleableGpt55(model) || isFastGpt55(model);
 }
 
 function isFastActive(model: PiModel | undefined): boolean {
-  return isFastGpt55(model) || (isBaseGpt55(model) && fastEnabledForBaseModel);
+  return isFastGpt55(model) || (isToggleableGpt55(model) && fastEnabledForBaseModel);
+}
+
+function upstreamModelId(model: Model): string {
+  if (isFastGpt55(model) || isOneMillionGpt55(model)) return BASE_MODEL;
+  return model.id;
+}
+
+function serviceTierForModel(model: Model): string | undefined {
+  return isFastGpt55(model) || (isToggleableGpt55(model) && fastEnabledForBaseModel) ? FAST_SERVICE_TIER : undefined;
+}
+
+function toUpstreamCodexModel(model: Model): Model {
+  if (!isFastGpt55(model) && !isOneMillionGpt55(model)) return model;
+
+  return {
+    ...model,
+    id: BASE_MODEL,
+    cost: BASE_COST,
+  };
 }
 
 function formatModel(model: PiModel | undefined): string {
@@ -50,6 +84,21 @@ function asRecord(value: unknown): JsonRecord | undefined {
   return value as JsonRecord;
 }
 
+function rewriteCodexAliasPayload(payload: unknown, model: Model, serviceTier: string | undefined): unknown {
+  const body = asRecord(payload);
+  if (!body) return payload;
+
+  const upstream = upstreamModelId(model);
+  const shouldRewriteModel = typeof body.model === "string" && body.model !== upstream;
+  if (!shouldRewriteModel && !serviceTier) return payload;
+
+  return {
+    ...body,
+    ...(shouldRewriteModel ? { model: upstream } : {}),
+    ...(serviceTier ? { service_tier: serviceTier } : {}),
+  };
+}
+
 function resolveRequestedState(args: string, current: boolean): boolean | undefined {
   const normalized = args.trim().toLowerCase();
   if (!normalized || normalized === "toggle") return !current;
@@ -59,64 +108,84 @@ function resolveRequestedState(args: string, current: boolean): boolean | undefi
   return undefined;
 }
 
-async function switchToBaseModel(pi: ExtensionAPI, ctx: ExtensionContext): Promise<boolean> {
-  if (isBaseGpt55(ctx.model)) return true;
+type CodexOptions = StreamOptions & {
+  reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
+  serviceTier?: string;
+  textVerbosity?: "low" | "medium" | "high";
+};
 
-  const baseModel = ctx.modelRegistry.find(PROVIDER, BASE_MODEL);
-  if (!baseModel) {
-    ctx.ui.notify(`Could not find ${PROVIDER}/${BASE_MODEL}.`, "error");
-    return false;
-  }
+function createCodexOptions(model: Model, options?: SimpleStreamOptions): CodexOptions {
+  const codexOptions = options as CodexOptions | undefined;
+  const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
+  const reasoningEffort = clampedReasoning === "off" ? undefined : (clampedReasoning ?? codexOptions?.reasoningEffort);
+  const serviceTier = serviceTierForModel(model) ?? codexOptions?.serviceTier;
+  const originalOnPayload = options?.onPayload;
 
-  const switched = await pi.setModel(baseModel);
-  if (!switched) {
-    ctx.ui.notify(`Could not switch to ${PROVIDER}/${BASE_MODEL}.`, "error");
-  }
-  return switched;
+  return {
+    ...codexOptions,
+    reasoningEffort,
+    serviceTier,
+    async onPayload(payload, requestModel) {
+      let current = rewriteCodexAliasPayload(payload, model, serviceTier);
+      const next = await originalOnPayload?.(current, requestModel);
+      if (next !== undefined) current = next;
+      return rewriteCodexAliasPayload(current, model, serviceTier);
+    },
+  };
 }
 
-async function normalizeAliasModel(pi: ExtensionAPI, ctx: ExtensionContext, model: PiModel | undefined): Promise<boolean> {
-  if (!model || normalizingAliasModel) return false;
-
-  if (isFastGpt55(model)) {
-    normalizingAliasModel = true;
-    try {
-      const switched = await switchToBaseModel(pi, ctx);
-      if (switched) {
-        fastEnabledForBaseModel = true;
-        ctx.ui.setStatus(STATUS_KEY, "GPT-5.5 Fast");
-        ctx.ui.notify(`${PROVIDER}/${FAST_MODEL} is a local alias; using ${PROVIDER}/${BASE_MODEL} with priority service tier.`, "info");
-      }
-      return switched;
-    } finally {
-      normalizingAliasModel = false;
-    }
-  }
-
-  if (isOneMillionGpt55(model)) {
-    normalizingAliasModel = true;
-    try {
-      const switched = await switchToBaseModel(pi, ctx);
-      if (switched) {
-        fastEnabledForBaseModel = false;
-        ctx.ui.setStatus(STATUS_KEY, undefined);
-        ctx.ui.notify(
-          `${PROVIDER}/${ONE_MILLION_MODEL} is not supported by Codex ChatGPT accounts; using ${PROVIDER}/${BASE_MODEL} instead.`,
-          "warning",
-        );
-      }
-      return switched;
-    } finally {
-      normalizingAliasModel = false;
-    }
-  }
-
-  return false;
+function probeModel(): Model {
+  return {
+    id: BASE_MODEL,
+    name: "GPT-5.5",
+    api: CODEX_API,
+    provider: PROVIDER,
+    baseUrl: "https://chatgpt.com/backend-api",
+    reasoning: true,
+    input: ["text"],
+    cost: BASE_COST,
+    contextWindow: 272000,
+    maxTokens: 128000,
+  };
 }
 
-export default function (pi: ExtensionAPI) {
+async function drain(stream: AssistantMessageEventStream): Promise<void> {
+  for await (const _event of stream) {
+    // Drain the probe stream so lazy provider registration finishes.
+  }
+}
+
+async function loadCodexProvider(): Promise<CodexProvider> {
+  const lazyProvider = getApiProvider(CODEX_API);
+  if (!lazyProvider) throw new Error(`Could not find built-in ${CODEX_API} provider to wrap.`);
+
+  const controller = new AbortController();
+  controller.abort();
+
+  await drain(
+    lazyProvider.stream(probeModel(), { systemPrompt: "", messages: [] } satisfies Context, {
+      apiKey: PROVIDER_PROBE_JWT,
+      signal: controller.signal,
+      transport: "sse",
+      maxRetries: 0,
+    }),
+  ).catch(() => undefined);
+
+  return getApiProvider(CODEX_API) ?? lazyProvider;
+}
+
+export default async function (pi: ExtensionAPI) {
+  const codexProvider = await loadCodexProvider();
+
+  pi.registerProvider(PROVIDER, {
+    api: CODEX_API,
+    streamSimple: (model, context, options) =>
+      codexProvider.stream(toUpstreamCodexModel(model), context, createCodexOptions(model, options)),
+  });
+
   pi.registerCommand("fast", {
-    description: "Toggle GPT-5.5 Fast mode (openai-codex/gpt-5.5 only)",
+    description: "Toggle GPT-5.5 Fast mode for openai-codex/gpt-5.5 aliases",
     getArgumentCompletions: (prefix: string) => {
       const options = ["on", "off", "toggle", "status"];
       const normalized = prefix.trim().toLowerCase();
@@ -129,7 +198,7 @@ export default function (pi: ExtensionAPI) {
       if (!isSupportedModel(ctx.model)) {
         fastEnabledForBaseModel = false;
         updateStatus(ctx);
-        ctx.ui.notify(`/fast is only available for ${PROVIDER}/${BASE_MODEL}. Current model: ${formatModel(ctx.model)}`, "warning");
+        ctx.ui.notify(`/fast is only available for ${PROVIDER}/${BASE_MODEL} aliases. Current model: ${formatModel(ctx.model)}`, "warning");
         return;
       }
 
@@ -148,23 +217,11 @@ export default function (pi: ExtensionAPI) {
 
       if (requested) {
         if (current) {
-          if (isFastGpt55(ctx.model)) await normalizeAliasModel(pi, ctx, ctx.model);
           updateStatus(ctx);
           ctx.ui.notify("GPT-5.5 Fast mode is already on.", "info");
           return;
         }
 
-        if (isFastGpt55(ctx.model)) {
-          const switched = await switchToBaseModel(pi, ctx);
-          if (!switched) {
-            updateStatus(ctx);
-            return;
-          }
-        }
-
-        // Keep the real Codex model selected. Pi's built-in compaction path does
-        // not run before_provider_request hooks, so local alias model ids can leak
-        // into summarization requests and fail as unsupported.
         fastEnabledForBaseModel = true;
         ctx.ui.setStatus(STATUS_KEY, "GPT-5.5 Fast");
         ctx.ui.notify("GPT-5.5 Fast mode enabled for this session.", "info");
@@ -172,8 +229,16 @@ export default function (pi: ExtensionAPI) {
       }
 
       if (isFastGpt55(ctx.model)) {
-        const switched = await switchToBaseModel(pi, ctx);
+        const baseModel = ctx.modelRegistry.find(PROVIDER, BASE_MODEL);
+        if (!baseModel) {
+          ctx.ui.notify(`Could not find ${PROVIDER}/${BASE_MODEL}; staying on Fast model.`, "error");
+          updateStatus(ctx);
+          return;
+        }
+
+        const switched = await pi.setModel(baseModel);
         if (!switched) {
+          ctx.ui.notify(`Could not switch to ${PROVIDER}/${BASE_MODEL}; staying on Fast model.`, "error");
           updateStatus(ctx);
           return;
         }
@@ -186,37 +251,19 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    if (await normalizeAliasModel(pi, ctx, ctx.model)) return;
     if (!isSupportedModel(ctx.model)) fastEnabledForBaseModel = false;
     updateStatus(ctx);
   });
 
   pi.on("model_select", async (event, ctx) => {
-    if (normalizingAliasModel) {
-      updateStatus(ctx, event.model);
-      return;
-    }
-    if (await normalizeAliasModel(pi, ctx, event.model)) return;
-    if (!isBaseGpt55(event.model)) fastEnabledForBaseModel = false;
+    if (!isToggleableGpt55(event.model)) fastEnabledForBaseModel = false;
     updateStatus(ctx, event.model);
   });
 
   pi.on("before_provider_request", (event, ctx) => {
-    const payload = asRecord(event.payload);
-    if (!payload) return undefined;
-
-    const payloadModel = typeof payload.model === "string" ? payload.model : undefined;
-    const shouldUseFastTier = isFastActive(ctx.model) || payloadModel === FAST_MODEL;
-    const shouldRewriteAlias = shouldUseFastTier || isOneMillionGpt55(ctx.model) || payloadModel === ONE_MILLION_MODEL;
-    if (!shouldRewriteAlias) return undefined;
-
-    return {
-      ...payload,
-      // Local aliases are for Pi's selector/metadata only. The Codex backend
-      // expects the upstream GPT-5.5 model id; Fast additionally uses the
-      // priority service tier.
-      model: BASE_MODEL,
-      ...(shouldUseFastTier ? { service_tier: FAST_SERVICE_TIER } : {}),
-    };
+    const payloadModel = asRecord(event.payload)?.model;
+    const aliasModel = typeof payloadModel === "string" ? ({ ...ctx.model, id: payloadModel } as Model) : ctx.model;
+    const serviceTier = isFastActive(ctx.model) || payloadModel === FAST_MODEL ? FAST_SERVICE_TIER : undefined;
+    return rewriteCodexAliasPayload(event.payload, aliasModel, serviceTier);
   });
 }
