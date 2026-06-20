@@ -2,7 +2,7 @@
   "name": "pi-extensions",
   "private": true,
   "dependencies": {
-    "@plannotator/pi-extension": "^0.20.3",
+    "@plannotator/pi-extension": "^0.21.0",
     "pi-autoresearch": "^1.6.0"
   }
 }
