@@ -98,7 +98,7 @@ ${BOLD}USAGE:${RESET}
 
 ${BOLD}COMMANDS:${RESET}
     init              Run full machine setup via ./setup.sh
-    update            Pull latest repo changes, update packages, Neovim, stow, and pi
+    update            Pull latest repo changes, update packages, Neovim, stow, pi, and pi extensions
     stow              Apply links via ./safe-stow.sh
     unstow            Remove links via ./unstow.sh
     doctor            Validate symlinks and setup health via ./doctor.sh
@@ -258,7 +258,7 @@ update_packages() {
 }
 
 update_pi() {
-	header "Updating pi"
+	header "Updating pi and extensions"
 
 	if ! command_exists pi; then
 		warn "pi not found; skipping"
@@ -274,8 +274,17 @@ update_pi() {
 		pi_update_env+=(RUSTUP_TOOLCHAIN=stable)
 	fi
 
-	(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update)
-	success "pi updated"
+	if (cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --help 2>&1 | grep -q -- '--extensions'); then
+		info "Updating pi CLI"
+		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --self)
+		info "Updating pi extensions/packages"
+		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --extensions)
+	else
+		warn "pi update --extensions not supported; falling back to legacy pi update"
+		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update)
+	fi
+
+	success "pi and extensions updated"
 }
 
 update_nvim() {
@@ -417,7 +426,7 @@ Usage: ${SCRIPT_NAME} update [options]
 Options:
   --skip-packages  Skip Homebrew/yay updates
   --skip-stow      Skip re-applying stow links
-  --skip-pi        Skip pi update
+  --skip-pi        Skip pi and extension updates
   --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
   --help           Show this help
 EOF
@@ -455,7 +464,7 @@ EOF
 	if [[ $skip_pi -eq 0 ]]; then
 		if ! update_pi; then
 			failed_steps+=(pi)
-			warn "pi update failed; continuing with remaining update steps"
+			warn "pi and extension update failed; continuing with remaining update steps"
 		fi
 	fi
 
@@ -681,7 +690,7 @@ cmd_completions() {
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, and pi"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, pi, and pi extensions"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -699,7 +708,7 @@ complete -c dot -s h -l help -d "Show help"
 
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
