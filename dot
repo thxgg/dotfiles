@@ -98,7 +98,7 @@ ${BOLD}USAGE:${RESET}
 
 ${BOLD}COMMANDS:${RESET}
     init              Run full machine setup via ./setup.sh
-    update            Pull latest repo changes, update packages, Neovim, stow, pi, and pi extensions
+    update            Pull latest repo changes, update packages, Neovim, stow, pi, Herdr, and pi extensions
     stow              Apply links via ./safe-stow.sh
     unstow            Remove links via ./unstow.sh
     doctor            Validate symlinks and setup health via ./doctor.sh
@@ -287,6 +287,24 @@ update_pi() {
 	success "pi and extensions updated"
 }
 
+update_herdr() {
+	header "Updating Herdr"
+
+	if ! command_exists herdr; then
+		warn "herdr not found; skipping"
+		return
+	fi
+
+	local -a herdr_update_cmd
+	herdr_update_cmd=(herdr update)
+	if [[ -n "${HERDR_ENV:-}" ]]; then
+		herdr_update_cmd+=(--handoff)
+	fi
+
+	"${herdr_update_cmd[@]}"
+	success "Herdr updated"
+}
+
 update_nvim() {
 	header "Updating Neovim plugins and tools"
 
@@ -398,6 +416,7 @@ cmd_update() {
 	local skip_packages=0
 	local skip_stow=0
 	local skip_pi=0
+	local skip_herdr=0
 	local skip_nvim=0
 	local -a failed_steps=()
 
@@ -415,6 +434,10 @@ cmd_update() {
 				skip_pi=1
 				shift
 				;;
+			--skip-herdr)
+				skip_herdr=1
+				shift
+				;;
 			--skip-nvim)
 				skip_nvim=1
 				shift
@@ -427,6 +450,7 @@ Options:
   --skip-packages  Skip Homebrew/yay updates
   --skip-stow      Skip re-applying stow links
   --skip-pi        Skip pi and extension updates
+  --skip-herdr     Skip Herdr self-update
   --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
   --help           Show this help
 EOF
@@ -465,6 +489,13 @@ EOF
 		if ! update_pi; then
 			failed_steps+=(pi)
 			warn "pi and extension update failed; continuing with remaining update steps"
+		fi
+	fi
+
+	if [[ $skip_herdr -eq 0 ]]; then
+		if ! update_herdr; then
+			failed_steps+=(herdr)
+			warn "Herdr update failed; continuing with remaining update steps"
 		fi
 	fi
 
@@ -690,7 +721,7 @@ cmd_completions() {
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, pi, and pi extensions"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, pi, Herdr, and pi extensions"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -709,6 +740,7 @@ complete -c dot -s h -l help -d "Show help"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip Herdr self-update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
