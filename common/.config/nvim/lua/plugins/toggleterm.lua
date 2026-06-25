@@ -8,6 +8,9 @@ return {
 			size = 80,
 		},
 		config = function(_, opts)
+			local sysname = (vim.uv or vim.loop).os_uname().sysname
+			local tty_flag = sysname == "Darwin" and "-f" or "-F"
+
 			local function terminal_tty(bufnr)
 				local pid = vim.b[bufnr].terminal_job_pid
 				if not pid then
@@ -26,7 +29,7 @@ return {
 				return "/dev/" .. tty
 			end
 
-			local function repair_terminal_modes(bufnr)
+			local function capture_terminal_modes(bufnr)
 				if not vim.api.nvim_buf_is_valid(bufnr) then
 					return
 				end
@@ -36,13 +39,43 @@ return {
 					return
 				end
 
-				-- Node package runners can let grandchildren reset the PTY after fish has
-				-- already returned to its prompt, leaving kernel echo/canonical input on.
-				-- That makes keys show up as ^C/^[[A and breaks live completions until the
-				-- next prompt. Restore the modes fish/readline expect after Ctrl-C.
-				local sysname = (vim.uv or vim.loop).os_uname().sysname
-				local tty_flag = sysname == "Darwin" and "-f" or "-F"
-				vim.system({ "stty", tty_flag, tty, "-icanon", "-echo", "min", "1", "time", "0" }, { detach = true })
+				vim.system({ "stty", tty_flag, tty, "-g" }, { text = true }, function(result)
+					if result.code ~= 0 or not result.stdout then
+						return
+					end
+
+					local state = vim.trim(result.stdout)
+					if state == "" then
+						return
+					end
+
+					vim.schedule(function()
+						if vim.api.nvim_buf_is_valid(bufnr) then
+							vim.b[bufnr].toggleterm_stty_state = state
+						end
+					end)
+				end)
+			end
+
+			local function restore_terminal_modes(bufnr)
+				if not vim.api.nvim_buf_is_valid(bufnr) then
+					return
+				end
+
+				local tty = terminal_tty(bufnr)
+				if not tty then
+					return
+				end
+
+				local saved_state = vim.b[bufnr].toggleterm_stty_state
+				local args
+				if saved_state and saved_state ~= "" then
+					args = { "stty", tty_flag, tty, saved_state }
+				else
+					args = { "stty", tty_flag, tty, "-icanon", "-echo", "min", "1", "time", "0" }
+				end
+
+				vim.system(args, { detach = true })
 			end
 
 			local function interrupt_and_repair_terminal()
@@ -53,17 +86,27 @@ return {
 				end
 
 				vim.api.nvim_chan_send(job_id, "\003")
-				for _, delay in ipairs({ 100, 300, 700 }) do
+
+				-- Node process runners can exit before their grandchildren finish cleaning
+				-- up. The late grandchild can restore cooked terminal modes after fish has
+				-- already repainted its prompt, leaving completion and keybindings inert.
+				for _, delay in ipairs({ 100, 300, 700, 1500, 3000 }) do
 					vim.defer_fn(function()
-						repair_terminal_modes(bufnr)
+						restore_terminal_modes(bufnr)
 					end, delay)
 				end
 			end
 
 			opts.on_open = function(term)
+				for _, delay in ipairs({ 100, 500, 1000 }) do
+					vim.defer_fn(function()
+						capture_terminal_modes(term.bufnr)
+					end, delay)
+				end
+
 				vim.keymap.set("t", "<C-c>", interrupt_and_repair_terminal, {
 					buffer = term.bufnr,
-					desc = "Interrupt terminal and repair PTY modes",
+					desc = "Interrupt terminal and restore shell TTY modes",
 					silent = true,
 				})
 			end
