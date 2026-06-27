@@ -14,13 +14,6 @@ if not contains -- no-query-term $fish_features
     set -Ua fish_features no-query-term
 end
 
-# Set PI_SKIP_TMUX_AUTOSTART=1 to bypass this when testing fish outside tmux.
-if status is-interactive
-    if not set -q PI_SKIP_TMUX_AUTOSTART; and type -q tmux; and test -z "$TMUX"; and test -z "$INSIDE_EMACS"; and test -z "$VSCODE_PID"
-        exec tmux new-session -A -s main
-    end
-end
-
 # Pi's terminal image detection can see the outer Ghostty environment even when
 # the UI is running through tmux. Disable inline terminal graphics inside tmux;
 # generated images are still saved and linked, while bare Ghostty can render.

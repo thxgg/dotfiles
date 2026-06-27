@@ -1,9 +1,3 @@
-# Auto-start tmux: attach to existing session or create a new one
-# Set PI_SKIP_TMUX_AUTOSTART=1 to bypass this when testing other shells.
-if command -v tmux &>/dev/null && [[ -z "$PI_SKIP_TMUX_AUTOSTART" && -z "$TMUX" && -z "$INSIDE_EMACS" && -z "$VSCODE_PID" ]]; then
-  exec tmux new-session -A -s main
-fi
-
 export VISUAL=nvim
 export EDITOR=nvim
 export GOPATH="${GOPATH:-$HOME/.local/share/go}"
