@@ -1,7 +1,7 @@
 notify = ["/Users/thxgg/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
 personality = "pragmatic"
 model = "gpt-5.5"
-model_reasoning_effort = "high"
+model_reasoning_effort = "xhigh"
 service_tier = "fast"
 approval_policy = "never"
 approvals_reviewer = "user"
@@ -49,13 +49,22 @@ enabled = false
 [plugins."browser@openai-bundled"]
 enabled = true
 
+[plugins."computer-use@openai-bundled"]
+enabled = true
+
+[plugins."pdf@openai-primary-runtime"]
+enabled = true
+
+[plugins."template-creator@openai-primary-runtime"]
+enabled = true
+
 [marketplaces.openai-bundled]
-last_updated = "2026-05-31T17:20:23Z"
+last_updated = "2026-06-23T14:58:16Z"
 source_type = "local"
 source = "/Users/thxgg/.codex/.tmp/bundled-marketplaces/openai-bundled"
 
 [marketplaces.openai-primary-runtime]
-last_updated = "2026-05-27T12:30:29Z"
+last_updated = "2026-06-23T14:30:47Z"
 source_type = "local"
 source = "/Users/thxgg/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
 
@@ -75,6 +84,12 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [projects."/Users/thxgg/Documents/Codex/2026-05-28/how-can-i-enable-computer-use"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Documents/Codex/2026-06-23/can-you-look-into-the-hermes"]
+trust_level = "trusted"
+
+[projects."/Users/thxgg/Documents/Codex/2026-06-23/give-me-a-rundown-of-the"]
 trust_level = "trusted"
 
 [mcp_servers.context7]
@@ -174,25 +189,27 @@ enabled = false
 
 [mcp_servers.node_repl]
 args = []
-command = "/Applications/Codex.app/Contents/Resources/node_repl"
+command = "/Applications/Codex.app/Contents/Resources/cua_node/bin/node_repl"
 startup_timeout_sec = 120
 
 [mcp_servers.node_repl.env]
 NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
-NODE_REPL_NODE_MODULE_DIRS = ""
-NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/node"
+NODE_REPL_NODE_MODULE_DIRS = "/Applications/Codex.app/Contents/Resources/cua_node/lib/node_modules"
+NODE_REPL_NODE_PATH = "/Applications/Codex.app/Contents/Resources/cua_node/bin/node"
 NODE_REPL_TRUSTED_CODE_PATHS = "/Users/thxgg/.codex"
 CODEX_HOME = "/Users/thxgg/.codex"
-NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "0b0d41e7a14a4903d2f95b0b3f427ed796b12c8edca2fa392a03df43997075ae"
-BROWSER_USE_AVAILABLE_BACKENDS = "iab"
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "5ee3754ef68f803b9cebf40e30f94ea22aaf446de1a0a24b109180fa2ae0bd3e"
+BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
 NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
+NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
 BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
+BROWSER_USE_CODEX_APP_VERSION = "26.616.71553"
 CODEX_CLI_PATH = "/Applications/Codex.app/Contents/Resources/codex"
 
 [desktop]
 appearanceTheme = "system"
 appearanceLightCodeThemeId = "catppuccin"
-appearanceDarkCodeThemeId = "linear"
+appearanceDarkCodeThemeId = "catppuccin"
 sansFontSize = 14
 codeFontSize = 14
 followUpQueueMode = "steer"
@@ -200,6 +217,7 @@ composerEnterBehavior = "cmdIfMultiline"
 preventSleepWhileRunning = true
 keepRemoteControlAwakeWhilePluggedIn = true
 git-show-sidebar-pr-icons = true
+dock-icon-preference = "codex-dark"
 
 [desktop.appearanceLightChromeTheme]
 accent = "#8839ef"
@@ -218,20 +236,20 @@ diffRemoved = "#d20f39"
 skill = "#8839ef"
 
 [desktop.appearanceDarkChromeTheme]
-accent = "#606acc"
+accent = "#cba6f7"
 contrast = 60
-ink = "#e3e4e6"
+ink = "#cdd6f4"
 opaqueWindows = true
-surface = "#0f0f11"
+surface = "#1e1e2e"
 
 [desktop.appearanceDarkChromeTheme.fonts]
 code = '"Jetbrains Mono"'
 ui = "Inter"
 
 [desktop.appearanceDarkChromeTheme.semanticColors]
-diffAdded = "#69c967"
-diffRemoved = "#ff7e78"
-skill = "#c2a1ff"
+diffAdded = "#a6e3a1"
+diffRemoved = "#f38ba8"
+skill = "#cba6f7"
 
 [desktop.open-in-target-preferences]
 global = "vscode"
