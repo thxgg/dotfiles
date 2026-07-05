@@ -23,6 +23,7 @@ const PROVIDER_PROBE_JWT =
   "e30.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF9waV9leHRlbnNpb25fcHJvYmUifX0.sig";
 
 let fastEnabledForBaseModel = false;
+let warnedOneMillionThresholdCompaction = false;
 
 function isBaseGpt55(model: PiModel | undefined): boolean {
   return model?.provider === PROVIDER && model.id === BASE_MODEL;
@@ -74,6 +75,8 @@ function formatModel(model: PiModel | undefined): string {
 function updateStatus(ctx: ExtensionContext, model: PiModel | undefined = ctx.model): void {
   if (isFastActive(model)) {
     ctx.ui.setStatus(STATUS_KEY, "GPT-5.5 Fast");
+  } else if (isOneMillionGpt55(model)) {
+    ctx.ui.setStatus(STATUS_KEY, "GPT-5.5 1M");
   } else {
     ctx.ui.setStatus(STATUS_KEY, undefined);
   }
@@ -97,6 +100,15 @@ function rewriteCodexAliasPayload(payload: unknown, model: Model, serviceTier: s
     ...(shouldRewriteModel ? { model: upstream } : {}),
     ...(serviceTier ? { service_tier: serviceTier } : {}),
   };
+}
+
+function normalizeCodexAliasAssistantMessage(message: unknown, currentModel: PiModel | undefined): void {
+  const assistant = asRecord(message);
+  if (!assistant || assistant.role !== "assistant") return;
+  if (assistant.provider !== PROVIDER || assistant.model !== BASE_MODEL) return;
+  if (!isFastGpt55(currentModel) && !isOneMillionGpt55(currentModel)) return;
+
+  assistant.model = currentModel.id;
 }
 
 function resolveRequestedState(args: string, current: boolean): boolean | undefined {
@@ -257,7 +269,26 @@ export default async function (pi: ExtensionAPI) {
 
   pi.on("model_select", async (event, ctx) => {
     if (!isToggleableGpt55(event.model)) fastEnabledForBaseModel = false;
+    warnedOneMillionThresholdCompaction = false;
     updateStatus(ctx, event.model);
+  });
+
+  pi.on("message_end", async (event, ctx) => {
+    normalizeCodexAliasAssistantMessage(event.message, ctx.model);
+  });
+
+  pi.on("session_before_compact", async (event, ctx) => {
+    if (!isOneMillionGpt55(ctx.model) || event.reason !== "threshold") return;
+
+    if (!warnedOneMillionThresholdCompaction) {
+      ctx.ui.notify(
+        "Skipping threshold auto-compaction for openai-codex/gpt-5.5-1m; preserving full 1M context until provider overflow or manual /compact.",
+        "info",
+      );
+      warnedOneMillionThresholdCompaction = true;
+    }
+
+    return { cancel: true };
   });
 
   pi.on("before_provider_request", (event, ctx) => {
