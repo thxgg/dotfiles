@@ -97,8 +97,9 @@ navigate_pane_right = "l"
 sidebar_width = 32
 sidebar_min_width = 18
 sidebar_max_width = 36
-# Ghostty owns link clicks natively; avoids double-open on ctrl+click (herdr + ghostty both firing).
-mouse_capture = false
+# Ctrl+click on links double-opens (herdr + ghostty both fire); use shift+ctrl+click
+# for the terminal-native bypass so only ghostty opens the link.
+mouse_capture = true
 right_click_passthrough_modifier = "ctrl"
 mouse_scroll_lines = 3
 # tmux close/kill bindings do not prompt; match that behavior.
