@@ -97,7 +97,8 @@ navigate_pane_right = "l"
 sidebar_width = 32
 sidebar_min_width = 18
 sidebar_max_width = 36
-mouse_capture = true
+# Ghostty owns link clicks natively; avoids double-open on ctrl+click (herdr + ghostty both firing).
+mouse_capture = false
 right_click_passthrough_modifier = "ctrl"
 mouse_scroll_lines = 3
 # tmux close/kill bindings do not prompt; match that behavior.
@@ -106,6 +107,7 @@ prompt_new_tab_name = true
 agent_panel_scope = "all"
 accent = "#c6a0f6"
 
+agent_panel_sort = "spaces"
 [ui.toast]
 delivery = "off"
 delay_seconds = 1
