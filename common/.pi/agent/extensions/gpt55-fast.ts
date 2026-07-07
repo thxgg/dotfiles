@@ -13,6 +13,7 @@ const FAST_MODEL = "gpt-5.5-fast";
 const ONE_MILLION_MODEL = "gpt-5.5-1m";
 const STATUS_KEY = "gpt55-fast";
 const FAST_SERVICE_TIER = "priority";
+const DEFAULT_FAST_ENABLED_FOR_BASE_MODEL = true;
 const BASE_COST = {
   input: 5,
   output: 30,
@@ -22,7 +23,7 @@ const BASE_COST = {
 const PROVIDER_PROBE_JWT =
   "e30.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF9waV9leHRlbnNpb25fcHJvYmUifX0.sig";
 
-let fastEnabledForBaseModel = false;
+let fastEnabledForBaseModel = DEFAULT_FAST_ENABLED_FOR_BASE_MODEL;
 let warnedOneMillionThresholdCompaction = false;
 
 function isBaseGpt55(model: PiModel | undefined): boolean {
@@ -208,7 +209,7 @@ export default async function (pi: ExtensionAPI) {
     },
     handler: async (args: string, ctx) => {
       if (!isSupportedModel(ctx.model)) {
-        fastEnabledForBaseModel = false;
+        fastEnabledForBaseModel = DEFAULT_FAST_ENABLED_FOR_BASE_MODEL;
         updateStatus(ctx);
         ctx.ui.notify(`/fast is only available for ${PROVIDER}/${BASE_MODEL} aliases. Current model: ${formatModel(ctx.model)}`, "warning");
         return;
@@ -263,12 +264,12 @@ export default async function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    if (!isSupportedModel(ctx.model)) fastEnabledForBaseModel = false;
+    if (!isSupportedModel(ctx.model)) fastEnabledForBaseModel = DEFAULT_FAST_ENABLED_FOR_BASE_MODEL;
     updateStatus(ctx);
   });
 
   pi.on("model_select", async (event, ctx) => {
-    if (!isToggleableGpt55(event.model)) fastEnabledForBaseModel = false;
+    if (!isToggleableGpt55(event.model)) fastEnabledForBaseModel = DEFAULT_FAST_ENABLED_FOR_BASE_MODEL;
     warnedOneMillionThresholdCompaction = false;
     updateStatus(ctx, event.model);
   });
