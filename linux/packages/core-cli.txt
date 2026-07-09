@@ -15,7 +15,9 @@ tree
 stow
 tmux
 zsh
+shellcheck
 starship
+stylua
 btop
 rocm-smi-lib
 neovim

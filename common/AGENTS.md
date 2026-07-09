@@ -17,7 +17,7 @@ OS-specific payload lives in `macos/home/` and `linux/home/`.
 - **Machine secrets**: keep only references in tracked shell config; values live in `~/.env.secrets`.
 
 ## Anti-Patterns
-- Editing `$HOME/.zshrc`, `$HOME/.gitconfig`, or `$HOME/.config/*` directly and not syncing back.
+- Editing `$HOME/.gitconfig` or `$HOME/.config/*` directly and not syncing back.
 - Defining the same target path in `common/` and an OS-specific stow root.
 - Tracking generated dependency trees except where explicitly intentional.
 

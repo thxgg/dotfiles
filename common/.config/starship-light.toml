@@ -1,8 +1,14 @@
 palette = "catppuccin_latte"
 add_newline = false
+command_timeout = 2000
 
 [gcloud]
 disabled = true
+
+[nodejs]
+detect_extensions = []
+detect_files = ["package.json", ".node-version", ".nvmrc", ".tool-versions"]
+detect_folders = ["node_modules"]
 
 [directory]
 style = "fg:lavender"

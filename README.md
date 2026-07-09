@@ -2,7 +2,7 @@
 
 This repository manages shell/editor/system configuration with GNU Stow.
 
-Primary interactive shell behavior lives in `common/.config/fish/config.fish`, with tmux in `common/.config/tmux/tmux.conf` and a minimal `common/.zshrc` kept as fallback.
+Primary interactive shell behavior lives in `common/.config/fish/config.fish`, with tmux in `common/.config/tmux/tmux.conf`. Zsh remains a scripting dependency for the bootstrap and dotfiles management commands.
 
 Stow payload is split into shared + OS-specific roots:
 
@@ -14,7 +14,7 @@ Stow payload is split into shared + OS-specific roots:
 
 1. Clone this repository.
 2. Run `./dot init`.
-3. The setup script runs OS-specific package setup, runs safe stow, and links `dot` into `~/.local/bin`.
+3. The setup script runs OS-specific package setup, installs Pi and its locked extension workspace dependencies, runs safe stow, and links `dot` into `~/.local/bin`.
 
 Useful setup flags:
 
@@ -24,10 +24,10 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, runs `pi update --self` plus `pi update --extensions`, and runs `herdr update`
+- `./dot update` pulls latest changes, updates OS packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies, runs `pi update --self` plus `pi update --extensions`, and runs `herdr update`
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
-- `./dot doctor` validates symlink health via `doctor.sh`
+- `./dot doctor` validates symlink health plus the Pi runtime and extension workspace via `doctor.sh`
 - `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
 
 After setup, use `dot` from anywhere in a new shell. If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`; both also refresh the `~/.local/bin/dot` symlink.

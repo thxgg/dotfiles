@@ -9,7 +9,7 @@ Personal machine bootstrap + dotfiles repository using GNU Stow.
 dotfiles/
 ├── common/                     # shared stow payload mirrored to $HOME
 │   ├── .config/                # app/tool configs (fish, tmux, nvim, ghostty, ...)
-│   ├── .zshrc/.zprofile/...    # fallback shell/login config + git + ssh + psql
+│   ├── .gitconfig/.ssh/...     # shared git, SSH, and database config
 ├── macos/                      # Homebrew bootstrap + Brewfile + macOS-only stow payload
 │   └── home/                   # macOS-only stow payload mirrored to $HOME
 ├── linux/                      # Arch+yay bootstrap + package profiles + Linux-only stow payload
@@ -66,12 +66,6 @@ brew bundle check --file=./macos/Brewfile
 # Linux package dry run (Arch)
 zsh ./linux/setup.sh --dry-run
 ```
-
-## Browser Automation
-- Use `agent-browser` for browser automation tasks.
-- Core workflow: `agent-browser open <url>` -> `agent-browser snapshot -i` -> interact via `@eN` refs -> re-snapshot after page changes.
-- Prefer refs from snapshots over CSS selectors.
-- Prefer semantic waits like `agent-browser wait --load networkidle` over fixed sleeps.
 
 ## Intent Nodes
 - [Common Home Tree](./common/AGENTS.md) - shared stowed files mirrored into `$HOME`

@@ -6,7 +6,7 @@
   <string>com.thxgg.theme-mode</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/zsh</string>
+    <string>/bin/sh</string>
     <string>-lc</string>
     <string>$HOME/.local/bin/theme-mode --quiet apply</string>
   </array>

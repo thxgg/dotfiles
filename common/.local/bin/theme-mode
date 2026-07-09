@@ -83,19 +83,42 @@ last_applied_mode() {
 
 setup_kvantum_runtime_theme() {
   local mode="$1"
-  local data_home runtime_theme_dir source_dir
+  local data_home runtime_theme_dir source_dir source_theme source_root
+  local source_config source_svg
 
   data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-  runtime_theme_dir="$data_home/themes/cloudflare-current/Kvantum"
-  source_dir="$HOME/.config/Kvantum/cloudflare-$mode"
+  runtime_theme_dir="$data_home/themes/catppuccin-current/Kvantum"
 
-  if [[ ! -f "$source_dir/cloudflare-$mode.kvconfig" || ! -f "$source_dir/cloudflare-$mode.svg" ]]; then
+  if [[ "$mode" == light ]]; then
+    source_theme="catppuccin-latte-lavender"
+  else
+    source_theme="catppuccin-mocha-lavender"
+  fi
+
+  source_dir=""
+  source_config=""
+  source_svg=""
+  for source_root in /usr/share/Kvantum "$data_home/Kvantum" "$HOME/.config/Kvantum"; do
+    [[ -d "$source_root" ]] || continue
+    source_dir="$(find "$source_root" -mindepth 1 -maxdepth 1 -type d -iname "$source_theme" -print -quit 2>/dev/null)"
+    [[ -n "$source_dir" ]] || continue
+
+    source_config="$(find "$source_dir" -maxdepth 1 -type f -iname '*.kvconfig' -print -quit 2>/dev/null)"
+    source_svg="$(find "$source_dir" -maxdepth 1 -type f -iname '*.svg' -print -quit 2>/dev/null)"
+    if [[ -n "$source_config" && -n "$source_svg" ]]; then
+      break
+    fi
+
+    source_dir=""
+  done
+
+  if [[ -z "$source_dir" || -z "$source_config" || -z "$source_svg" ]]; then
     return 0
   fi
 
   mkdir -p "$runtime_theme_dir"
-  ln -sfn "$source_dir/cloudflare-$mode.kvconfig" "$runtime_theme_dir/cloudflare-current.kvconfig"
-  ln -sfn "$source_dir/cloudflare-$mode.svg" "$runtime_theme_dir/cloudflare-current.svg"
+  ln -sfn "$source_config" "$runtime_theme_dir/catppuccin-current.kvconfig"
+  ln -sfn "$source_svg" "$runtime_theme_dir/catppuccin-current.svg"
 }
 
 gtk_theme_exists() {

@@ -2,14 +2,14 @@
 
 ## Context
 
-Replace the current Cloudflare/orange-flavored light/dark theme setup with Catppuccin Latte for light mode and Catppuccin Mocha for dark mode, using Catppuccin Lavender as the shared accent color. The change should cover the existing theme-mode system and the requested apps: Ghostty, btop, Starship, lazydocker, lazygit, Neovim, Helium/NightTab, Slack, tmux, and Pi.
+Replace the previous custom orange light/dark theme setup with Catppuccin Latte for light mode and Catppuccin Mocha for dark mode, using Catppuccin Lavender as the shared accent color. The change should cover the existing theme-mode system and the requested apps: Ghostty, btop, Starship, lazydocker, lazygit, Neovim, Helium/NightTab, Slack, tmux, and Pi.
 
 Initial discovery:
 
 - The repo already has a cross-platform `theme-mode` controller that persists `dark`/`light` in `~/.local/state/theme/mode` and reloads tmux/Hyprland/HyprPanel where possible.
 - Most requested terminal/TUI apps already have wrappers in `common/.local/bin/` that select mode-specific config files at launch.
-- Current app themes are named/implemented as Cloudflare variants, though some Catppuccin assets already exist, especially btop's `catppuccin_latte.theme` and `catppuccin_mocha.theme`.
-- Neovim already uses `catppuccin/nvim`, but `common/.config/nvim/lua/user/theme.lua` currently overrides the palette with custom Cloudflare colors.
+- Several apps still have legacy custom theme variants, though Catppuccin assets already exist, especially btop's `catppuccin_latte.theme` and `catppuccin_mocha.theme`.
+- Neovim already uses `catppuccin/nvim`, but `common/.config/nvim/lua/user/theme.lua` currently overrides the palette with legacy custom colors.
 - Helium browser, NightTab extension, and Slack theming do not currently appear to have tracked theme config files in this repo.
 - macOS is the first browser/Slack target; Linux browser/Slack support can follow later.
 - Catppuccin upstream has official/community ports for the requested external surfaces:
@@ -91,18 +91,18 @@ Expected critical files:
 - [x] Define the exact Catppuccin Latte/Mocha role mapping with Lavender as the accent.
 - [x] Extend `theme-mode`/`theme-lib.sh` so macOS can resolve `auto` from system appearance and reload only when the resolved mode changes.
 - [x] Add a macOS LaunchAgent and setup hook so `theme-mode --quiet apply` runs automatically after system appearance changes.
-- [x] Update wrappers/config names so launch-time theme selection points to Catppuccin assets rather than Cloudflare assets.
-- [x] Replace Ghostty Cloudflare themes with Catppuccin Latte/Mocha theme files and update shared/macOS config references.
+- [x] Update wrappers/config names so launch-time theme selection points to Catppuccin assets rather than legacy custom assets.
+- [x] Replace Ghostty custom themes with Catppuccin Latte/Mocha theme files and update shared/macOS config references.
 - [x] Point btop at `catppuccin_latte.theme`/`catppuccin_mocha.theme` and make Lavender the primary highlight/selected/accent color.
 - [x] Replace Starship palettes with Catppuccin Latte/Mocha, using Lavender for prompt accents currently using orange/peach.
 - [x] Replace lazygit/lazydocker colors with Catppuccin Latte/Mocha + Lavender active border/selection accents.
-- [x] Simplify Neovim custom overrides so it uses true Catppuccin Latte/Mocha with Lavender accent highlights rather than custom Cloudflare colors.
-- [x] Update tmux Catppuccin settings to remove Cloudflare overrides and use Latte/Mocha Lavender-focused status/window colors.
+- [x] Simplify Neovim custom overrides so it uses true Catppuccin Latte/Mocha with Lavender accent highlights rather than legacy custom colors.
+- [x] Update tmux Catppuccin settings to remove legacy overrides and use Latte/Mocha Lavender-focused status/window colors.
 - [x] Update Pi wrapper/theme files to use Catppuccin Latte/Mocha with Lavender accents.
 - [x] Add macOS Helium helper/setup docs for Catppuccin Chrome Latte/Mocha Lavender assets; automate safe parts and document any required one-time unpacked-theme install.
 - [x] Add macOS NightTab helper/setup docs to create Latte/Mocha Lavender custom themes using the upstream NightTab Catppuccin approach; document any extension UI/manual selection limitation.
 - [x] Add Slack Latte/Mocha Lavender strings and a small helper/doc path for copying/importing the matching string; avoid brittle Slack internals unless a safe supported config file is found.
-- [x] Update documentation/comments that currently refer to Cloudflare theming.
+- [x] Update documentation/comments that refer to the retired custom theming.
 
 ## Verification
 
