@@ -1,8 +1,8 @@
 ---
 name: librarian
 description: Research external libraries, APIs, docs, release notes, and upstream source. For public repositories, clone or reuse a local cached copy and inspect source directly.
-model: openai-codex/gpt-5.5-1m
-thinking: xhigh
+model: openai-codex/gpt-5.6-sol-1m
+thinking: off
 contextWindow: 1050000
 maxTokens: 128000
 tools: [repo_cache, websearch, webfetch, read, grep, find, ls, bash]

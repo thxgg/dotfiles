@@ -2,8 +2,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { discoverAgents, formatAgentList, type AgentScope } from "./agents.ts";
 import { registerRepoCacheTool } from "./repo-cache.ts";
 import { abortRunningJobs, cancelJob, createAgentTool, getJobSnapshots, getRunningJobCount } from "./runtime.ts";
+import { cleanupHerdrJobs, closeHerdrJob, focusHerdrJob } from "./herdr-runtime.ts";
 
-function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" | "cancel"; id?: string; scope: AgentScope; includeHidden: boolean } {
+function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" | "cancel" | "focus" | "close" | "cleanup"; id?: string; scope: AgentScope; includeHidden: boolean } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
   const action = (parts[0] ?? "list").toLowerCase();
   const scopeArg = parts.find((part) => part.startsWith("scope="))?.slice("scope=".length) as AgentScope | undefined;
@@ -13,6 +14,9 @@ function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" 
   if (action === "jobs") return { action: "jobs", scope, includeHidden };
   if (action === "result") return { action: "result", id: parts[1], scope, includeHidden };
   if (action === "cancel") return { action: "cancel", id: parts[1], scope, includeHidden };
+  if (action === "focus") return { action: "focus", id: parts[1], scope, includeHidden };
+  if (action === "close") return { action: "close", id: parts[1], scope, includeHidden };
+  if (action === "cleanup") return { action: "cleanup", scope, includeHidden };
   return { action: "list", scope, includeHidden };
 }
 
@@ -22,7 +26,11 @@ function formatJobDetails(id?: string): string {
   if (selected.length === 0) return id ? `No subagent job found: ${id}` : "No subagent jobs.";
   return selected
     .map((job) => {
-      const lines = [`${job.id} ${job.status} ${job.agent} (${job.source})`, `Task: ${job.task}`];
+      const lines = [`${job.id} ${job.status} ${job.agent} (${job.source}, ${job.backend})`, `Task: ${job.task}`];
+      if (job.herdr) {
+        lines.push(`Herdr: ${job.herdr.agentName} tab=${job.herdr.tabId} pane=${job.herdr.paneId}`);
+        lines.push(`Control: /agents focus ${job.id} | /agents close ${job.id}`);
+      }
       if (job.result?.summary) lines.push(`Summary:\n${job.result.summary}`);
       if (job.error) lines.push(`Error: ${job.error}`);
       return lines.join("\n");
@@ -35,9 +43,9 @@ export default function ampSubagentsExtension(pi: ExtensionAPI): void {
   pi.registerTool(createAgentTool());
 
   pi.registerCommand("agents", {
-    description: "List Amp-style subagents and inspect/cancel subagent jobs",
+    description: "List Amp-style subagents and inspect or control subagent jobs",
     getArgumentCompletions: (prefix: string) => {
-      const options = ["list", "jobs", "result", "cancel", "list --hidden", "list scope=all"];
+      const options = ["list", "jobs", "result", "cancel", "focus", "close", "cleanup", "list --hidden", "list scope=all"];
       const normalized = prefix.trim().toLowerCase();
       const filtered = options
         .filter((option) => option.startsWith(normalized))
@@ -59,13 +67,31 @@ export default function ampSubagentsExtension(pi: ExtensionAPI): void {
           ctx.ui.notify("Usage: /agents cancel <jobId>", "warning");
           return;
         }
-        const job = cancelJob(parsed.id, `Cancelled via /agents cancel ${parsed.id}`);
+        const job = await cancelJob(parsed.id, `Cancelled via /agents cancel ${parsed.id}`);
         if (!job) {
           ctx.ui.notify(`No subagent job found: ${parsed.id}`, "warning");
           return;
         }
         const running = getRunningJobCount();
         ctx.ui.setStatus("subagents", running > 0 ? `agents:${running}` : undefined);
+        ctx.ui.notify(formatJobDetails(parsed.id), "info");
+        return;
+      }
+      if (parsed.action === "cleanup") {
+        const cleaned = await cleanupHerdrJobs();
+        ctx.ui.notify(`Cleaned Herdr subagents: closed ${cleaned.closed.length}, removed ${cleaned.removed.length}.`, "info");
+        return;
+      }
+      if (parsed.action === "focus" || parsed.action === "close") {
+        if (!parsed.id) {
+          ctx.ui.notify(`Usage: /agents ${parsed.action} <jobId>`, "warning");
+          return;
+        }
+        const job = parsed.action === "focus" ? await focusHerdrJob(parsed.id) : await closeHerdrJob(parsed.id);
+        if (!job) {
+          ctx.ui.notify(`No Herdr subagent job found: ${parsed.id}`, "warning");
+          return;
+        }
         ctx.ui.notify(formatJobDetails(parsed.id), "info");
         return;
       }
@@ -82,6 +108,6 @@ export default function ampSubagentsExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async () => {
-    abortRunningJobs();
+    await abortRunningJobs();
   });
 }

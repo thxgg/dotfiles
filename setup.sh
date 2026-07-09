@@ -45,6 +45,52 @@ check_network() {
 	fi
 }
 
+ensure_pi_runtime() {
+	local vp_bin=""
+	local pi_fallback="${VP_HOME:-$HOME/.vite-plus}/bin/pi"
+
+	if command -v pi >/dev/null 2>&1 || [[ -x "$pi_fallback" ]]; then
+		success "Pi is installed"
+		return
+	fi
+
+	if command -v vp >/dev/null 2>&1; then
+		vp_bin="$(command -v vp)"
+	elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/vp" ]]; then
+		vp_bin="${VP_HOME:-$HOME/.vite-plus}/bin/vp"
+	else
+		error "Vite+ is required to install Pi"
+		return 1
+	fi
+
+	info "Installing Pi with Vite+"
+	"$vp_bin" install -g @earendil-works/pi-coding-agent
+	success "Pi installed"
+}
+
+install_pi_workspace_dependencies() {
+	local vp_bin=""
+	local workspace="$SCRIPT_DIR/common/.pi"
+
+	if command -v vp >/dev/null 2>&1; then
+		vp_bin="$(command -v vp)"
+	elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/vp" ]]; then
+		vp_bin="${VP_HOME:-$HOME/.vite-plus}/bin/vp"
+	else
+		error "Vite+ is required to install Pi extension dependencies"
+		return 1
+	fi
+
+	if [[ ! -f "$workspace/package-lock.json" ]]; then
+		error "Pi extension lockfile is missing: $workspace/package-lock.json"
+		return 1
+	fi
+
+	info "Installing locked Pi extension dependencies"
+	(cd "$workspace" && "$vp_bin" install --frozen-lockfile)
+	success "Pi extension dependencies installed"
+}
+
 require_script() {
 	local script_path="$1"
 	if [[ ! -f "$script_path" ]]; then
@@ -132,6 +178,10 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
 	info "Linux detected, running Linux setup script"
 	SKIP_NETWORK_CHECK=$SKIP_NETWORK_CHECK zsh "$SCRIPT_DIR/linux/setup.sh"
 fi
+
+info "Setting up Pi runtime"
+ensure_pi_runtime
+install_pi_workspace_dependencies
 
 info "Applying stow links"
 zsh "$SCRIPT_DIR/safe-stow.sh"

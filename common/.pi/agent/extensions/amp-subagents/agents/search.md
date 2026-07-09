@@ -1,7 +1,7 @@
 ---
 name: search
 description: Fast read-only local codebase search and exploration.
-model: openai-codex/gpt-5.5
+model: openai-codex/gpt-5.6-sol
 thinking: minimal
 tools: [read, grep, find, ls, bash]
 permissions:

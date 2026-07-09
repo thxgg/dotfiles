@@ -1,8 +1,8 @@
 ---
 name: agent
 description: General-purpose subagent for self-contained coding, investigation, or implementation work.
-model: openai-codex/gpt-5.5
-thinking: medium
+model: openai-codex/gpt-5.6-sol
+thinking: high
 tools: [read, grep, find, ls, bash, edit, write]
 disallowedTools: [Agent]
 maxTurns: 30

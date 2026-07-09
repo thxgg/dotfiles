@@ -3,10 +3,22 @@
 typeset -g DOTFILES_STOW_COMMON_ROOT="common"
 typeset -g DOTFILES_STOW_MACOS_ROOT="macos/home"
 typeset -g DOTFILES_STOW_LINUX_ROOT="linux/home"
+typeset -g DOTFILES_PI_RUNTIME_REGEX='^\.pi/(\.pi/)?todos(/|$)|^\.pi/agent/(settings(-extensions)?\.json|auth\.json|mcp-auth\.json|mcp-cache\.json|mcp-npx-cache\.json|trust\.json|[^/]+\.local\.jsonc?)$|^\.pi/agent/(mcp-oauth|history|sessions|\.cache)(/|$)'
+typeset -g DOTFILES_STOW_IGNORE_REGEX="^\\.config(/|$)|(^|/)AGENTS\\.md$|(^|/)\\.gitignore$|(^|/)node_modules(/|$)|$DOTFILES_PI_RUNTIME_REGEX"
 
 typeset -ga DOTFILES_ACTIVE_STOW_ROOTS
 typeset -g DOTFILES_STOW_RESOLVE_WARNING=""
 typeset -g DOTFILES_STOW_RESOLVE_ERROR=""
+
+dotfiles_is_stow_ignored_path() {
+    local path="${1#./}"
+    [[ "$path" =~ $DOTFILES_STOW_IGNORE_REGEX ]]
+}
+
+dotfiles_is_pi_runtime_path() {
+    local path="${1#./}"
+    [[ "$path" =~ $DOTFILES_PI_RUNTIME_REGEX ]]
+}
 
 dotfiles_resolve_active_roots() {
     local repo_root="$1"

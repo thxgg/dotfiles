@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizeRepoUrl, validateRef } from "../repo-cache.ts";
+import { normalizeRepoUrl, validateRef, withRepoLock, type RepoCacheResult } from "../repo-cache.ts";
 
 test("normalizeRepoUrl accepts public HTTPS GitHub URLs", () => {
   assert.deepEqual(normalizeRepoUrl("https://github.com/earendil-works/pi-mono.git"), {
@@ -28,4 +28,14 @@ test("validateRef rejects unsafe git ref strings", () => {
   for (const ref of ["--help", "../main", "feature branch", "main^{commit}", "main:evil", "bad@{1}", "x.lock"]) {
     assert.throws(() => validateRef(ref), /Unsafe|cannot/);
   }
+});
+
+test("withRepoLock propagates failures without leaving a rejected cleanup promise", async () => {
+  const expected = new Error("expected failure");
+  await assert.rejects(withRepoLock("failure-test", async () => {
+    throw expected;
+  }), expected);
+
+  const result = { message: "recovered" } as RepoCacheResult;
+  assert.equal(await withRepoLock("failure-test", async () => result), result);
 });

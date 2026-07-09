@@ -2,14 +2,19 @@
   "name": ".pi",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.16.0",
   "workspaces": [
     "agent/extensions/*"
   ],
-  "dependencies": {
-    "@earendil-works/pi-ai": "^0.76.0",
-    "@earendil-works/pi-coding-agent": "^0.76.0",
-    "@earendil-works/pi-tui": "^0.76.0",
-    "typebox": "^1.1.38"
+  "scripts": {
+    "check": "npm run typecheck --workspace=pi-recap-extension && npm run test --workspace=pi-recap-extension && npm run check --workspace=pi-painter-extension && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run test --workspace=pi-skill-toggle && npm run check --workspace=pi-web-tools-extension",
+    "test": "npm run test --workspace=pi-recap-extension && npm run test --workspace=pi-painter-extension && npm run test --workspace=pi-skill-toggle && npm run test --workspace=pi-web-tools-extension",
+    "typecheck": "npm run typecheck --workspace=pi-recap-extension && npm run typecheck --workspace=pi-painter-extension && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run typecheck --workspace=pi-web-tools-extension"
   },
-  "packageManager": "npm@11.11.0"
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.80.5",
+    "@earendil-works/pi-coding-agent": "^0.80.5",
+    "@earendil-works/pi-tui": "^0.80.5",
+    "typebox": "^1.1.38"
+  }
 }

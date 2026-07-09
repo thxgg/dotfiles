@@ -265,6 +265,24 @@ update_pi() {
 		return
 	fi
 
+	local pi_workspace="$DOTFILES_DIR/common/.pi"
+	local vp_bin=""
+	if command_exists vp; then
+		vp_bin="$(command -v vp)"
+	elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/vp" ]]; then
+		vp_bin="${VP_HOME:-$HOME/.vite-plus}/bin/vp"
+	else
+		error "Vite+ not found; cannot install Pi extension dependencies"
+		return 1
+	fi
+	if [[ ! -f "$pi_workspace/package-lock.json" ]]; then
+		error "Pi extension lockfile is missing: $pi_workspace/package-lock.json"
+		return 1
+	fi
+
+	info "Installing locked Pi extension dependencies"
+	(cd "$pi_workspace" && "$vp_bin" install --frozen-lockfile)
+
 	local -a pi_update_env
 	pi_update_env=(env CARGO_NET_GIT_FETCH_WITH_CLI=true)
 

@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { test } from "node:test";
+import { discoverAgents } from "../agents.ts";
+import { buildChildPiArgs, getPiInvocation, makeHerdrNames, shouldUseHerdr } from "../herdr-runtime.ts";
+import { createAgentTool, formatJobSummary } from "../runtime.ts";
+import type { AgentJobSnapshot } from "../job-types.ts";
+
+test("selects Herdr only with the managed environment and connection placement", () => {
+  assert.equal(shouldUseHerdr({ HERDR_ENV: "1", HERDR_SOCKET_PATH: "/tmp/herdr.sock", HERDR_WORKSPACE_ID: "w1" }), true);
+  assert.equal(shouldUseHerdr({ HERDR_ENV: "1", HERDR_WORKSPACE_ID: "w1" }), false);
+  assert.equal(shouldUseHerdr({ HERDR_SOCKET_PATH: "/tmp/herdr.sock", HERDR_WORKSPACE_ID: "w1" }), false);
+});
+
+test("does not mistake an arbitrary Node entry script for the Pi CLI", () => {
+  assert.deepEqual(getPiInvocation(["--version"]), { command: "pi", args: ["--version"] });
+});
+
+test("creates unique stable Herdr names", () => {
+  assert.deepEqual(makeHerdrNames("Search Agent", "agent-deadbeef"), { agentName: "pi-search-agent-deadbeef", tabLabel: "search-agent:deadbeef" });
+  assert.notEqual(makeHerdrNames("search", "agent-00000001").agentName, makeHerdrNames("search", "agent-00000002").agentName);
+});
+
+test("child Pi argv preserves model, trust, allowlist, and unconditional exclusions", () => {
+  const base = discoverAgents(process.cwd(), "builtin").agents.find((agent) => agent.name === "search")!;
+  const agent = { ...base, tools: undefined, disallowedTools: ["webfetch"] };
+  const job: AgentJobSnapshot = {
+    id: "agent-deadbeef", agent: "search", source: "builtin", task: "inspect $HOME; rm -rf nope", cwd: process.cwd(),
+    status: "queued", background: false, backend: "herdr", startedAt: new Date().toISOString(),
+  };
+  const args = buildChildPiArgs({ job, agent, trusted: false, promptPath: "/tmp/prompt path.md" });
+  assert.equal(args.includes("--tools"), false);
+  assert.equal(args[args.indexOf("--exclude-tools") + 1], "Agent,edit,webfetch,write");
+  assert.equal(args.includes("--no-approve"), true);
+  assert.equal(args.at(-1), `Task: ${job.task}`);
+  assert.equal(args[args.indexOf("--append-system-prompt") + 1], "/tmp/prompt path.md");
+});
+
+test("custom extension tools remain in child allowlists", () => {
+  const agents = discoverAgents(process.cwd(), "builtin").agents;
+  const baseJob: AgentJobSnapshot = {
+    id: "agent-deadbeef", agent: "librarian", source: "builtin", task: "research", cwd: process.cwd(),
+    status: "queued", background: true, backend: "herdr", startedAt: new Date().toISOString(),
+  };
+  const librarianArgs = buildChildPiArgs({ job: baseJob, agent: agents.find((item) => item.name === "librarian")!, trusted: true, promptPath: "/tmp/prompt" });
+  const painterArgs = buildChildPiArgs({ job: { ...baseJob, agent: "painter" }, agent: agents.find((item) => item.name === "painter")!, trusted: true, promptPath: "/tmp/prompt" });
+  assert.match(librarianArgs[librarianArgs.indexOf("--tools") + 1], /repo_cache/);
+  assert.match(librarianArgs[librarianArgs.indexOf("--tools") + 1], /websearch/);
+  assert.match(painterArgs[painterArgs.indexOf("--tools") + 1], /generate_image/);
+});
+
+test("project-agent confirmation can decline before any child launches", async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "pi-project-agent-"));
+  try {
+    fs.mkdirSync(path.join(cwd, ".pi", "agents"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".pi", "agents", "local.md"), "---\nname: local\ndescription: local test\n---\nDo work.\n");
+    let prompted = false;
+    const result = await createAgentTool().execute("call", {
+      action: "run", agent: "local", task: "test", agentScope: "project",
+    }, undefined, undefined, {
+      cwd, hasUI: true,
+      ui: { confirm: async () => { prompted = true; return false; }, setStatus: () => undefined },
+    } as any);
+    assert.equal(prompted, true);
+    assert.match(result.content[0].text, /not approved/);
+  } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("result formatting includes durable Herdr control metadata", () => {
+  const job: AgentJobSnapshot = {
+    id: "agent-deadbeef", agent: "search", source: "builtin", task: "inspect", cwd: "/tmp",
+    status: "running", background: true, backend: "herdr", startedAt: new Date().toISOString(),
+    herdr: { agentName: "pi-search-deadbeef", workspaceId: "w1", tabId: "w1:t2", paneId: "w1:p3", terminalId: "term_1" },
+  };
+  assert.match(formatJobSummary(job), /herdr:pi-search-deadbeef/);
+  assert.match(formatJobSummary(job), /w1:t2, pane w1:p3/);
+});

@@ -277,9 +277,16 @@ async function isDirty(localPath: string, signal?: AbortSignal): Promise<boolean
   }
 }
 
-async function resolveCommit(localPath: string, ref: string, signal?: AbortSignal): Promise<string> {
+async function resolveCommit(
+  localPath: string,
+  ref: string,
+  includeFetchHead: boolean,
+  signal?: AbortSignal,
+): Promise<string> {
   const safeRef = validateRef(ref);
-  const candidates = [safeRef, `origin/${safeRef}`];
+  const candidates = [`refs/remotes/origin/${safeRef}`, `refs/tags/${safeRef}`, safeRef];
+  if (includeFetchHead) candidates.push("FETCH_HEAD");
+
   for (const candidate of candidates) {
     try {
       return await git(["rev-parse", "--verify", `${candidate}^{commit}`], localPath, signal, 10_000);
@@ -296,13 +303,15 @@ async function checkoutRef(localPath: string, ref: string, signal?: AbortSignal)
   }
 
   const safeRef = validateRef(ref);
+  let fetchedRequestedRef = false;
   try {
     await git(["fetch", "--tags", "origin", safeRef], localPath, signal, 180_000);
+    fetchedRequestedRef = true;
   } catch {
-    await git(["fetch", "--tags", "origin"], localPath, signal, 180_000);
+    await git(["fetch", "--tags", "--prune", "origin"], localPath, signal, 180_000);
   }
 
-  const commit = await resolveCommit(localPath, safeRef, signal);
+  const commit = await resolveCommit(localPath, safeRef, fetchedRequestedRef, signal);
   await git(["checkout", "--detach", commit], localPath, signal, 60_000);
   return commit;
 }
@@ -316,12 +325,7 @@ async function updateDefaultBranch(localPath: string, signal?: AbortSignal): Pro
   await git(["fetch", "--tags", "--prune", "origin"], localPath, signal, 180_000);
   const defaultBranch = (await getDefaultBranch(localPath, signal)) ?? (await getCurrentBranch(localPath, signal));
   if (defaultBranch) {
-    try {
-      await git(["checkout", defaultBranch], localPath, signal, 60_000);
-    } catch {
-      await git(["checkout", "-B", defaultBranch, `origin/${defaultBranch}`], localPath, signal, 60_000);
-    }
-    await git(["pull", "--ff-only", "origin", defaultBranch], localPath, signal, 180_000);
+    await git(["checkout", "-B", defaultBranch, `origin/${defaultBranch}`], localPath, signal, 60_000);
   }
   const after = await getCurrentCommit(localPath, signal);
   return { branch: defaultBranch, commit: after, changed: before !== after };
@@ -351,13 +355,16 @@ function formatResult(result: RepoCacheResult): string {
   return lines.join("\n");
 }
 
-async function withRepoLock(key: string, fn: () => Promise<RepoCacheResult>): Promise<RepoCacheResult> {
+export async function withRepoLock(key: string, fn: () => Promise<RepoCacheResult>): Promise<RepoCacheResult> {
   const previous = locks.get(key);
   const run = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(fn);
-  locks.set(key, run.finally(() => {
+  locks.set(key, run);
+
+  try {
+    return await run;
+  } finally {
     if (locks.get(key) === run) locks.delete(key);
-  }));
-  return run;
+  }
 }
 
 async function updateMetadata(result: RepoCacheResult, normalized: NormalizedRepoUrl): Promise<void> {

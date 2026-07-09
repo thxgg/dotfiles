@@ -1,7 +1,7 @@
 notify = ["/Users/thxgg/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
 personality = "pragmatic"
-model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
 service_tier = "fast"
 approval_policy = "never"
 approvals_reviewer = "user"
@@ -94,10 +94,6 @@ trust_level = "trusted"
 
 [mcp_servers.context7]
 url = "https://mcp.context7.com/mcp"
-enabled = true
-
-[mcp_servers.grep_app]
-url = "https://mcp.grep.app/"
 enabled = true
 
 [mcp_servers.mobbin]
@@ -259,4 +255,4 @@ hooks = true
 js_repl = false
 
 [tui.model_availability_nux]
-"gpt-5.5" = 2
+"gpt-5.6-sol" = 2

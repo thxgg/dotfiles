@@ -1,13 +1,16 @@
 node_modules
-package-lock.json
 
-# Pi runtime state
+# Pi runtime state and credentials
 agent/settings.json
 agent/settings-extensions.json
 agent/auth.json
+agent/mcp-auth.json
+agent/mcp-oauth/
 agent/mcp-cache.json
 agent/mcp-npx-cache.json
+agent/trust.json
+agent/history
+agent/*.local.json
+agent/*.local.jsonc
 agent/.cache/
-
-# Todo data (session-specific)
-.pi/
+agent/sessions/

@@ -1,7 +1,7 @@
 ---
 name: oracle
 description: Skeptical second-opinion agent for plans, architecture, hard bugs, and risk review.
-model: openai-codex/gpt-5.5
+model: openai-codex/gpt-5.6-sol
 thinking: xhigh
 tools: [read, grep, find, ls, bash]
 permissions:

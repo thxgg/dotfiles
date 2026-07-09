@@ -4,7 +4,6 @@ set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$SCRIPT_DIR/scripts/lib/stow-roots.zsh"
 DOT_COMMAND_TARGET=".local/bin/dot"
 SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
@@ -73,6 +72,7 @@ if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
 fi
 
 source "$STOW_ROOTS_HELPER"
+STOW_IGNORE_REGEX="$DOTFILES_STOW_IGNORE_REGEX"
 
 collect_config_children() {
     local root="$1"

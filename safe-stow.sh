@@ -6,7 +6,6 @@ set -euo pipefail
 BACKUP_DIR="$HOME/.dotfiles_backup_$(date +%Y%m%d_%H%M%S)"
 STOW_DIR="${0:A:h}"
 TARGET_DIR="$HOME"
-STOW_IGNORE_REGEX='^\.config(/|$)|(^|/)AGENTS\.md$|\.gitignore$|mcp-cache\.json$|mcp-npx-cache\.json$|auth\.json$'
 STOW_ROOTS_HELPER="$STOW_DIR/scripts/lib/stow-roots.zsh"
 DOT_COMMAND_TARGET=".local/bin/dot"
 SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
@@ -82,6 +81,7 @@ if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
 fi
 
 source "$STOW_ROOTS_HELPER"
+STOW_IGNORE_REGEX="$DOTFILES_STOW_IGNORE_REGEX"
 
 collect_package_entries() {
     local root="$1"
@@ -90,10 +90,11 @@ collect_package_entries() {
     local root_deploy_paths root_config_children
 
     if [[ $include_deploy_paths -eq 1 ]]; then
-        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name 'AGENTS.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
+        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
 
         for item in "${root_deploy_paths[@]}"; do
             [[ -n "$item" ]] || continue
+            dotfiles_is_stow_ignored_path "$item" && continue
 
             if [[ -n "${deploy_sources[$item]-}" ]]; then
                 echo "Error: duplicate target path detected: $item"
@@ -314,6 +315,134 @@ relative_path_from() {
     else
         print -r -- "${(j:/:)relative_parts}"
     fi
+}
+
+# Unfold legacy package-level Pi symlinks before handling individual runtime
+# paths. Runtime state is staged into the new real target directory; managed
+# configuration remains in the package and is linked later by Stow.
+unfold_managed_pi_directory() {
+    local relative_dir="$1"
+    local target_path="$TARGET_DIR/$relative_dir"
+    local root package_root source_dir source_path source_relative nested_relative
+    local stage selected_path
+    local -i covered
+    local -a candidates selected_sources
+
+    [[ -L "$target_path" ]] || return 0
+
+    for root in "${package_roots[@]}"; do
+        package_root="$STOW_DIR/$root"
+        source_dir="$package_root/$relative_dir"
+        [[ -d "$source_dir" ]] || continue
+        is_managed_target "$target_path" "${source_dir:A}" || continue
+
+        stage="$(mktemp -d "${target_path:h}/.pi-unfold.XXXXXX")"
+        candidates=(${(@f)"$(find "$source_dir" -mindepth 1 \( -type d -o -type f -o -type l \) -print)"})
+        selected_sources=()
+
+        for source_path in "${candidates[@]}"; do
+            source_relative="${source_path#$package_root/}"
+            dotfiles_is_pi_runtime_path "$source_relative" || continue
+
+            covered=0
+            for selected_path in "${selected_sources[@]}"; do
+                if [[ "$source_path" == "$selected_path" || "$source_path" == "$selected_path/"* ]]; then
+                    covered=1
+                    break
+                fi
+            done
+            [[ $covered -eq 1 ]] && continue
+
+            selected_sources+=("$source_path")
+            nested_relative="${source_path#$source_dir/}"
+            mkdir -p "$stage/${nested_relative:h}"
+            if [[ -d "$source_path" ]]; then
+                mkdir -p "$stage/$nested_relative"
+                cp -RpL "$source_path/." "$stage/$nested_relative/"
+            else
+                cp -pL "$source_path" "$stage/$nested_relative"
+            fi
+        done
+
+        rm -f "$target_path"
+        mkdir -p "$target_path"
+        cp -Rp "$stage/." "$target_path/"
+        rm -rf "$stage"
+        for source_path in "${selected_sources[@]}"; do
+            rm -rf "$source_path"
+        done
+        echo "Unfolded managed Pi directory: $target_path"
+        return 0
+    done
+
+    return 0
+}
+
+unfold_managed_pi_directories() {
+    # Unfold the outer directory first; the inner path then becomes a real
+    # directory and cannot hide another folded runtime subtree.
+    unfold_managed_pi_directory ".pi"
+    unfold_managed_pi_directory ".pi/.pi"
+    unfold_managed_pi_directory ".pi/agent"
+}
+
+# Older configurations could accidentally stow machine-local Pi state from an
+# ignored source path. Preserve its current value in $HOME, remove the source
+# copy, and let the shared Stow ignore policy keep it local from then on. This
+# also handles a runtime directory that Stow linked as one symlink.
+detach_ignored_pi_runtime_links() {
+    local root package_root runtime_root source_path relative_path target_path
+    local candidate_target candidate_source managed_target managed_source
+    local target_dir tmp
+    local -a runtime_sources
+
+    for root in "${package_roots[@]}"; do
+        package_root="$STOW_DIR/$root"
+        runtime_root="$package_root/.pi"
+        [[ -d "$runtime_root" ]] || continue
+        runtime_sources=(${(@f)"$(find "$runtime_root" -mindepth 1 \( -type d -o -type f -o -type l \) -print)"})
+
+        for source_path in "${runtime_sources[@]}"; do
+            [[ -e "$source_path" || -L "$source_path" ]] || continue
+            relative_path="${source_path#$package_root/}"
+            dotfiles_is_pi_runtime_path "$relative_path" || continue
+            target_path="$TARGET_DIR/$relative_path"
+            candidate_target="$target_path"
+            candidate_source="$source_path"
+            managed_target=""
+            managed_source=""
+
+            while [[ "$candidate_target" != "$TARGET_DIR" && "$candidate_target" != "/" ]]; do
+                if [[ -L "$candidate_target" ]] && is_managed_target "$candidate_target" "${candidate_source:A}"; then
+                    managed_target="$candidate_target"
+                    managed_source="$candidate_source"
+                    break
+                fi
+                candidate_target="${candidate_target:h}"
+                candidate_source="${candidate_source:h}"
+            done
+
+            [[ -n "$managed_target" ]] || continue
+            relative_path="${managed_source#$package_root/}"
+            # Never remove a folded package/configuration ancestor. Those are
+            # handled only by unfold_managed_pi_directories above.
+            dotfiles_is_pi_runtime_path "$relative_path" || continue
+            target_dir="${managed_target:h}"
+            if [[ -d "$managed_source" ]]; then
+                tmp="$(mktemp -d "$target_dir/.pi-runtime.XXXXXX")"
+                cp -RpL "$managed_source/." "$tmp/"
+                rm -f "$managed_target"
+                mv "$tmp" "$managed_target"
+                rm -rf "$managed_source"
+            else
+                tmp="$(mktemp "$target_dir/.pi-runtime.XXXXXX")"
+                cp -pL "$managed_source" "$tmp"
+                mv -f "$tmp" "$managed_target"
+                rm -f "$managed_source"
+            fi
+            echo "Detached machine-local Pi state: $managed_target"
+        done
+    done
 }
 
 # GNU Stow does not treat absolute symlinks as owned by a package, even when
@@ -566,6 +695,9 @@ if ! dotfiles_resolve_active_roots "$STOW_DIR" strict; then
 fi
 
 package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
+
+unfold_managed_pi_directories
+detach_ignored_pi_runtime_links
 
 for root in "${package_roots[@]}"; do
     collect_package_entries "$root"

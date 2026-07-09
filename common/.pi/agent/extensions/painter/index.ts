@@ -16,7 +16,7 @@ import { normalizeImageOptions, readAndValidateInputImages, type GenerateImagePa
 
 const TOOL_NAME = "generate_image";
 const CODEX_PROVIDER = "openai-codex";
-const CODEX_MODEL_PREFERENCES = ["gpt-5.5", "gpt-5.5-fast"] as const;
+const CODEX_MODEL_PREFERENCES = ["gpt-5.6-sol"] as const;
 const ASPECT_RATIO_VALUES = ["square", "1:1", "portrait", "2:3", "landscape", "3:2", "16:9", "9:16"] as const;
 const QUALITY_VALUES = ["auto", "low", "medium", "high"] as const;
 

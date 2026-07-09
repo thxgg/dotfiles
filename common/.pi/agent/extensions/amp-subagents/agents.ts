@@ -249,11 +249,18 @@ export function formatAgentList(agents: AgentDefinition[], includeHidden = false
     .join("\n");
 }
 
-export function getActiveToolNames(agent: AgentDefinition): string[] | undefined {
-  if (!agent.tools) return undefined;
+export function getDisallowedToolNames(agent: AgentDefinition): string[] {
   const disallowed = new Set(agent.disallowedTools ?? []);
+  // Nested delegation is deliberately disabled for all child agents.
+  disallowed.add("Agent");
   if (agent.permissions.edit === "deny") disallowed.add("edit");
   if (agent.permissions.write === "deny") disallowed.add("write");
   if (agent.permissions.bash === "deny") disallowed.add("bash");
+  return Array.from(disallowed).sort();
+}
+
+export function getActiveToolNames(agent: AgentDefinition): string[] | undefined {
+  if (!agent.tools) return undefined;
+  const disallowed = new Set(getDisallowedToolNames(agent));
   return agent.tools.filter((tool) => !disallowed.has(tool));
 }

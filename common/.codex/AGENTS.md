@@ -3,14 +3,16 @@
 ## Context Discipline
 
 Treat context as scarce. Do not load skills unless the user explicitly invokes them with `/skill:name` or clearly asks for that workflow.
-
 Prefer reading the nearest `AGENTS.md`, relevant source files, and targeted search results over loading broad skills.
-
 Before large edits, build context first, summarize the plan, and ask for confirmation unless the user requested autonomous implementation.
+
+## Image Generation
+
+When the user explicitly asks to generate, create, paint, edit, or transform an image, call `generate_image` autonomously. Ask a clarifying question only when required visual details or edit intent are missing. Preserve explicit user style/content constraints, especially for edits; the tool sends the prompt exactly as provided and saves generated artifacts globally.
 
 ## Browser Automation
 
-Use `agent-browser` for browser automation tasks. Run `agent-browser --help` for the full command set.
+Use `agent-browser` for browser automation tasks. Before automating, load the bundled instructions that match the installed CLI with `agent-browser skills get core`; add `--full` when references and templates are needed. Use `agent-browser skills list` and `agent-browser skills get <name>` to discover and load task-specific skills. Prefer these current bundled skills over cached or pre-baked copies. Run `agent-browser --help` for the full command set.
 
 Core workflow:
 1. `agent-browser open <url>`
@@ -65,8 +67,7 @@ Never submit reviews or post comments in Linear or GitHub unless the user explic
   - `## Solution`
   - `## Verification`
   - `## Risks`
-- For UI changes, include screenshots or videos when repo policy expects them.
-- For web app changes, prefer collecting that evidence with `agent-browser`, using screenshots such as `agent-browser screenshot --full` or `agent-browser screenshot --annotate`, and video capture via `agent-browser record start <path> [url]` followed by `agent-browser record stop`.
+- For web UI changes, include screenshots or videos when repo policy expects them (if needed, see the `/ui-evidence` skill).
 - For logic or backend changes, explain the concrete verification steps and any remaining gaps.
 - Do not manually add issue or story links when repo automation already derives them from branch or commit naming.
 - If validation is incomplete, follow-ups remain, or the user wants early feedback, prefer a draft PR.

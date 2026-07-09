@@ -103,9 +103,10 @@ collect_expected_entries() {
 
     [[ -d "$package_root" ]] || return
 
-    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.cache' -o -name '.git' -o -name 'sessions' -o -name 'ephemeral' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' ! -name 'AGENTS.md' ! -name '.gitignore' ! -name 'auth.json' ! -name 'mcp-cache.json' ! -name 'mcp-npx-cache.json' -print | sed 's|^./||')"})
+    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
     for item in "${root_paths[@]}"; do
         [[ -n "$item" ]] || continue
+        dotfiles_is_stow_ignored_path "$item" && continue
 
         if [[ -n "${expected_sources[$item]-}" ]]; then
             print_status FAIL "Duplicate target path detected: $item (from ${expected_sources[$item]} and $root)"
@@ -375,12 +376,121 @@ check_dot_command_link() {
     esac
 }
 
+check_pi_runtime_locality() {
+    local target_path relative_path resolved_target root package_root ancestor
+    local found_managed=0
+
+    for ancestor in ".pi" ".pi/.pi" ".pi/agent"; do
+        target_path="$TARGET_ROOT/$ancestor"
+        [[ -L "$target_path" ]] || continue
+        resolved_target="${target_path:A}"
+        for root in "${package_roots[@]}"; do
+            package_root="${SCRIPT_DIR:A}/$root"
+            if [[ "$resolved_target" == "$package_root" || "$resolved_target" == "$package_root/"* ]]; then
+                print_status FAIL "Pi directory must be unfolded before runtime state can be local: $ancestor -> $resolved_target"
+                found_managed=1
+                break
+            fi
+        done
+    done
+
+    [[ -d "$TARGET_ROOT/.pi" ]] || return
+
+    while IFS= read -r target_path; do
+        relative_path="${target_path#$TARGET_ROOT/}"
+        dotfiles_is_pi_runtime_path "$relative_path" || continue
+        resolved_target="${target_path:A}"
+
+        for root in "${package_roots[@]}"; do
+            package_root="${SCRIPT_DIR:A}/$root"
+            if [[ "$resolved_target" == "$package_root" || "$resolved_target" == "$package_root/"* ]]; then
+                print_status FAIL "Machine-local Pi runtime path is still managed by Stow: $relative_path -> $resolved_target"
+                found_managed=1
+                break
+            fi
+        done
+    done < <(find "$TARGET_ROOT/.pi" -mindepth 1 -type l -print 2>/dev/null)
+
+    if [[ $found_managed -eq 0 ]]; then
+        print_status OK "Pi runtime state is machine-local"
+    fi
+}
+
+check_pi_workspace() {
+    local pi_bin=""
+    local vp_bin=""
+    local npm_bin=""
+    local workspace="$SCRIPT_DIR/common/.pi"
+    local pi_version=""
+    local vp_version=""
+
+    if command -v pi >/dev/null 2>&1; then
+        pi_bin="$(command -v pi)"
+    elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/pi" ]]; then
+        pi_bin="${VP_HOME:-$HOME/.vite-plus}/bin/pi"
+    fi
+
+    if [[ -z "$pi_bin" ]]; then
+        print_status FAIL "Pi is not installed"
+    else
+        pi_version="$("$pi_bin" --version 2>/dev/null || true)"
+        if [[ -n "$pi_version" ]]; then
+            print_status OK "Pi is installed ($pi_version)"
+        else
+            print_status FAIL "Pi executable failed: $pi_bin"
+        fi
+    fi
+
+    if command -v vp >/dev/null 2>&1; then
+        vp_bin="$(command -v vp)"
+    elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/vp" ]]; then
+        vp_bin="${VP_HOME:-$HOME/.vite-plus}/bin/vp"
+    fi
+    if [[ -z "$vp_bin" ]]; then
+        print_status FAIL "Vite+ is unavailable for locked Pi workspace installs"
+    else
+        vp_version="$("$vp_bin" --version 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$vp_version" ]]; then
+            print_status OK "Vite+ is installed ($vp_version)"
+        else
+            print_status FAIL "Vite+ executable failed: $vp_bin"
+        fi
+    fi
+
+    if [[ ! -f "$workspace/package-lock.json" ]]; then
+        print_status FAIL "Pi extension lockfile is missing"
+        return
+    fi
+    print_status OK "Pi extension lockfile exists"
+
+    if command -v npm >/dev/null 2>&1; then
+        npm_bin="$(command -v npm)"
+    elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/npm" ]]; then
+        npm_bin="${VP_HOME:-$HOME/.vite-plus}/bin/npm"
+    else
+        print_status FAIL "npm is unavailable for Pi extension checks"
+        return
+    fi
+
+    if [[ ! -d "$workspace/node_modules" ]]; then
+        print_status FAIL "Pi extension dependencies are not installed; run vp install --frozen-lockfile in common/.pi"
+        return
+    fi
+
+    if "$npm_bin" ls --prefix "$workspace" --workspaces --depth=0 >/dev/null 2>&1; then
+        print_status OK "Pi extension workspace dependencies are healthy"
+    else
+        print_status FAIL "Pi extension workspace dependencies are incomplete; run vp install --frozen-lockfile in common/.pi"
+    fi
+}
+
 if [[ $LIST_CONFIG_ONLY -eq 0 ]]; then
     if ! command -v stow >/dev/null 2>&1; then
         print_status WARN "stow not found in PATH"
     else
         print_status OK "stow is installed"
     fi
+    check_pi_workspace
 fi
 
 if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" warn; then
@@ -425,6 +535,7 @@ else
     if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
         check_expected_paths
         check_dot_command_link
+        check_pi_runtime_locality
     fi
 fi
 

@@ -27,8 +27,8 @@ function sseEvent(event: unknown): string {
 }
 
 test("buildImageRequestBody declares Codex Responses image_generation tool", () => {
-	const body = buildImageRequestBody({ prompt: "p", count: 2, quality: "auto", background: "auto", size: "auto", model: "gpt-5.5" });
-	assert.equal(body.model, "gpt-5.5");
+	const body = buildImageRequestBody({ prompt: "p", count: 2, quality: "auto", background: "auto", size: "auto", model: "gpt-5.6-sol" });
+	assert.equal(body.model, "gpt-5.6-sol");
 	assert.equal(body.store, false);
 	assert.equal(body.stream, true);
 	assert.deepEqual(body.tools, [{ type: "image_generation", model: "gpt-image-2", quality: "auto", size: "auto" }]);
@@ -42,10 +42,10 @@ test("buildImageRequestBody declares Codex Responses image_generation tool", () 
 		quality: "high",
 		background: "auto",
 		size: "1024x1024",
-		model: "gpt-5.5-fast",
+		model: "gpt-5.6-sol",
 		imageUrls: ["data:image/png;base64,abc"],
 	});
-	assert.equal(editBody.model, "gpt-5.5-fast");
+	assert.equal(editBody.model, "gpt-5.6-sol");
 	assert.deepEqual(editBody.input[0]!.content[1], { type: "input_image", image_url: "data:image/png;base64,abc", detail: "auto" });
 });
 
@@ -91,7 +91,7 @@ test("parseDirectImageResponse extracts image_generation_call items and sanitize
 		attempts: 1,
 		retryCount: 0,
 		requestedCount: 2,
-		requestBody: buildImageRequestBody({ prompt: "p", count: 2, quality: "auto", background: "auto", size: "auto", model: "gpt-5.5" }),
+		requestBody: buildImageRequestBody({ prompt: "p", count: 2, quality: "auto", background: "auto", size: "auto", model: "gpt-5.6-sol" }),
 	});
 
 	assert.equal(result.images.length, 1);
@@ -126,7 +126,7 @@ test("callDirectImageEndpoint posts Codex Responses requests and parses SSE imag
 
 	const result = await callDirectImageEndpoint({
 		token,
-		model: "gpt-5.5",
+		model: "gpt-5.6-sol",
 		prompt: "draw a small icon",
 		inputImages: [],
 		count: 1,
@@ -144,7 +144,7 @@ test("callDirectImageEndpoint posts Codex Responses requests and parses SSE imag
 	assert.equal(result.responseId, "resp_1");
 	assert.equal(result.images.length, 1);
 	const body = JSON.parse(String(calls[0]!.init.body));
-	assert.equal(body.model, "gpt-5.5");
+	assert.equal(body.model, "gpt-5.6-sol");
 	assert.equal(body.tools[0].type, "image_generation");
 	assert.equal(body.tools[0].model, "gpt-image-2");
 	assert.equal(body.input[0].content[0].text, "draw a small icon");

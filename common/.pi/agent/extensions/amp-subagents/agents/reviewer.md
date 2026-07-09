@@ -1,8 +1,8 @@
 ---
 name: reviewer
 description: Review changes for correctness, regressions, test gaps, security, and unnecessary complexity.
-model: openai-codex/gpt-5.5
-thinking: medium
+model: openai-codex/gpt-5.6-sol
+thinking: xhigh
 tools: [read, grep, find, ls, bash]
 permissions:
   edit: deny

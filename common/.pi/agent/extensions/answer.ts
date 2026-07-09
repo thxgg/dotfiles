@@ -64,7 +64,7 @@ interface ExtractionModelPreference {
 }
 
 const EXTRACTION_MODEL_PREFERENCES: readonly ExtractionModelPreference[] = [
-  { provider: "openai-codex", modelId: "gpt-5.5" },
+  { provider: "openai-codex", modelId: "gpt-5.6-sol" },
 ];
 
 function formatExtractionModelPreferences(preferences: readonly ExtractionModelPreference[]): string {

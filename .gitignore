@@ -13,11 +13,22 @@ common/.config/herdr/session-history.json
 common/.config/herdr/*.log
 .claude/settings.local.json
 
-# Pi local state
-.pi/todos/
+# Pi local/project state
 .pi/ephemeral.json
 .pi/skills/
-common/.pi/agent/sessions/
+
+# Pi global runtime/state: ignore by default, then allowlist portable config.
+common/.pi/agent/*
+!common/.pi/agent/AGENTS.md
+!common/.pi/agent/APPEND_SYSTEM.md
+!common/.pi/agent/cloak.json
+!common/.pi/agent/extensions/
+!common/.pi/agent/extensions/**
+!common/.pi/agent/keybindings.json
+!common/.pi/agent/npm/
+!common/.pi/agent/npm/package.json
+!common/.pi/agent/themes/
+!common/.pi/agent/themes/*.json
 
 # Local env / direnv overrides
 common/.env
@@ -31,11 +42,6 @@ common/.config/fish/fish_variables
 common/.pi/node_modules/
 
 # Pi runtime state (machine-local, never commit or stow)
-common/.pi/agent/sessions/
-common/.pi/agent/.cache/
-common/.pi/agent/auth.json
-common/.pi/agent/mcp-cache.json
-common/.pi/agent/mcp-npx-cache.json
 common/.pi/ephemeral/
 
 # Dependency directories
