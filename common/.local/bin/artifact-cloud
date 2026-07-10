@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly LIB_DIR="$HOME/.local/lib/artifact-cloud"
+readonly SERVER="$LIB_DIR/server.mjs"
+readonly BACKUP_SCRIPT="$LIB_DIR/backup.mjs"
+readonly INTEGRITY_SCRIPT="$LIB_DIR/integrity.mjs"
+readonly RESTORE_SCRIPT="$LIB_DIR/restore.mjs"
+readonly STATE_DIR="$HOME/.local/state/artifact-cloud"
+readonly PID_FILE="$STATE_DIR/server.pid"
+readonly BASE_URL_DEFAULT="https://cosmiccruiser.taile9df67.ts.net"
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  readonly DATA_ROOT_DEFAULT="$HOME/Library/Application Support/Artifact Cloud"
+  readonly LOG_DIR_DEFAULT="$HOME/Library/Logs/Artifact Cloud"
+else
+  readonly DATA_ROOT_DEFAULT="${XDG_DATA_HOME:-$HOME/.local/share}/artifact-cloud"
+  readonly LOG_DIR_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/artifact-cloud/logs"
+fi
+readonly DATA_DIR_DEFAULT="$DATA_ROOT_DEFAULT/data"
+readonly BACKUP_ROOT_DEFAULT="$DATA_ROOT_DEFAULT/backups"
+
+usage() {
+  cat <<'EOF'
+Usage: artifact-cloud <command>
+
+Commands:
+  serve        Run the server in the foreground
+  start        Start the server in the background
+  stop         Stop a background server
+  status       Show process and health status
+  backup       Create and verify a consistent portable backup
+  integrity    Verify SQLite, blob references, hashes, and storage totals
+  restore DIR  Validate and restore a backup while the service is stopped
+  validate DIR Validate a portable backup without restoring it
+  export DIR   Create a verified portable backup at an explicit path
+  drill [DIR]  Restore a backup to a temporary directory and verify it
+  maintain     Back up, replicate, retain, check integrity, and report disk use
+  report       Show integrity, backup age, and disk usage
+  env          Check required configuration without printing secrets
+EOF
+}
+
+load_config() {
+  local config_file="$HOME/.config/artifact-cloud/config"
+  if [[ -f "$config_file" ]]; then
+    while IFS='=' read -r key value; do
+      [[ "$key" =~ ^ARTIFACT_CLOUD_[A-Z_]+$ ]] || continue
+      [[ "$value" != *\$\(* && "$value" != *\`* ]] || {
+        echo "artifact-cloud: config values must be literal" >&2
+        return 1
+      }
+      printf -v "$key" '%s' "$value"
+      export "${key?}"
+    done < "$config_file"
+  fi
+
+  export ARTIFACT_CLOUD_HOST="${ARTIFACT_CLOUD_HOST:-127.0.0.1}"
+  export ARTIFACT_CLOUD_PORT="${ARTIFACT_CLOUD_PORT:-3000}"
+  export ARTIFACT_CLOUD_DATA_DIR="${ARTIFACT_CLOUD_DATA_DIR:-$DATA_DIR_DEFAULT}"
+  export ARTIFACT_CLOUD_BACKUP_DIR="${ARTIFACT_CLOUD_BACKUP_DIR:-$BACKUP_ROOT_DEFAULT}"
+  export ARTIFACT_CLOUD_LOG_DIR="${ARTIFACT_CLOUD_LOG_DIR:-$LOG_DIR_DEFAULT}"
+  export ARTIFACT_CLOUD_BACKUP_RETENTION_DAYS="${ARTIFACT_CLOUD_BACKUP_RETENTION_DAYS:-30}"
+  export ARTIFACT_CLOUD_BACKUP_STALE_HOURS="${ARTIFACT_CLOUD_BACKUP_STALE_HOURS:-26}"
+  export ARTIFACT_CLOUD_DISK_WARN_PERCENT="${ARTIFACT_CLOUD_DISK_WARN_PERCENT:-85}"
+  export ARTIFACT_CLOUD_REPLICA_DIR="${ARTIFACT_CLOUD_REPLICA_DIR:-}"
+  export ARTIFACT_CLOUD_BASE_URL="${ARTIFACT_CLOUD_BASE_URL:-$BASE_URL_DEFAULT}"
+  export ARTIFACT_CLOUD_API_URL="${ARTIFACT_CLOUD_API_URL:-http://127.0.0.1:$ARTIFACT_CLOUD_PORT}"
+  : "${ARTIFACT_CLOUD_PUBLISH_TOKEN:?ARTIFACT_CLOUD_PUBLISH_TOKEN is required in ~/.env.secrets}"
+  export ARTIFACT_CLOUD_PUBLISH_TOKEN
+}
+
+find_node() {
+  local candidate
+  for candidate in \
+    "$HOME/.vite-plus/js_runtime/node/24.18.0/bin/node" \
+    "$HOME/.vite-plus/js_runtime/node/24.17.0/bin/node" \
+    "$HOME/.vite-plus/js_runtime/node/24.16.0/bin/node" \
+    "$(command -v node 2>/dev/null || true)"
+  do
+    if [[ -n "$candidate" && -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  echo "artifact-cloud: Node.js 24+ is required" >&2
+  return 1
+}
+
+is_running() {
+  [[ -f "$PID_FILE" ]] || return 1
+  local pid command
+  pid="$(<"$PID_FILE")"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+  command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  [[ "$command" == *"artifact-cloud/server.mjs"* ]]
+}
+
+supervisor_status() {
+  if [[ "$(uname -s)" == "Darwin" ]] && launchctl print "gui/$(id -u)/com.thxgg.artifact-cloud" >/dev/null 2>&1; then
+    echo "process: managed by launchd"
+    return
+  fi
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active artifact-cloud.service >/dev/null 2>&1; then
+    echo "process: managed by systemd"
+    return
+  fi
+  if is_running; then echo "process: running (pid $(<"$PID_FILE"))"; else echo "process: not supervised"; fi
+}
+
+serve() {
+  load_config
+  [[ -f "$SERVER" ]] || { echo "artifact-cloud: server not found at $SERVER" >&2; exit 1; }
+  mkdir -p "$ARTIFACT_CLOUD_DATA_DIR" "$STATE_DIR" "$ARTIFACT_CLOUD_LOG_DIR"
+  chmod 700 "$ARTIFACT_CLOUD_DATA_DIR" "$STATE_DIR" "$ARTIFACT_CLOUD_LOG_DIR"
+  exec "$(find_node)" "$SERVER"
+}
+
+start() {
+  load_config
+  mkdir -p "$ARTIFACT_CLOUD_DATA_DIR" "$STATE_DIR" "$ARTIFACT_CLOUD_LOG_DIR"
+  chmod 700 "$ARTIFACT_CLOUD_DATA_DIR" "$STATE_DIR" "$ARTIFACT_CLOUD_LOG_DIR"
+  if is_running; then
+    echo "artifact-cloud already running (pid $(<"$PID_FILE"))"
+    return
+  fi
+  nohup "$(find_node)" "$SERVER" >>"$ARTIFACT_CLOUD_LOG_DIR/server.log" 2>>"$ARTIFACT_CLOUD_LOG_DIR/server.error.log" &
+  printf '%s\n' "$!" > "$PID_FILE"
+  sleep 0.4
+  if ! is_running; then
+    rm -f "$PID_FILE"
+    echo "artifact-cloud failed to start; see $ARTIFACT_CLOUD_LOG_DIR/server.error.log" >&2
+    return 1
+  fi
+  echo "artifact-cloud started (pid $(<"$PID_FILE"))"
+}
+
+stop() {
+  if ! is_running; then
+    rm -f "$PID_FILE"
+    echo "artifact-cloud is not running"
+    return
+  fi
+  local pid
+  pid="$(<"$PID_FILE")"
+  kill "$pid"
+  for _ in {1..30}; do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  kill -9 "$pid" 2>/dev/null || true
+  rm -f "$PID_FILE"
+  echo "artifact-cloud stopped"
+}
+
+status() {
+  load_config
+  supervisor_status
+  if curl --fail --silent --max-time 2 "http://$ARTIFACT_CLOUD_HOST:$ARTIFACT_CLOUD_PORT/healthz" >/dev/null; then
+    echo "health: ok"
+  else
+    echo "health: unavailable"
+    return 1
+  fi
+  echo "local: http://$ARTIFACT_CLOUD_HOST:$ARTIFACT_CLOUD_PORT"
+  echo "tailnet: $ARTIFACT_CLOUD_BASE_URL (temporary laptop URL)"
+}
+
+create_backup_at() {
+  local destination="$1"
+  [[ ! -e "$destination" ]] || { echo "artifact-cloud: destination already exists: $destination" >&2; return 1; }
+  [[ -f "$ARTIFACT_CLOUD_DATA_DIR/artifacts.sqlite3" ]] || {
+    echo "artifact-cloud: no database exists to back up" >&2
+    return 1
+  }
+  "$(find_node)" "$BACKUP_SCRIPT" "$ARTIFACT_CLOUD_DATA_DIR" "$destination"
+  chmod -R go-rwx "$destination"
+}
+
+export_data() {
+  load_config
+  local destination="${1:-}"
+  [[ -n "$destination" ]] || { echo "artifact-cloud: export requires a destination" >&2; return 1; }
+  create_backup_at "$destination"
+}
+
+validate_backup() {
+  load_config
+  local source="${1:-}"
+  [[ -n "$source" ]] || { echo "artifact-cloud: validate requires a backup directory" >&2; return 1; }
+  "$(find_node)" "$RESTORE_SCRIPT" --validate "$source"
+}
+
+backup_data() {
+  load_config
+  local timestamp destination
+  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  destination="$ARTIFACT_CLOUD_BACKUP_DIR/$timestamp"
+  mkdir -p "$ARTIFACT_CLOUD_BACKUP_DIR"
+  chmod 700 "$ARTIFACT_CLOUD_BACKUP_DIR"
+  create_backup_at "$destination"
+}
+
+integrity_report() {
+  load_config
+  [[ -f "$ARTIFACT_CLOUD_DATA_DIR/artifacts.sqlite3" ]] || {
+    echo "artifact-cloud: no database exists to inspect" >&2
+    return 1
+  }
+  "$(find_node)" "$INTEGRITY_SCRIPT" "$ARTIFACT_CLOUD_DATA_DIR"
+}
+
+restore_data() {
+  load_config
+  local source="${1:-}"
+  [[ -n "$source" && -d "$source/data" && -f "$source/manifest.json" ]] || {
+    echo "artifact-cloud: restore requires a valid backup directory" >&2
+    return 1
+  }
+  if is_running || curl --silent --max-time 1 "http://$ARTIFACT_CLOUD_HOST:$ARTIFACT_CLOUD_PORT/healthz" >/dev/null 2>&1; then
+    echo "artifact-cloud: stop the service before restoring" >&2
+    return 1
+  fi
+  "$(find_node)" "$RESTORE_SCRIPT" "$source" "$ARTIFACT_CLOUD_DATA_DIR"
+}
+
+latest_backup() {
+  find "$ARTIFACT_CLOUD_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name '20*T*Z' -print 2>/dev/null | sort | tail -1
+}
+
+restore_drill() {
+  load_config
+  local source="${1:-}"
+  source="${source:-$(latest_backup)}"
+  [[ -n "$source" ]] || { echo "artifact-cloud: no backup is available for a restore drill" >&2; return 1; }
+  (
+    local drill_root
+    drill_root="$(mktemp -d "${TMPDIR:-/tmp}/artifact-cloud-drill.XXXXXX")"
+    trap 'rm -rf "$drill_root"' EXIT
+    "$(find_node)" "$RESTORE_SCRIPT" "$source" "$drill_root/data" >/dev/null
+    "$(find_node)" "$INTEGRITY_SCRIPT" "$drill_root/data"
+    echo "restore drill: ok ($source)"
+  )
+}
+
+prune_backups() {
+  local latest candidate
+  latest="$(latest_backup)"
+  while IFS= read -r candidate; do
+    [[ "$candidate" == "$latest" ]] || { echo "pruning backup: $candidate"; rm -rf "$candidate"; }
+  done < <(find "$ARTIFACT_CLOUD_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name '20*T*Z' -mtime "+$ARTIFACT_CLOUD_BACKUP_RETENTION_DAYS" -print 2>/dev/null)
+}
+
+replicate_backup() {
+  [[ -n "$ARTIFACT_CLOUD_REPLICA_DIR" ]] || return 0
+  local latest destination
+  latest="$(latest_backup)"
+  [[ -n "$latest" ]] || return 1
+  mkdir -p "$ARTIFACT_CLOUD_REPLICA_DIR"
+  chmod 700 "$ARTIFACT_CLOUD_REPLICA_DIR"
+  destination="$ARTIFACT_CLOUD_REPLICA_DIR/${latest##*/}"
+  [[ -e "$destination" ]] || cp -R "$latest" "$destination"
+  "$(find_node)" "$RESTORE_SCRIPT" --validate "$destination" >/dev/null
+  echo "replica: $destination"
+}
+
+operational_report() {
+  load_config
+  integrity_report
+  local latest used_percent
+  latest="$(latest_backup)"
+  [[ -n "$latest" ]] && echo "latest backup: $latest" || { echo "latest backup: none"; return 1; }
+  local now backup_epoch age_hours
+  now="$(date +%s)"
+  backup_epoch="$(stat -f %m "$latest" 2>/dev/null || stat -c %Y "$latest")"
+  age_hours="$(( (now - backup_epoch) / 3600 ))"
+  echo "backup age: ${age_hours}h"
+  (( age_hours <= ARTIFACT_CLOUD_BACKUP_STALE_HOURS )) || { echo "artifact-cloud: latest backup is stale" >&2; return 1; }
+  used_percent="$(df -P "$ARTIFACT_CLOUD_DATA_DIR" | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+  echo "disk used: ${used_percent}%"
+  echo "data size: $(du -sh "$ARTIFACT_CLOUD_DATA_DIR" | awk '{print $1}')"
+  echo "backup size: $(du -sh "$ARTIFACT_CLOUD_BACKUP_DIR" | awk '{print $1}')"
+  if (( used_percent >= ARTIFACT_CLOUD_DISK_WARN_PERCENT )); then
+    echo "artifact-cloud: disk usage exceeds ${ARTIFACT_CLOUD_DISK_WARN_PERCENT}%" >&2
+    return 1
+  fi
+}
+
+rotate_logs() {
+  local log size index
+  for log in "$ARTIFACT_CLOUD_LOG_DIR/server.log" "$ARTIFACT_CLOUD_LOG_DIR/server.error.log" "$ARTIFACT_CLOUD_LOG_DIR/maintenance.log" "$ARTIFACT_CLOUD_LOG_DIR/maintenance.error.log" "$ARTIFACT_CLOUD_LOG_DIR/drill.log" "$ARTIFACT_CLOUD_LOG_DIR/drill.error.log"; do
+    [[ -f "$log" ]] || continue
+    size="$(wc -c < "$log" | tr -d ' ')"
+    (( size >= 1048576 )) || continue
+    rm -f "$log.7.gz"
+    for index in 6 5 4 3 2 1; do [[ ! -f "$log.$index.gz" ]] || mv "$log.$index.gz" "$log.$((index + 1)).gz"; done
+    gzip -c "$log" > "$log.1.gz"
+    : > "$log"
+  done
+}
+
+maintain() {
+  load_config
+  mkdir -p "$STATE_DIR/reports" "$ARTIFACT_CLOUD_LOG_DIR"
+  chmod 700 "$STATE_DIR/reports" "$ARTIFACT_CLOUD_LOG_DIR"
+  local report_tmp report_path
+  report_tmp="$STATE_DIR/reports/maintenance.tmp.$$"
+  report_path="$STATE_DIR/reports/maintenance-$(date -u +%Y%m%dT%H%M%SZ).log"
+  if { backup_data && replicate_backup && prune_backups && operational_report; } 2>&1 | tee "$report_tmp"; then
+    mv "$report_tmp" "$report_path"
+    ln -sfn "${report_path##*/}" "$STATE_DIR/reports/latest.log"
+  else
+    mv "$report_tmp" "$report_path.failed"
+    return 1
+  fi
+  rotate_logs
+}
+
+check_env() {
+  load_config
+  echo "configuration: ok"
+  echo "data: $ARTIFACT_CLOUD_DATA_DIR"
+  echo "backups: $ARTIFACT_CLOUD_BACKUP_DIR (${ARTIFACT_CLOUD_BACKUP_RETENTION_DAYS} day retention)"
+  echo "replica: ${ARTIFACT_CLOUD_REPLICA_DIR:-disabled}"
+  echo "logs: $ARTIFACT_CLOUD_LOG_DIR"
+  echo "API URL: $ARTIFACT_CLOUD_API_URL"
+  echo "viewer base URL: $ARTIFACT_CLOUD_BASE_URL"
+  echo "publish token: set"
+}
+
+command="${1:-}"
+case "$command" in
+  serve) serve ;;
+  start) start ;;
+  stop) stop ;;
+  status) status ;;
+  backup) backup_data ;;
+  integrity) integrity_report ;;
+  restore) shift; restore_data "${1:-}" ;;
+  validate) shift; validate_backup "${1:-}" ;;
+  export) shift; export_data "${1:-}" ;;
+  drill) shift; restore_drill "${1:-}" ;;
+  maintain) maintain ;;
+  report) operational_report ;;
+  env) check_env ;;
+  -h|--help|help|"") usage ;;
+  *) echo "artifact-cloud: unknown command: $command" >&2; usage >&2; exit 2 ;;
+esac

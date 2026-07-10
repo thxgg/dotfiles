@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.thxgg.artifact-cloud-drill</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>-lc</string><string>exec "$HOME/.local/bin/artifact-cloud" drill</string></array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Day</key><integer>1</integer><key>Hour</key><integer>4</integer><key>Minute</key><integer>17</integer></dict>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>/Users/thxgg/Library/Logs/Artifact Cloud/drill.log</string>
+  <key>StandardErrorPath</key><string>/Users/thxgg/Library/Logs/Artifact Cloud/drill.error.log</string>
+</dict>
+</plist>
