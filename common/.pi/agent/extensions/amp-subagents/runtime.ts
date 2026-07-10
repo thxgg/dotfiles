@@ -201,6 +201,7 @@ export function createAgentTool() {
       "Before delegating, identify the decision the child can change, its unique evidence axis, why an existing child cannot answer it, and its stopping condition.",
       "Do not ask read-only children to run mutation-producing validation, install dependencies, or modify state. Ask them to inspect evidence and return exact commands for the parent to run.",
       "Subagents run in the background by default. Pass background=false only when the next parent action strictly depends on the result.",
+      "Completed Herdr subagents close their dedicated tab automatically; use /resume to inspect their persisted Pi sessions later.",
       "Do not ask subagents to spawn other agents unless a user explicitly requests a workflow that requires it.",
     ],
     parameters: AgentToolSchema,

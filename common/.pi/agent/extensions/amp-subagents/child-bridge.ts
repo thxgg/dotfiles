@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPermissionGuard } from "./readonly.ts";
@@ -46,6 +47,18 @@ function collectArtifacts(result: unknown, artifacts: Set<string>): void {
 
 function isValidationCommand(command: string): boolean {
   return /\b(test|tests|check|lint|typecheck|tsc|pytest|vitest|jest|cargo\s+test|go\s+test|npm\s+test|pnpm\s+test|bun\s+test)\b/i.test(command);
+}
+
+export function closeCompletedHerdrTab(tabId: string, spawnProcess = spawn): void {
+  if (process.env.HERDR_ENV !== "1" || !process.env.HERDR_SOCKET_PATH) return;
+  const command = process.env.HERDR_BIN_PATH || "herdr";
+  const child = spawnProcess(command, ["tab", "close", tabId], {
+    detached: true,
+    env: process.env,
+    stdio: "ignore",
+  });
+  child.on("error", () => { /* the persisted result remains available if UI cleanup fails */ });
+  child.unref();
 }
 
 export default function childBridge(pi: ExtensionAPI): void {
@@ -187,7 +200,7 @@ export default function childBridge(pi: ExtensionAPI): void {
     const now = new Date().toISOString();
     const cancelled = maxTurnAbort || stopReason === "aborted";
     const failed = !cancelled && (Boolean(errorMessage) || stopReason === "error");
-    safeUpdate((current) => ({
+    const terminal = store.update(spec.jobId, (current) => ({
       ...current,
       status: cancelled ? "cancelled" : failed ? "failed" : "completed",
       error: cancelled || failed ? (errorMessage || (cancelled ? "Subagent was cancelled." : `Subagent stopped with reason: ${stopReason}`)) : undefined,
@@ -196,6 +209,7 @@ export default function childBridge(pi: ExtensionAPI): void {
       result: { ...result(), summary: finalSummary || errorMessage || "(no output)" },
     }));
     ensureTerminalNotification(store, spec.jobId);
+    if (terminal?.herdr?.tabId) closeCompletedHerdrTab(terminal.herdr.tabId);
   });
 
   pi.on("session_shutdown", (event: any) => {
