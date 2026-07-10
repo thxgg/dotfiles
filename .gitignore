@@ -14,6 +14,7 @@ common/.config/herdr/*.log
 .claude/settings.local.json
 
 # Pi local/project state
+.pi/artifacts/
 .pi/ephemeral.json
 .pi/skills/
 
