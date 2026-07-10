@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: artifact-inspect FILE [OUTPUT_DIR]
+
+Validate a self-contained HTML artifact, capture desktop and phone screenshots,
+and fail if either viewport has horizontal overflow.
+EOF
+}
+
+input="${1:-}"
+[[ -n "$input" ]] || { usage >&2; exit 2; }
+[[ -f "$input" ]] || { echo "artifact-inspect: file not found: $input" >&2; exit 2; }
+[[ "$input" =~ \.[Hh][Tt][Mm][Ll]?$ ]] || { echo "artifact-inspect: expected an .html or .htm file" >&2; exit 2; }
+
+command -v agent-browser >/dev/null || { echo "artifact-inspect: agent-browser is required" >&2; exit 1; }
+command -v node >/dev/null || { echo "artifact-inspect: Node.js is required" >&2; exit 1; }
+
+absolute="$(cd "$(dirname "$input")" && pwd)/$(basename "$input")"
+INPUT_PATH="$absolute" node --input-type=module <<'NODE'
+import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+const core = await import(pathToFileURL(`${process.env.HOME}/.local/lib/artifact-cloud/core.mjs`).href);
+const errors = core.validateStaticArtifactHtml(await readFile(process.env.INPUT_PATH, "utf8"));
+if (errors.length) {
+  console.error(`artifact validation failed:\n${errors.map((error) => `- ${error}`).join("\n")}`);
+  process.exit(1);
+}
+NODE
+output="${2:-.pi/artifacts/artifact-inspection/$(date +%Y%m%d-%H%M%S)-$(basename "${input%.*}")}"
+mkdir -p "$output"
+output="$(cd "$output" && pwd)"
+session="artifact-inspect-$$"
+
+cleanup() { agent-browser --session "$session" close >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+agent-browser --session "$session" open "file://$absolute" >/dev/null
+agent-browser --session "$session" wait --load domcontentloaded >/dev/null
+
+inspect_viewport() {
+  local name="$1" width="$2" height="$3" metrics
+  agent-browser --session "$session" set viewport "$width" "$height" >/dev/null
+  agent-browser --session "$session" screenshot --full "$output/$name.png" >/dev/null
+  metrics="$(agent-browser --session "$session" eval '({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,scrollHeight:document.documentElement.scrollHeight,title:document.title,h1:document.querySelector("h1")?.innerText||null})')"
+  printf '%s\n' "$metrics" > "$output/$name.json"
+  METRICS="$metrics" node -e 'const x=JSON.parse(process.env.METRICS); if(x.scrollWidth>x.clientWidth){console.error(`horizontal overflow: ${x.scrollWidth}px > ${x.clientWidth}px`);process.exit(1)}'
+}
+
+inspect_viewport desktop 1440 1000
+inspect_viewport mobile 390 844
+
+cat > "$output/README.md" <<EOF
+# Artifact inspection
+
+- Source: \`$absolute\`
+- Desktop: 1440×1000 — \`desktop.png\`
+- Mobile: 390×844 — \`mobile.png\`
+- Horizontal overflow: none detected
+
+Review both screenshots for hierarchy, legibility, clipping, table behavior, excess whitespace, and misleading control affordances.
+EOF
+
+printf 'artifact inspection passed: %s\n' "$output"
