@@ -110,6 +110,16 @@ ensure_vite_plus_node() {
 	"$vp_bin" env default lts
 }
 
+ensure_open_computer_use() {
+	if ! command -v npm >/dev/null 2>&1; then
+		warn "npm not found; skipping Open Computer Use installation"
+		return
+	fi
+
+	info "Installing Open Computer Use"
+	npm install --global open-computer-use
+}
+
 replace_package_if_needed() {
 	local old_name="$1"
 	local new_name="$2"
@@ -527,6 +537,7 @@ fi
 configure_fish_shell
 
 ensure_vite_plus_node
+ensure_open_computer_use
 
 if command -v pipx &>/dev/null; then
 	info "Ensuring pipx path setup"
