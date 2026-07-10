@@ -163,8 +163,7 @@ args = ["mcp:start"]
 enabled = false
 
 [mcp_servers.linear]
-command = "npx"
-args = ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+url = "https://mcp.linear.app/mcp"
 enabled = true
 
 [mcp_servers.aws-mcp]

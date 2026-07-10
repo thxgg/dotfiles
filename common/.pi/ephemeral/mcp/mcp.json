@@ -1,13 +1,8 @@
 {
   "mcpServers": {
     "linear": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://mcp.linear.app/mcp"
-      ],
-      "lifecycle": "lazy"
+      "url": "https://mcp.linear.app/mcp",
+      "idleTimeout": 10
     },
     "db_staging": {
       "command": "docker",
@@ -24,7 +19,7 @@
       "env": {
         "DATABASE_URI": "${DATABASE_URI_STAGING}"
       },
-      "lifecycle": "lazy"
+      "idleTimeout": 2
     },
     "db_prod": {
       "command": "docker",
@@ -41,12 +36,10 @@
       "env": {
         "DATABASE_URI": "${DATABASE_URI_PROD}"
       },
-      "lifecycle": "lazy"
+      "idleTimeout": 2
     },
     "stripe-business": {
-      "url": "https://mcp.stripe.com",
-      "auth": "oauth",
-      "lifecycle": "lazy"
+      "url": "https://mcp.stripe.com"
     },
     "sonarqube": {
       "command": "docker",
@@ -64,14 +57,14 @@
         "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN}",
         "SONARQUBE_URL": "https://sonarcloud.io"
       },
-      "lifecycle": "lazy"
+      "idleTimeout": 2
     },
     "heroku": {
       "command": "heroku",
       "args": [
         "mcp:start"
       ],
-      "lifecycle": "lazy"
+      "idleTimeout": 3
     },
     "hubspot_staging": {
       "command": "npx",
@@ -82,7 +75,7 @@
       "env": {
         "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING}"
       },
-      "lifecycle": "lazy"
+      "idleTimeout": 3
     },
     "hubspot_prod": {
       "command": "npx",
@@ -93,7 +86,7 @@
       "env": {
         "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD}"
       },
-      "lifecycle": "lazy"
+      "idleTimeout": 3
     },
     "aws-mcp": {
       "command": "uvx",
@@ -105,22 +98,16 @@
         "--metadata",
         "AWS_REGION=eu-west-2"
       ],
-      "lifecycle": "lazy"
+      "idleTimeout": 3
     },
     "stripe-business-prod": {
-      "url": "https://mcp.stripe.com",
-      "auth": "oauth",
-      "lifecycle": "lazy"
+      "url": "https://mcp.stripe.com"
     },
     "stripe-memberships": {
-      "url": "https://mcp.stripe.com",
-      "auth": "oauth",
-      "lifecycle": "lazy"
+      "url": "https://mcp.stripe.com"
     },
     "stripe-memberships-prod": {
-      "url": "https://mcp.stripe.com",
-      "auth": "oauth",
-      "lifecycle": "lazy"
+      "url": "https://mcp.stripe.com"
     }
   }
 }

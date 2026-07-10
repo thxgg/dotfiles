@@ -448,6 +448,17 @@ detach_ignored_pi_runtime_links() {
 # GNU Stow does not treat absolute symlinks as owned by a package, even when
 # they resolve to the correct source. Normalize those links before invoking
 # stow so a previous manual/safe-stow absolute link does not abort the run.
+remove_obsolete_managed_symlinks() {
+    local target_path="$TARGET_DIR/.pi/agent/mcp.json"
+    local expected_source="$STOW_DIR/common/.pi/agent/mcp.json"
+
+    [[ -L "$target_path" && ! -e "$target_path" ]] || return
+    is_managed_target "$target_path" "${expected_source:A}" || return
+
+    rm -f "$target_path"
+    echo "Removed obsolete stow link: $target_path"
+}
+
 normalize_managed_stow_symlinks() {
     local item source_root source_path source_path_abs target_path target_dir link_target relative_target
 
@@ -806,6 +817,7 @@ fi
 
 # Perform the stow operation
 if [[ $include_deploy_paths -eq 1 ]]; then
+    remove_obsolete_managed_symlinks
     normalize_managed_stow_symlinks
     for root in "${package_roots[@]}"; do
         stow_root "$root"
