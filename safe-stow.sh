@@ -452,8 +452,8 @@ remove_obsolete_managed_symlinks() {
     local target_path="$TARGET_DIR/.pi/agent/mcp.json"
     local expected_source="$STOW_DIR/common/.pi/agent/mcp.json"
 
-    [[ -L "$target_path" && ! -e "$target_path" ]] || return
-    is_managed_target "$target_path" "${expected_source:A}" || return
+    [[ -L "$target_path" && ! -e "$target_path" ]] || return 0
+    is_managed_target "$target_path" "${expected_source:A}" || return 0
 
     rm -f "$target_path"
     echo "Removed obsolete stow link: $target_path"
