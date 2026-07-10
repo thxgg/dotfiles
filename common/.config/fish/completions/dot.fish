@@ -26,6 +26,7 @@ complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Ne
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l only-config -d "Only operate on selected ~/.config components" -x
+complete -c dot -n "__fish_seen_subcommand_from doctor" -s v -l verbose -d "Print every successful check"
 
 complete -c dot -n "__fish_seen_subcommand_from package; and not __fish_seen_subcommand_from list help" -a "list" -d "List manifests"
 complete -c dot -n "__fish_seen_subcommand_from package; and __fish_seen_subcommand_from list" -a "all macos linux"
