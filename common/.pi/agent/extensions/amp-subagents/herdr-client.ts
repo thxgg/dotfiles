@@ -192,6 +192,13 @@ export class HerdrClient {
     await this.exec(["pane", "send-keys", paneId, "esc"]);
   }
 
+  async send(name: string, text: string): Promise<void> {
+    const current = await this.getAgent(name);
+    if (!current) throw new Error(`Herdr agent not found: ${name}`);
+    await this.exec(["agent", "send", name, text]);
+    await this.exec(["pane", "send-keys", current.pane_id, "enter"]);
+  }
+
   async requestCancel(name: string): Promise<HerdrAgentInfo | undefined> {
     const current = await this.getAgent(name);
     if (!current) return undefined;

@@ -9,8 +9,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { AgentDefinition } from "./agents.ts";
 import { getActiveToolNames, getDisallowedToolNames } from "./agents.ts";
-import type { AgentJobSnapshot, RuntimeJob, ToolCallSummary, UsageStats } from "./job-types.ts";
+import type { AgentActivity, AgentJobSnapshot, RuntimeJob, ToolCallSummary, UsageStats } from "./job-types.ts";
 import { emptyUsage, snapshotJob } from "./job-types.ts";
+import { ensureTerminalNotification } from "./notifications.ts";
+import { jobStore } from "./job-store.ts";
 import { composeAgentPrompt } from "./prompt.ts";
 import { createPermissionGuard } from "./readonly.ts";
 
@@ -93,12 +95,23 @@ export async function runInProcessJob(
   let errorMessage: string | undefined;
   let maxTurnAbort = false;
 
-  const emit = () => onUpdate?.(snapshotJob(job));
+  const activity = (kind: AgentActivity["kind"], summary: string, toolName?: string): AgentActivity => ({ kind, summary, toolName, updatedAt: new Date().toISOString() });
+  const describeActivity = (name: string, args: Record<string, unknown>): string => {
+    const target = String(args.path ?? args.file_path ?? "");
+    if (name === "read") return `Reading ${target || "a file"}`;
+    if (name === "edit" || name === "write") return `${name === "edit" ? "Editing" : "Writing"} ${target || "a file"}`;
+    if (name === "bash") return `Running ${String(args.command ?? "a command").replace(/\s+/g, " ").slice(0, 96)}`;
+    if (name === "grep" || name === "find") return `Searching ${target || "the codebase"}`;
+    return `Using ${name}`;
+  };
+  const persist = () => { jobStore.write(snapshotJob(job)); };
+  const emit = () => { persist(); onUpdate?.(snapshotJob(job)); };
   const model = resolveModel(ctx, agent.model);
   if (agent.model && !model) throw new Error(`Model not found for subagent ${agent.name}: ${agent.model}`);
   job.model = formatModel(model ?? ctx.model);
   job.thinking = agent.thinking;
   job.status = "running";
+  job.activity = activity("reasoning", "Starting delegated task");
   emit();
 
   const settingsManager = createSettingsManager(job.cwd, agent);
@@ -107,7 +120,7 @@ export async function runInProcessJob(
     agentDir: getAgentDir(),
     settingsManager,
     appendSystemPromptOverride: (base) => [...base, composeAgentPrompt(agent)],
-    extensionFactories: [createPermissionGuard(agent)],
+    extensionFactories: [createPermissionGuard(agent, { jobId: job.id, store: jobStore })],
   });
   await loader.reload();
 
@@ -133,6 +146,7 @@ export async function runInProcessJob(
       toolCalls.set(call.id, call);
       collectPaths(call.name, args, filesRead, filesChanged);
       if (call.name === "bash" && typeof args.command === "string" && isValidationCommand(args.command)) validation.add(args.command);
+      job.activity = activity("tool", describeActivity(call.name, args), call.name);
       emit();
     }
     if (event.type === "tool_execution_end") {
@@ -142,6 +156,7 @@ export async function runInProcessJob(
         if (event.isError) call.error = getMessageText(event.result) || "tool failed";
       }
       collectArtifacts(event.result, artifacts);
+      job.activity = activity("reasoning", "Reasoning after tool result");
       emit();
     }
     if (event.type === "message_end" && event.message?.role === "assistant") {
@@ -182,7 +197,9 @@ export async function runInProcessJob(
     unsubscribe();
     session.dispose();
     job.endedAt = new Date().toISOString();
+    job.activity = activity("finishing", job.status === "completed" ? "Completed" : job.status === "cancelled" ? "Cancelled" : "Failed");
     emit();
+    ensureTerminalNotification(jobStore, job.id);
   }
   return snapshotJob(job);
 }

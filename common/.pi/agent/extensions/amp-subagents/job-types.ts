@@ -1,7 +1,8 @@
 import type { AgentDefinition, ThinkingLevel } from "./agents.ts";
 
-export type AgentJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type AgentJobStatus = "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AgentBackend = "in-process" | "herdr";
+export type NotificationState = "pending" | "delivering" | "delivered";
 
 export interface UsageStats {
   input: number;
@@ -19,6 +20,24 @@ export interface ToolCallSummary {
   args: Record<string, unknown>;
   status: "running" | "completed" | "failed";
   error?: string;
+}
+
+export interface AgentActivity {
+  kind: "starting" | "reasoning" | "tool" | "waiting" | "finishing";
+  summary: string;
+  toolName?: string;
+  updatedAt: string;
+}
+
+export interface AgentPermissionRequest {
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  description: string;
+  input: Record<string, unknown>;
+  createdAt: string;
+  decision?: "allow" | "deny";
+  decidedAt?: string;
 }
 
 export interface AgentJobResult {
@@ -41,6 +60,34 @@ export interface HerdrJobMetadata {
   terminalId: string;
 }
 
+export interface AgentWorktreeMetadata {
+  gitRoot: string;
+  parentCwd: string;
+  path: string;
+  childCwd: string;
+  baseCommit: string;
+  branch?: string;
+  retained?: boolean;
+  appliedAt?: string;
+  discardedAt?: string;
+}
+
+export interface AgentNotification {
+  id: string;
+  kind: "completion" | "permission";
+  state: NotificationState;
+  createdAt: string;
+  deliveredAt?: string;
+  leaseOwner?: string;
+  leaseExpiresAt?: string;
+  obsoleteAt?: string;
+}
+
+export interface AgentJobOwner {
+  sessionId: string;
+  sessionFile?: string;
+}
+
 export interface AgentJobSnapshot {
   id: string;
   agent: string;
@@ -51,6 +98,7 @@ export interface AgentJobSnapshot {
   background: boolean;
   backend: AgentBackend;
   startedAt: string;
+  attempt?: number;
   updatedAt?: string;
   endedAt?: string;
   model?: string;
@@ -58,13 +106,19 @@ export interface AgentJobSnapshot {
   result?: AgentJobResult;
   error?: string;
   warnings?: string[];
+  activity?: AgentActivity;
+  permissionRequests?: AgentPermissionRequest[];
+  notifications?: AgentNotification[];
+  owner?: AgentJobOwner;
+  parentToolCallId?: string;
   herdr?: HerdrJobMetadata;
+  worktree?: AgentWorktreeMetadata;
   sessionFile?: string;
   sessionId?: string;
 }
 
 export interface AgentJobSpec {
-  version: 1;
+  version: 2;
   jobId: string;
   stateDir: string;
   promptPath: string;
@@ -73,7 +127,7 @@ export interface AgentJobSpec {
 }
 
 export interface StoredJobState extends AgentJobSnapshot {
-  version: 1;
+  version: 2;
 }
 
 export interface RuntimeJob extends AgentJobSnapshot {

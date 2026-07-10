@@ -10,9 +10,9 @@ export type BackgroundPolicy = false | true | "allowed";
 export type BashPermission = "allow" | "readonly" | "deny";
 
 export interface AgentPermissions {
-  edit?: "allow" | "deny";
-  write?: "allow" | "deny";
-  bash?: BashPermission;
+  edit?: "allow" | "ask" | "deny";
+  write?: "allow" | "ask" | "deny";
+  bash?: BashPermission | "ask";
 }
 
 export interface AgentCompactionSettings {
@@ -105,11 +105,9 @@ function parseBackground(value: unknown): BackgroundPolicy {
 function parsePermissions(value: unknown): AgentPermissions {
   const record = asRecord(value);
   const permissions: AgentPermissions = {};
-  if (record.edit === "deny") permissions.edit = "deny";
-  if (record.write === "deny") permissions.write = "deny";
-  if (record.bash === "readonly" || record.bash === "deny" || record.bash === "allow") {
-    permissions.bash = record.bash;
-  }
+  if (record.edit === "deny" || record.edit === "ask" || record.edit === "allow") permissions.edit = record.edit;
+  if (record.write === "deny" || record.write === "ask" || record.write === "allow") permissions.write = record.write;
+  if (record.bash === "readonly" || record.bash === "deny" || record.bash === "ask" || record.bash === "allow") permissions.bash = record.bash;
   return permissions;
 }
 

@@ -14,7 +14,7 @@ function fixture(store: JobStore, id = "agent-deadbeef") {
     id, agent: agent.name, source: agent.source, task: "inspect", cwd: process.cwd(),
     status: "queued", background: true, backend: "herdr", startedAt: new Date().toISOString(),
   };
-  const spec = { version: 1 as const, jobId: id, stateDir: paths.dir, promptPath: paths.prompt, createdAt: snapshot.startedAt, agent };
+  const spec = { version: 2 as const, jobId: id, stateDir: paths.dir, promptPath: paths.prompt, createdAt: snapshot.startedAt, agent };
   return { agent, paths, snapshot, spec };
 }
 
@@ -37,6 +37,38 @@ test("job store writes private atomic records and recovers them from disk", () =
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test("job store migrates v1 state and specs during rolling extension upgrades", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-job-store-"));
+  try {
+    const store = new JobStore(root);
+    const item = fixture(store);
+    store.initialize(item.spec, item.snapshot, "prompt");
+    const state = JSON.parse(fs.readFileSync(item.paths.state, "utf8"));
+    const spec = JSON.parse(fs.readFileSync(item.paths.spec, "utf8"));
+    state.version = 1;
+    delete state.attempt;
+    spec.version = 1;
+    fs.writeFileSync(item.paths.state, JSON.stringify(state));
+    fs.writeFileSync(item.paths.spec, JSON.stringify(spec));
+    assert.equal(store.read(item.snapshot.id)?.attempt, 1);
+    assert.equal(store.readSpecFile(item.paths.spec).version, 2);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("a stale-looking lock owned by a live process is never stolen", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-job-store-"));
+  try {
+    const store = new JobStore(root);
+    const item = fixture(store);
+    store.initialize(item.spec, item.snapshot, "prompt");
+    fs.writeFileSync(item.paths.lock, `${process.pid}:live-token 0\n`);
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(item.paths.lock, old, old);
+    assert.throws(() => store.update(item.snapshot.id, (current) => current), /Timed out acquiring/);
+    assert.equal(fs.readFileSync(item.paths.lock, "utf8").includes("live-token"), true);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("job store ignores corrupt and path-traversal records", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-job-store-"));
   try {
@@ -46,6 +78,37 @@ test("job store ignores corrupt and path-traversal records", () => {
     fs.writeFileSync(item.paths.state, "{broken", "utf8");
     assert.deepEqual(store.list(), []);
     assert.throws(() => store.paths("../../escape"), /Invalid/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("notification claims are leased and delivered idempotently", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-job-store-"));
+  try {
+    const store = new JobStore(root);
+    const item = fixture(store);
+    store.initialize(item.spec, item.snapshot, "prompt");
+    store.addNotification(item.snapshot.id, { id: "notification-1", kind: "completion", createdAt: new Date().toISOString() });
+    store.claimNotification(item.snapshot.id, "notification-1", "owner-a", 60_000);
+    store.claimNotification(item.snapshot.id, "notification-1", "owner-b", 60_000);
+    assert.equal(store.read(item.snapshot.id)?.notifications?.[0].leaseOwner, "owner-a");
+    store.completeNotification(item.snapshot.id, "notification-1", "owner-b");
+    assert.equal(store.read(item.snapshot.id)?.notifications?.[0].state, "delivering");
+    store.completeNotification(item.snapshot.id, "notification-1", "owner-a");
+    assert.equal(store.read(item.snapshot.id)?.notifications?.[0].state, "delivered");
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("pruning preserves terminal jobs with undelivered notifications", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-job-store-"));
+  try {
+    const store = new JobStore(root);
+    for (const id of ["agent-00000001", "agent-00000002"]) {
+      const item = fixture(store, id);
+      store.initialize(item.spec, { ...item.snapshot, status: "completed", endedAt: new Date().toISOString(), notifications: id.endsWith("1") ? [{ id: "notification-1", kind: "completion", state: "pending", createdAt: new Date().toISOString() }] : undefined }, "prompt");
+    }
+    store.prune(0);
+    assert.ok(store.read("agent-00000001"));
+    assert.equal(store.read("agent-00000002"), undefined);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 

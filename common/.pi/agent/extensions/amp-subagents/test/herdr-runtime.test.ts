@@ -31,9 +31,11 @@ test("creates unique agent names and readable task-based tab labels", () => {
   assert.ok(makeHerdrNames("librarian", "Research current upstream implementation details", "agent-deadbeef").tabLabel.length <= 40);
 });
 
-test("does not expose focus to the model-facing Agent tool", () => {
+test("exposes native lifecycle, messaging, permission, and worktree actions", () => {
   const schema = createAgentTool().parameters as any;
-  assert.equal(schema.properties.action.enum.includes("focus"), false);
+  for (const action of ["focus", "message", "approve", "deny", "apply", "retain", "discard"]) {
+    assert.equal(schema.properties.action.enum.includes(action), true);
+  }
 });
 
 test("child Pi argv preserves model, trust, allowlist, and unconditional exclusions", () => {

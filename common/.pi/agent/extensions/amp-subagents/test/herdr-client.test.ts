@@ -67,6 +67,20 @@ test("rolls back the temporary tab when agent start fails", async () => {
   assert.deepEqual(fake.calls[2], ["tab", "close", "w1:t2"]);
 });
 
+test("sending a follow-up resolves the child and submits literal text with Enter", async () => {
+  const fake = new FakeExecutor([
+    { code: 0, stdout: infoResponse, stderr: "" },
+    { code: 0, stdout: JSON.stringify({ id: "x", result: { type: "ok" } }), stderr: "" },
+    { code: 0, stdout: JSON.stringify({ id: "x", result: { type: "ok" } }), stderr: "" },
+  ]);
+  await new HerdrClient(fake, "herdr").send("pi-search-deadbeef", "continue this");
+  assert.deepEqual(fake.calls, [
+    ["agent", "get", "pi-search-deadbeef"],
+    ["agent", "send", "pi-search-deadbeef", "continue this"],
+    ["pane", "send-keys", "w1:p3", "enter"],
+  ]);
+});
+
 test("cancellation resolves by unique name before sending escape to its live pane", async () => {
   const fake = new FakeExecutor([
     { code: 0, stdout: infoResponse, stderr: "" },

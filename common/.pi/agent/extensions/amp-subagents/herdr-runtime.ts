@@ -282,7 +282,8 @@ export async function cleanupHerdrJobs(client = new HerdrClient(), store = jobSt
   const closed: string[] = [];
   const prunable = new Set<string>();
   for (const job of store.list()) {
-    if (job.backend !== "herdr" || !isTerminalStatus(job.status) || !job.herdr) continue;
+    if (job.backend !== "herdr" || !isTerminalStatus(job.status) || !job.herdr || (job.worktree && !job.worktree.discardedAt)
+      || !(job.notifications ?? []).every((notification) => notification.state === "delivered" || Boolean(notification.obsoleteAt))) continue;
     try {
       const live = await client.getAgent(job.herdr.agentName);
       if (live) { await client.closeTab(live.tab_id); closed.push(job.id); }
@@ -298,7 +299,31 @@ export async function cleanupHerdrJobs(client = new HerdrClient(), store = jobSt
   return { closed, removed };
 }
 
+export async function messageHerdrJob(jobId: string, message: string, client = new HerdrClient(), store = jobStore): Promise<AgentJobSnapshot | undefined> {
+  const snapshot = store.read(jobId);
+  if (!snapshot?.herdr) return snapshot;
+  const live = await client.getAgent(snapshot.herdr.agentName);
+  if (!live) throw new Error(`Herdr child is not available: ${snapshot.herdr.agentName}`);
+  const resumed = store.update(jobId, (current) => ({
+    ...current,
+    status: "running",
+    attempt: (current.attempt ?? 1) + 1,
+    endedAt: undefined,
+    error: undefined,
+    permissionRequests: undefined,
+    notifications: (current.notifications ?? []).map((item) => item.kind === "completion" && item.state !== "delivered" ? { ...item, obsoleteAt: new Date().toISOString() } : item),
+    activity: { kind: "reasoning", summary: "Resuming with a follow-up message", updatedAt: new Date().toISOString() },
+  }));
+  try {
+    await client.send(snapshot.herdr.agentName, message);
+    return resumed;
+  } catch (error) {
+    store.update(jobId, (current) => current.attempt === resumed?.attempt ? snapshot : current);
+    throw error;
+  }
+}
+
 export function createJobSpec(job: AgentJobSnapshot, agent: AgentDefinition, store = jobStore): AgentJobSpec {
   const paths = store.paths(job.id);
-  return { version: 1, jobId: job.id, stateDir: paths.dir, promptPath: paths.prompt, createdAt: job.startedAt, agent };
+  return { version: 2, jobId: job.id, stateDir: paths.dir, promptPath: paths.prompt, createdAt: job.startedAt, agent };
 }

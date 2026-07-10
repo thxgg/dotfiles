@@ -2,8 +2,9 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPermissionGuard } from "./readonly.ts";
 import { JobStore } from "./job-store.ts";
-import type { AgentJobResult, AgentJobSnapshot, ToolCallSummary, UsageStats } from "./job-types.ts";
+import type { AgentActivity, AgentJobResult, AgentJobSnapshot, ToolCallSummary, UsageStats } from "./job-types.ts";
 import { emptyUsage, isTerminalStatus } from "./job-types.ts";
+import { ensureTerminalNotification } from "./notifications.ts";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -68,7 +69,7 @@ export default function childBridge(pi: ExtensionAPI): void {
     return;
   }
 
-  createPermissionGuard(spec.agent)(pi);
+  createPermissionGuard(spec.agent, { jobId: spec.jobId, store })(pi);
 
   const usage = initial.result?.usage ? { ...initial.result.usage } : emptyUsage();
   const toolCalls = new Map((initial.result?.toolCalls ?? []).map((call) => [call.id, { ...call }]));
@@ -81,6 +82,16 @@ export default function childBridge(pi: ExtensionAPI): void {
   let errorMessage = initial.result?.errorMessage;
   let maxTurnAbort = false;
   let settled = isTerminalStatus(initial.status);
+
+  const activity = (kind: AgentActivity["kind"], summary: string, toolName?: string): AgentActivity => ({ kind, summary, toolName, updatedAt: new Date().toISOString() });
+  const describeActivity = (name: string, args: Record<string, unknown>): string => {
+    const target = String(args.path ?? args.file_path ?? "");
+    if (name === "read") return `Reading ${target || "a file"}`;
+    if (name === "edit" || name === "write") return `${name === "edit" ? "Editing" : "Writing"} ${target || "a file"}`;
+    if (name === "bash") return `Running ${String(args.command ?? "a command").replace(/\s+/g, " ").slice(0, 96)}`;
+    if (name === "grep" || name === "find") return `Searching ${target || "the codebase"}`;
+    return `Using ${name}`;
+  };
 
   const result = (): AgentJobResult => ({
     summary: finalSummary || "(no output)",
@@ -99,9 +110,9 @@ export default function childBridge(pi: ExtensionAPI): void {
     catch (error) { console.error(`Subagent bridge state update failed: ${error instanceof Error ? error.message : String(error)}`); }
   };
 
-  const writeProgress = (): void => {
+  const writeProgress = (nextActivity?: AgentActivity): void => {
     if (settled) return;
-    safeUpdate((current) => ({ ...current, status: "running", result: result() }));
+    safeUpdate((current) => ({ ...current, status: current.status === "waiting" ? "waiting" : "running", result: result(), activity: nextActivity ?? current.activity }));
   };
 
   pi.on("session_start", (_event, ctx) => {
@@ -113,7 +124,16 @@ export default function childBridge(pi: ExtensionAPI): void {
     safeUpdate((current) => ({ ...current, sessionFile, sessionId }));
   });
 
-  pi.on("agent_start", () => writeProgress());
+  pi.on("agent_start", () => {
+    if (settled) {
+      settled = false;
+      stopReason = undefined;
+      errorMessage = undefined;
+      maxTurnAbort = false;
+      safeUpdate((current) => ({ ...current, status: "running", endedAt: undefined, error: undefined, permissionRequests: undefined }));
+    }
+    writeProgress(activity("reasoning", "Starting delegated task"));
+  });
 
   pi.on("tool_execution_start", (event: any) => {
     if (settled) return;
@@ -127,7 +147,7 @@ export default function childBridge(pi: ExtensionAPI): void {
     toolCalls.set(call.id, call);
     collectPaths(call.name, args, filesRead, filesChanged);
     if (call.name === "bash" && typeof args.command === "string" && isValidationCommand(args.command)) validation.add(args.command);
-    writeProgress();
+    writeProgress(activity("tool", describeActivity(call.name, args), call.name));
   });
 
   pi.on("tool_execution_end", (event: any) => {
@@ -138,7 +158,7 @@ export default function childBridge(pi: ExtensionAPI): void {
       if (event.isError) call.error = getMessageText(event.result) || "tool failed";
     }
     collectArtifacts(event.result, artifacts);
-    writeProgress();
+    writeProgress(activity("reasoning", "Reasoning after tool result"));
   });
 
   pi.on("message_end", (event: any) => {
@@ -157,7 +177,7 @@ export default function childBridge(pi: ExtensionAPI): void {
       maxTurnAbort = true;
       errorMessage = `Subagent ${spec.agent.name} stopped after reaching maxTurns=${spec.agent.maxTurns}.`;
       ctx.abort();
-      writeProgress();
+      writeProgress(activity("finishing", "Stopping at the configured turn limit"));
     }
   });
 
@@ -172,8 +192,10 @@ export default function childBridge(pi: ExtensionAPI): void {
       status: cancelled ? "cancelled" : failed ? "failed" : "completed",
       error: cancelled || failed ? (errorMessage || (cancelled ? "Subagent was cancelled." : `Subagent stopped with reason: ${stopReason}`)) : undefined,
       endedAt: now,
+      activity: activity("finishing", cancelled ? "Cancelled" : failed ? "Failed" : "Completed"),
       result: { ...result(), summary: finalSummary || errorMessage || "(no output)" },
     }));
+    ensureTerminalNotification(store, spec.jobId);
   });
 
   pi.on("session_shutdown", (event: any) => {
@@ -185,7 +207,9 @@ export default function childBridge(pi: ExtensionAPI): void {
       status: "failed",
       error: message,
       endedAt: new Date().toISOString(),
+      activity: activity("finishing", "Child exited unexpectedly"),
       result: { ...result(), summary: finalSummary || message, errorMessage: errorMessage || message },
     }));
+    ensureTerminalNotification(store, spec.jobId);
   });
 }

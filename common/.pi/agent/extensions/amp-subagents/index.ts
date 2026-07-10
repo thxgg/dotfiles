@@ -3,6 +3,7 @@ import { discoverAgents, formatAgentList, type AgentScope } from "./agents.ts";
 import { registerRepoCacheTool } from "./repo-cache.ts";
 import { abortRunningJobs, cancelJob, createAgentTool, getJobSnapshots, getRunningJobCount } from "./runtime.ts";
 import { cleanupHerdrJobs, closeHerdrJob, focusHerdrJob } from "./herdr-runtime.ts";
+import { registerAgentNotificationRenderer, startNotificationPump } from "./notifications.ts";
 
 function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" | "cancel" | "focus" | "close" | "cleanup"; id?: string; scope: AgentScope; includeHidden: boolean } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
@@ -40,7 +41,9 @@ function formatJobDetails(id?: string): string {
 
 export default function ampSubagentsExtension(pi: ExtensionAPI): void {
   registerRepoCacheTool(pi);
+  registerAgentNotificationRenderer(pi);
   pi.registerTool(createAgentTool());
+  let stopNotificationPump: (() => void) | undefined;
 
   pi.registerCommand("agents", {
     description: "List Amp-style subagents and inspect or control subagent jobs",
@@ -103,11 +106,27 @@ export default function ampSubagentsExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    stopNotificationPump?.();
+    stopNotificationPump = startNotificationPump(pi, ctx);
     const running = getRunningJobCount();
     ctx.ui.setStatus("subagents", running > 0 ? `agents:${running}` : undefined);
   });
 
-  pi.on("session_shutdown", async () => {
-    await abortRunningJobs();
+  pi.on("session_shutdown", async (event, ctx) => {
+    stopNotificationPump?.();
+    stopNotificationPump = undefined;
+    if (event.reason !== "quit") return;
+    const running = getJobSnapshots().filter((job) => job.status === "running" || job.status === "queued" || job.status === "waiting");
+    if (!running.length) return;
+    const detachable = running.filter((job) => job.backend === "herdr" && job.background);
+    const sessionScoped = running.filter((job) => !detachable.includes(job));
+    let keepRunning = detachable.length > 0;
+    if (ctx.hasUI && detachable.length > 0) {
+      keepRunning = await ctx.ui.confirm(
+        "Background agents are still running",
+        `${detachable.length} Herdr agent(s) can keep running after Pi exits. Keep them running?\n\nChoose Cancel to stop every active agent.`,
+      );
+    }
+    if (!keepRunning || sessionScoped.length > 0) await abortRunningJobs(keepRunning ? "Parent Pi exited; session-scoped child stopped." : "Parent Pi exited; user stopped active agents.", !keepRunning);
   });
 }
