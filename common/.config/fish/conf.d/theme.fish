@@ -1,7 +1,20 @@
 set -l __dotfiles_theme_mode dark
-if test -x "$HOME/.local/bin/theme-mode"
+set -l __dotfiles_theme_state_root "$HOME/.local/state"
+set -q XDG_STATE_HOME; and set __dotfiles_theme_state_root "$XDG_STATE_HOME"
+set -l __dotfiles_theme_state "$__dotfiles_theme_state_root/theme/last-applied-mode"
+set -l __dotfiles_cached_theme_mode
+
+if test -r "$__dotfiles_theme_state"
+    read __dotfiles_cached_theme_mode < "$__dotfiles_theme_state"
+end
+
+if contains -- "$__dotfiles_cached_theme_mode" dark light
+    set __dotfiles_theme_mode "$__dotfiles_cached_theme_mode"
+else if test -x "$HOME/.local/bin/theme-mode"
     set __dotfiles_theme_mode ("$HOME/.local/bin/theme-mode" get 2>/dev/null)
 end
+
+set -e __dotfiles_cached_theme_mode __dotfiles_theme_state __dotfiles_theme_state_root
 
 if test "$__dotfiles_theme_mode" = light
     set -U fish_color_normal 4c4f69
