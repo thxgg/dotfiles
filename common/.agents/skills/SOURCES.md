@@ -1,5 +1,10 @@
 # Vendored Skill Sources
 
+Open Computer Use is sourced from
+[`iFurySt/open-codex-computer-use@69e07b8`](https://github.com/iFurySt/open-codex-computer-use/commit/69e07b8ec33ad90256ac6e3c2c8e3f10479f963d):
+
+- `open-computer-use`
+
 The following shared skills are sourced from the Dillon Mulroy skill suite at
 [`dmmulroy/skills@8a10f56`](https://github.com/dmmulroy/skills/commit/8a10f56abf86dc52e8209e5f61fffa6951402974):
 

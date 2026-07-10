@@ -105,6 +105,16 @@ ensure_vite_plus_node() {
 	"$vp_bin" env default lts
 }
 
+ensure_open_computer_use() {
+	if ! command -v npm >/dev/null 2>&1; then
+		warn "npm not found; skipping Open Computer Use installation"
+		return
+	fi
+
+	info "Installing Open Computer Use"
+	npm install --global open-computer-use
+}
+
 set_launchservices_extension_handler() {
 	local extension="${1#.}"
 	local bundle_id="$2"
@@ -346,6 +356,7 @@ fi
 
 # Node.js setup with Vite+
 ensure_vite_plus_node
+ensure_open_computer_use
 
 # Python CLI setup with pipx
 if command -v pipx &>/dev/null; then

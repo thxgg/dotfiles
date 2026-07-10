@@ -92,6 +92,11 @@ trust_level = "trusted"
 [projects."/Users/thxgg/Documents/Codex/2026-06-23/give-me-a-rundown-of-the"]
 trust_level = "trusted"
 
+[mcp_servers.open_computer_use]
+command = "open-computer-use"
+args = ["mcp"]
+enabled = true
+
 [mcp_servers.context7]
 url = "https://mcp.context7.com/mcp"
 enabled = true
