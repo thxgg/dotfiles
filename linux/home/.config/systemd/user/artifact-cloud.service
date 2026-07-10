@@ -1,0 +1,17 @@
+[Unit]
+Description=Private personal artifact cloud
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/artifact-cloud serve
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/artifact-cloud %h/.local/state/artifact-cloud
+
+[Install]
+WantedBy=default.target
