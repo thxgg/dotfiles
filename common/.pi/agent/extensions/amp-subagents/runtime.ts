@@ -198,6 +198,8 @@ export function createAgentTool() {
     promptSnippet: "Run an isolated child Pi subagent (agent/search/oracle/librarian/reviewer/painter) for self-contained work",
     promptGuidelines: [
       "Use Agent when a task can be delegated to an isolated subagent and summarized back to the parent.",
+      "Before delegating, identify the decision the child can change, its unique evidence axis, why an existing child cannot answer it, and its stopping condition.",
+      "Do not ask read-only children to run mutation-producing validation, install dependencies, or modify state. Ask them to inspect evidence and return exact commands for the parent to run.",
       "Subagents run in the background by default. Pass background=false only when the next parent action strictly depends on the result.",
       "Do not ask subagents to spawn other agents unless a user explicitly requests a workflow that requires it.",
     ],

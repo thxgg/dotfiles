@@ -32,10 +32,13 @@ test("creates unique agent names and readable task-based tab labels", () => {
 });
 
 test("exposes native lifecycle, messaging, permission, and worktree actions", () => {
-  const schema = createAgentTool().parameters as any;
+  const tool = createAgentTool();
+  const schema = tool.parameters as any;
   for (const action of ["focus", "message", "approve", "deny", "apply", "retain", "discard"]) {
     assert.equal(schema.properties.action.enum.includes(action), true);
   }
+  assert.ok(tool.promptGuidelines.some((line) => line.includes("decision the child can change")));
+  assert.ok(tool.promptGuidelines.some((line) => line.includes("Do not ask read-only children")));
 });
 
 test("child Pi argv preserves model, trust, allowlist, and unconditional exclusions", () => {
