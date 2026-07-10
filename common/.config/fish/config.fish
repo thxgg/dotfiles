@@ -58,6 +58,12 @@ if test -d "$HOME/.cargo/bin"
     __dotfiles_prepend_path "$HOME/.cargo/bin"
 end
 
+# Homebrew's rustup is keg-only and may leave ~/.cargo/bin symlinks pointing at
+# an outdated Cellar revision after upgrades.
+if test "$__dotfiles_uname" = Darwin; and test -d /opt/homebrew/opt/rustup/bin
+    __dotfiles_prepend_path /opt/homebrew/opt/rustup/bin
+end
+
 __dotfiles_prepend_path "$PNPM_HOME"
 __dotfiles_prepend_path "$BUN_INSTALL/bin"
 __dotfiles_prepend_path "$HOME/thxgg/.opencode/bin"
