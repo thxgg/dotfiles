@@ -6,18 +6,6 @@ Treat context as scarce. Do not load skills unless the user explicitly invokes t
 Prefer reading the nearest `AGENTS.md`, relevant source files, and targeted search results over loading broad skills.
 Before large edits, build context first, summarize the plan, and ask for confirmation unless the user requested autonomous implementation.
 
-## Independent Second Opinions
-
-For an independent second opinion or review, you may create a Pi subagent using Anthropic Claude Fable 5 with high thinking. Use the current repository as its working directory and give it a self-contained brief with the relevant context, constraints, and questions. Invoke it as:
-
-```bash
-pi -p --model anthropic/claude-fable-5 --thinking high --no-session <<'EOF'
-<self-contained second-opinion or review brief>
-EOF
-```
-
-Treat its response as advisory: compare it with your own analysis, resolve disagreements using primary evidence, and report meaningful differences rather than blindly adopting its conclusions.
-
 ## Image Generation
 
 When the user explicitly asks to generate, create, paint, edit, or transform an image, call `generate_image` autonomously. Ask a clarifying question only when required visual details or edit intent are missing. Preserve explicit user style/content constraints, especially for edits; the tool sends the prompt exactly as provided and saves generated artifacts globally.
