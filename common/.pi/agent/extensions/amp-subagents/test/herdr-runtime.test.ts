@@ -18,9 +18,22 @@ test("does not mistake an arbitrary Node entry script for the Pi CLI", () => {
   assert.deepEqual(getPiInvocation(["--version"]), { command: "pi", args: ["--version"] });
 });
 
-test("creates unique stable Herdr names", () => {
-  assert.deepEqual(makeHerdrNames("Search Agent", "agent-deadbeef"), { agentName: "pi-search-agent-deadbeef", tabLabel: "search-agent:deadbeef" });
-  assert.notEqual(makeHerdrNames("search", "agent-00000001").agentName, makeHerdrNames("search", "agent-00000002").agentName);
+test("creates unique agent names and readable task-based tab labels", () => {
+  assert.deepEqual(makeHerdrNames("Search Agent", "Investigate why subagent panes steal focus", "agent-deadbeef"), {
+    agentName: "pi-search-agent-deadbeef",
+    tabLabel: "Running search-agent: subagent panes…",
+  });
+  assert.notEqual(
+    makeHerdrNames("search", "Inspect auth", "agent-00000001").agentName,
+    makeHerdrNames("search", "Inspect auth", "agent-00000002").agentName,
+  );
+  assert.equal(makeHerdrNames("librarian", "Research current upstream implementation details", "agent-deadbeef").tabLabel, "Researching: current upstream…");
+  assert.ok(makeHerdrNames("librarian", "Research current upstream implementation details", "agent-deadbeef").tabLabel.length <= 40);
+});
+
+test("does not expose focus to the model-facing Agent tool", () => {
+  const schema = createAgentTool().parameters as any;
+  assert.equal(schema.properties.action.enum.includes("focus"), false);
 });
 
 test("child Pi argv preserves model, trust, allowlist, and unconditional exclusions", () => {

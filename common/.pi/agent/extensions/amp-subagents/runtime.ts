@@ -14,12 +14,12 @@ import { jobStore } from "./job-store.ts";
 import type { AgentJobSnapshot, RuntimeJob } from "./job-types.ts";
 import { isTerminalStatus, snapshotJob } from "./job-types.ts";
 import {
-  cancelHerdrJob, cleanupHerdrJobs, closeHerdrJob, createJobSpec, focusHerdrJob,
+  cancelHerdrJob, cleanupHerdrJobs, closeHerdrJob, createJobSpec,
   launchHerdrJob, shouldUseHerdr, waitForHerdrJob,
 } from "./herdr-runtime.ts";
 import { HerdrClient } from "./herdr-client.ts";
 
-const AGENT_ACTIONS = ["run", "list", "result", "cancel", "focus", "close", "cleanup"] as const;
+const AGENT_ACTIONS = ["run", "list", "result", "cancel", "close", "cleanup"] as const;
 const AGENT_SCOPES = ["default", "builtin", "user", "project", "all"] as const;
 const JOB_HISTORY_LIMIT = 50;
 
@@ -28,7 +28,7 @@ const AgentToolSchema = Type.Object({
   agent: Type.Optional(Type.String({ description: "Agent name to run, for example agent, search, oracle, librarian, reviewer, or painter." })),
   task: Type.Optional(Type.String({ description: "Self-contained task for the child agent." })),
   background: Type.Optional(Type.Boolean({ description: "Run without blocking and return a job id. Defaults to true only for agents whose definition sets background: true." })),
-  jobId: Type.Optional(Type.String({ description: "Job id for result/cancel/focus/close actions." })),
+  jobId: Type.Optional(Type.String({ description: "Job id for result/cancel/close actions." })),
   agentScope: Type.Optional(StringEnum([...AGENT_SCOPES], { description: "Agent definition scopes to search. default = built-in/package plus user agents. project/all require explicit opt-in and confirmation.", default: "default" })),
   includeHidden: Type.Optional(Type.Boolean({ description: "Include hidden agents in list output. Default false." })),
   confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Prompt before running project-local agents. Default true when UI is available." })),
@@ -209,12 +209,11 @@ export function createAgentTool() {
         return { content: [textContent(`Cleaned Herdr subagents: closed ${cleaned.closed.length}, removed ${cleaned.removed.length}.`)], details: { action, jobs: [] } };
       }
 
-      if (["result", "cancel", "focus", "close"].includes(action)) {
+      if (["result", "cancel", "close"].includes(action)) {
         if (!params.jobId) return { content: [textContent(`jobId is required for action=${action}.`)], details: { action, jobs: [] } };
         let snapshot: AgentJobSnapshot | undefined;
         if (action === "result") { await reconcileHerdrJobs(params.jobId); snapshot = getJobSnapshots().find((job) => job.id === params.jobId); }
         if (action === "cancel") snapshot = await cancelJob(params.jobId);
-        if (action === "focus") snapshot = await focusHerdrJob(params.jobId);
         if (action === "close") snapshot = await closeHerdrJob(params.jobId);
         updateStatus();
         if (!snapshot) return { content: [textContent(`No compatible subagent job found: ${params.jobId}`)], details: { action, jobs: [] } };

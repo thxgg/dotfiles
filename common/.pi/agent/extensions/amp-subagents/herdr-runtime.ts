@@ -24,14 +24,43 @@ export function shouldUseHerdr(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.HERDR_ENV === "1" && Boolean(env.HERDR_SOCKET_PATH) && Boolean(env.HERDR_WORKSPACE_ID);
 }
 
-function slug(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "agent";
+function slug(value: string, maxLength = 32): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, maxLength).replace(/-+$/g, "") || "agent";
 }
 
-export function makeHerdrNames(agentName: string, jobId: string): { agentName: string; tabLabel: string } {
+function tabTaskLabel(task: string, maxLength: number): string {
+  const readable = task
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:please\s+)?(?:investigate|research|review|analyze|inspect|find|check|explore|look into)\s+/i, "")
+    .replace(/^why\s+/i, "");
+  if (readable.length <= maxLength) return readable || "task";
+  const clipped = readable.slice(0, maxLength - 1);
+  const wordBoundary = clipped.lastIndexOf(" ");
+  return `${clipped.slice(0, wordBoundary >= Math.floor(maxLength / 2) ? wordBoundary : undefined).trimEnd()}…`;
+}
+
+function activityLabel(agentName: string): string {
+  const labels: Record<string, string> = {
+    search: "Searching",
+    librarian: "Researching",
+    reviewer: "Reviewing",
+    "frontend-reviewer": "Reviewing UI",
+    oracle: "Analyzing",
+    painter: "Creating",
+    check: "Checking",
+    agent: "Working",
+  };
+  const name = slug(agentName);
+  return labels[name] ?? `Running ${name}`;
+}
+
+export function makeHerdrNames(agentName: string, task: string, jobId: string): { agentName: string; tabLabel: string } {
   const suffix = jobId.replace(/^agent-/, "");
   const name = slug(agentName);
-  return { agentName: `pi-${name}-${suffix}`, tabLabel: `${name}:${suffix}` };
+  const prefix = `${activityLabel(agentName)}: `;
+  return { agentName: `pi-${name}-${suffix}`, tabLabel: `${prefix}${tabTaskLabel(task, 40 - prefix.length)}` };
 }
 
 export function getPiInvocation(args: string[]): { command: string; args: string[] } {
@@ -96,7 +125,7 @@ export async function launchHerdrJob(
   const workspaceId = process.env.HERDR_WORKSPACE_ID;
   if (!workspaceId) throw new Error("Herdr backend selected but HERDR_WORKSPACE_ID is unavailable.");
   const paths = store.paths(job.id);
-  const names = makeHerdrNames(agent.name, job.id);
+  const names = makeHerdrNames(agent.name, job.task, job.id);
   const invocation = getPiInvocation(buildChildPiArgs({ job, agent, trusted: ctx.isProjectTrusted(), promptPath: paths.prompt }));
   const argv = [invocation.command, ...invocation.args];
 
