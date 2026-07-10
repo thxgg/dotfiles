@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import { discoverAgents } from "../agents.ts";
+import { closeCompletedHerdrTab } from "../child-bridge.ts";
 import { buildChildPiArgs, getPiInvocation, makeHerdrNames, shouldUseHerdr } from "../herdr-runtime.ts";
 import { createAgentTool, formatJobSummary } from "../runtime.ts";
 import type { AgentJobSnapshot } from "../job-types.ts";
@@ -16,6 +17,30 @@ test("selects Herdr only with the managed environment and connection placement",
 
 test("does not mistake an arbitrary Node entry script for the Pi CLI", () => {
   assert.deepEqual(getPiInvocation(["--version"]), { command: "pi", args: ["--version"] });
+});
+
+test("completed Herdr children close their dedicated tab without blocking", () => {
+  const previous = { HERDR_ENV: process.env.HERDR_ENV, HERDR_SOCKET_PATH: process.env.HERDR_SOCKET_PATH, HERDR_BIN_PATH: process.env.HERDR_BIN_PATH };
+  const calls: Array<{ command: string; args: string[]; options: Record<string, unknown> }> = [];
+  let unrefCalled = false;
+  try {
+    process.env.HERDR_ENV = "1";
+    process.env.HERDR_SOCKET_PATH = "/tmp/herdr.sock";
+    process.env.HERDR_BIN_PATH = "/opt/herdr";
+    closeCompletedHerdrTab("w1:t2", ((command: string, args: string[], options: Record<string, unknown>) => {
+      calls.push({ command, args, options });
+      return { on: () => undefined, unref: () => { unrefCalled = true; } };
+    }) as any);
+    assert.equal(calls[0]?.command, "/opt/herdr");
+    assert.deepEqual(calls[0]?.args, ["tab", "close", "w1:t2"]);
+    assert.equal(calls[0]?.options.detached, true);
+    assert.equal(calls[0]?.options.stdio, "ignore");
+    assert.equal(unrefCalled, true);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });
 
 test("creates unique agent names and readable task-based tab labels", () => {
