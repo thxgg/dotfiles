@@ -10,9 +10,10 @@ SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
 CONFIG_ONLY_MODE=0
+VERBOSE=0
 
 typeset -a package_roots expected_paths config_children ssh_source_dirs config_source_dirs
-typeset -a requested_config_children invalid_config_children
+typeset -a requested_config_children invalid_config_children warn_messages fail_messages
 typeset -A expected_sources config_child_sources
 
 typeset -i ok_count=0
@@ -27,6 +28,7 @@ Usage: ./doctor.sh [options]
 Options:
   --only-config <csv>  Check only selected ~/.config children (e.g. nvim,ghostty)
   --list-config        List available ~/.config components and exit
+  -v, --verbose        Print every successful check
   --help               Show this help
 EOF
 }
@@ -44,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --list-config)
             LIST_CONFIG_ONLY=1
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=1
             shift
             ;;
         --help)
@@ -74,22 +80,36 @@ print_status() {
     case "$level" in
         OK)
             ok_count+=1
-            printf '[OK] %s\n' "$message"
+            if [[ $VERBOSE -eq 1 ]]; then
+                printf '[OK] %s\n' "$message"
+            fi
             ;;
         WARN)
             warn_count+=1
-            printf '[WARN] %s\n' "$message"
+            warn_messages+=("$message")
             ;;
         FAIL)
             fail_count+=1
-            printf '[FAIL] %s\n' "$message"
+            fail_messages+=("$message")
             ;;
     esac
 }
 
+print_summary() {
+    local message
+
+    printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+    for message in "${warn_messages[@]}"; do
+        printf '[WARN] %s\n' "$message"
+    done
+    for message in "${fail_messages[@]}"; do
+        printf '[FAIL] %s\n' "$message"
+    done
+}
+
 if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
     print_status FAIL "Stow roots helper not found: $STOW_ROOTS_HELPER"
-    printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+    print_summary
     exit 1
 fi
 
@@ -192,7 +212,7 @@ filter_config_children() {
 
     if [[ ${#requested_config_children[@]} -eq 0 ]]; then
         print_status FAIL "--only-config requires at least one component name"
-        printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+        print_summary
         exit 1
     fi
 
@@ -208,7 +228,7 @@ filter_config_children() {
     if [[ ${#invalid_config_children[@]} -gt 0 ]]; then
         print_status FAIL "Unknown ~/.config component(s): ${invalid_config_children[*]}"
         print_available_config_children
-        printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+        print_summary
         exit 1
     fi
 
@@ -539,7 +559,7 @@ else
     fi
 fi
 
-printf '\nSummary: %d OK, %d WARN, %d FAIL\n' "$ok_count" "$warn_count" "$fail_count"
+print_summary
 
 if [[ $fail_count -gt 0 ]]; then
     exit 1
