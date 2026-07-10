@@ -57,3 +57,6 @@ common/.config/opencode/.git/
 
 # MCP artifacts
 .playwright-mcp/
+
+# Private local documentation
+docs/private/
