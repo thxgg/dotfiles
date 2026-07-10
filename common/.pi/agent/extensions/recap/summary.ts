@@ -9,6 +9,7 @@ import {
 import type { RecapConfig } from "./config.ts";
 
 const OMITTED = "\n\n[Earlier transcript omitted.]\n\n";
+const RECENT_MESSAGE_WINDOW = 30;
 
 export function truncateTranscript(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text.trim();
@@ -21,23 +22,45 @@ function serializeEntries(entries: SessionEntry[]): string {
   return serializeConversation(convertToLlm(messages));
 }
 
-export function buildBoundedTranscript(ctx: ExtensionContext, maxChars: number): string {
-  const entries = ctx.sessionManager.buildContextEntries();
+export function selectRecapEntries(entries: SessionEntry[]): SessionEntry[] {
+  if (entries.length === 0) return [];
+
+  const recentMessages = entries
+    .filter((entry) => entry.type === "message" || entry.type === "custom_message")
+    .slice(-RECENT_MESSAGE_WINDOW);
+  const memory = entries.findLast((entry) => entry.type === "compaction" || entry.type === "branch_summary");
+  if (!memory) return recentMessages;
+  const selectedIds = new Set([memory.id, ...recentMessages.map((entry) => entry.id)]);
+  return entries.filter((entry) => selectedIds.has(entry.id));
+}
+
+export function serializeRecapEntries(entries: SessionEntry[], maxChars: number): string {
   if (entries.length === 0) return "";
 
-  // Serialize only a bounded suffix. This avoids materializing a huge session merely
-  // to discard most of it, while retaining compaction/branch summaries near the head.
-  const selected: SessionEntry[] = [];
-  let estimate = 0;
-  for (let index = entries.length - 1; index >= 0 && estimate < maxChars * 1.25; index -= 1) {
-    const entry = entries[index];
-    selected.unshift(entry);
-    estimate += JSON.stringify(entry).length;
+  const memory = entries.find((entry) => entry.type === "compaction" || entry.type === "branch_summary");
+  const messages = entries.filter((entry) => entry !== memory);
+  const headersLength = (memory ? "[Session memory]\n".length : 0)
+    + (messages.length > 0 ? "[Recent conversation]\n".length : 0)
+    + Math.max(0, messages.length - 1)
+    + (memory && messages.length > 0 ? 2 : 0);
+  const payloadBudget = Math.max(0, maxChars - headersLength);
+  const memoryBudget = memory ? Math.min(Math.floor(payloadBudget * 0.25), 5_000) : 0;
+  const messageBudget = messages.length > 0
+    ? Math.floor((payloadBudget - memoryBudget) / messages.length)
+    : 0;
+  const sections: string[] = [];
+
+  if (memory) sections.push(`[Session memory]\n${truncateTranscript(serializeEntries([memory]), memoryBudget)}`);
+  if (messages.length > 0) {
+    sections.push(`[Recent conversation]\n${messages
+      .map((entry) => truncateTranscript(serializeEntries([entry]), messageBudget))
+      .join("\n")}`);
   }
-  if (selected[0] !== entries[0] && (entries[0]?.type === "compaction" || entries[0]?.type === "branch_summary")) {
-    selected.unshift(entries[0]);
-  }
-  return truncateTranscript(serializeEntries(selected), maxChars);
+  return sections.join("\n\n");
+}
+
+export function buildBoundedTranscript(ctx: ExtensionContext, maxChars: number): string {
+  return serializeRecapEntries(selectRecapEntries(ctx.sessionManager.getBranch()), maxChars);
 }
 
 export function normalizeSummary(text: string, maxChars: number): string {
@@ -84,9 +107,10 @@ export async function generateSummary(
   };
   const response = await completeSimple(model, {
     systemPrompt: [
-      `Write one line of at most ${config.maxChars} characters.`,
-      "State the goal, progress, blocker, and next action when known.",
-      "No markdown, preamble, or conversational response.",
+      `Write one recap line of at most ${config.maxChars} characters.`,
+      "State exactly two things: the high-level task, then the concrete next action.",
+      "Do not inventory implementation details or write a status report or commit recap.",
+      "No markdown, blank lines, preamble, or conversational response.",
     ].join("\n"),
     messages: [message],
   }, {
@@ -94,7 +118,6 @@ export async function generateSummary(
     headers: auth.headers,
     env: auth.env,
     signal,
-    reasoning: "minimal",
     maxTokens: Math.max(64, Math.ceil(config.maxChars / 2)),
     cacheRetention: "short",
   });

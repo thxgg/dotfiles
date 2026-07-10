@@ -51,30 +51,19 @@ function replay(entries: SessionEntry[]): RecapState {
   return state;
 }
 
-function branchKey(ctx: ExtensionContext): string {
-  const entries = ctx.sessionManager.buildContextEntries().filter((entry) =>
-    entry.type === "message"
-    || entry.type === "custom_message"
-    || entry.type === "compaction"
-    || entry.type === "branch_summary"
-  );
-  return `${ctx.sessionManager.getSessionId()}:${entries.at(-1)?.id ?? "root"}:${entries.length}`;
-}
-
-function userTurnCount(ctx: ExtensionContext): number {
+export function latestUserTurn(entries: SessionEntry[]): { key?: string; count: number } {
+  let key: string | undefined;
   let count = 0;
-  for (const entry of ctx.sessionManager.getBranch()) {
-    if (entry.type === "message" && entry.message.role === "user") count += 1;
+  for (const entry of entries) {
+    if (entry.type !== "message" || entry.message.role !== "user") continue;
+    key = entry.id;
+    count += 1;
   }
-  return count;
+  return { key, count };
 }
 
-function editorBlank(ctx: ExtensionContext): boolean {
-  try {
-    return !ctx.ui.getEditorText().trim();
-  } catch {
-    return true;
-  }
+function currentUserTurn(ctx: ExtensionContext): { key?: string; count: number } {
+  return latestUserTurn(ctx.sessionManager.getBranch());
 }
 
 function isAbort(error: unknown): boolean {
@@ -93,13 +82,22 @@ export default function recapExtension(pi: ExtensionAPI): void {
   let focusMonitor: FocusMonitor | undefined;
   let unsubscribeInput: (() => void) | undefined;
   let terminalReporting = false;
+  let blurredAt: number | undefined;
   let sequence = 0;
 
-  const cancel = () => {
+  const clearTimer = () => {
     if (timer) clearTimeout(timer);
     timer = undefined;
+  };
+
+  const abortGeneration = () => {
     generation?.abort();
     generation = undefined;
+  };
+
+  const cancel = () => {
+    clearTimer();
+    abortGeneration();
   };
 
   const append = (data: Omit<RecapData, "version" | "updatedAt">) => {
@@ -114,9 +112,8 @@ export default function recapExtension(pi: ExtensionAPI): void {
   const run = async (ctx: ExtensionContext, source: "auto" | "manual", force = false) => {
     if (!active || !config?.enabled || ctx.mode !== "tui") return;
     if (source === "auto" && (focused || !settled || !ctx.isIdle())) return;
-    const key = branchKey(ctx);
-    if (!force && (state.key === key || userTurnCount(ctx) < config.minTurns)) return;
-    if (!editorBlank(ctx)) return;
+    const turn = currentUserTurn(ctx);
+    if (!turn.key || (!force && (state.key === turn.key || turn.count < config.minTurns))) return;
 
     cancel();
     const controller = new AbortController();
@@ -127,10 +124,9 @@ export default function recapExtension(pi: ExtensionAPI): void {
     try {
       const text = await generateSummary(ctx, config, controller.signal);
       if (!active || runId !== sequence || controller.signal.aborted) return;
-      if (source === "auto" && focused) return;
-      if (branchKey(ctx) !== key || !editorBlank(ctx)) return;
-      state = { text, key };
-      append({ action: "set", text, key, source });
+      if (currentUserTurn(ctx).key !== turn.key) return;
+      state = { text, key: turn.key };
+      append({ action: "set", text, key: turn.key, source });
       showWidget(ctx, text);
     } catch (error) {
       if (!isAbort(error) && source === "manual") {
@@ -144,20 +140,29 @@ export default function recapExtension(pi: ExtensionAPI): void {
 
   const schedule = (ctx: ExtensionContext) => {
     if (!active || focused || !settled || !config?.enabled || !config.auto) return;
-    if (state.key === branchKey(ctx) || userTurnCount(ctx) < config.minTurns) return;
+    const turn = currentUserTurn(ctx);
+    if (!turn.key || state.key === turn.key || turn.count < config.minTurns) return;
     if (timer || generation) return;
+    const elapsed = blurredAt === undefined ? 0 : Date.now() - blurredAt;
     timer = setTimeout(() => {
       timer = undefined;
       void run(ctx, "auto");
-    }, config.debounceMs);
+    }, Math.max(0, config.debounceMs - elapsed));
     timer.unref?.();
   };
 
   const setFocused = (ctx: ExtensionContext, value: boolean) => {
     if (focused === value) return;
     focused = value;
-    if (focused) cancel();
-    else schedule(ctx);
+    if (focused) {
+      blurredAt = undefined;
+      clearTimer();
+      abortGeneration();
+      syncWidget(ctx);
+    } else {
+      blurredAt = Date.now();
+      schedule(ctx);
+    }
   };
 
   const installFocus = (ctx: ExtensionContext) => {
@@ -180,6 +185,7 @@ export default function recapExtension(pi: ExtensionAPI): void {
     active = ctx.mode === "tui";
     settled = ctx.isIdle();
     focused = true;
+    blurredAt = undefined;
     state = replay(ctx.sessionManager.getBranch());
     config = await loadConfig(ctx);
     syncWidget(ctx);
@@ -201,6 +207,12 @@ export default function recapExtension(pi: ExtensionAPI): void {
   pi.on("input", () => {
     settled = false;
     cancel();
+  });
+  pi.on("message_start", (event, ctx) => {
+    if (event.message.role !== "user" || (!state.text && !state.key)) return;
+    state = {};
+    append({ action: "clear" });
+    clearWidget(ctx);
   });
   pi.on("agent_start", () => {
     settled = false;

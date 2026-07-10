@@ -15,11 +15,11 @@ export type RecapConfig = {
 export const DEFAULT_CONFIG: RecapConfig = {
   enabled: true,
   auto: true,
-  debounceMs: 150,
+  debounceMs: 30_000,
   minTurns: 1,
-  maxChars: 180,
+  maxChars: 140,
   maxInputChars: 20_000,
-  model: "openai-codex/gpt-5.6-sol-fast",
+  model: "openai-codex/gpt-5.6-luna",
 };
 
 type JsonObject = Record<string, unknown>;
@@ -36,13 +36,13 @@ function numberSetting(value: unknown, fallback: number, min: number, max: numbe
     : fallback;
 }
 
-function applySettings(config: RecapConfig, value: unknown): RecapConfig {
+export function applySettings(config: RecapConfig, value: unknown): RecapConfig {
   const raw = record(value);
   if (!raw) return config;
   return {
     enabled: typeof raw.enabled === "boolean" ? raw.enabled : config.enabled,
     auto: typeof raw.auto === "boolean" ? raw.auto : config.auto,
-    debounceMs: numberSetting(raw.debounceMs ?? raw.inactivityMs, config.debounceMs, 0, 60_000),
+    debounceMs: numberSetting(raw.debounceMs ?? raw.inactivityMs, config.debounceMs, 30_000, 60_000),
     minTurns: numberSetting(raw.minTurns, config.minTurns, 0, 100),
     maxChars: numberSetting(raw.maxChars, config.maxChars, 40, 1_000),
     maxInputChars: numberSetting(raw.maxInputChars, config.maxInputChars, 4_000, 100_000),
