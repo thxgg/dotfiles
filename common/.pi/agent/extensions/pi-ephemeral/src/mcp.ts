@@ -41,7 +41,15 @@ export function cloneProjectMcp(value?: ProjectMcpJson): ProjectMcpJson {
 
 export async function writeProjectMcp(projectMcpPath: string, value: ProjectMcpJson): Promise<void> {
   await mkdir(dirname(projectMcpPath), { recursive: true });
-  await writeFile(projectMcpPath, ensureTrailingNewline(JSON.stringify(value, null, 2)), "utf8");
+  const settings = isJsonObject(value.settings) ? value.settings : {};
+  const piOnlyValue: ProjectMcpJson = {
+    ...value,
+    settings: {
+      ...settings,
+      loadSharedProjectConfig: false,
+    },
+  };
+  await writeFile(projectMcpPath, ensureTrailingNewline(JSON.stringify(piOnlyValue, null, 2)), "utf8");
 }
 
 function assertProjectMcpServers(value: unknown, projectMcpPath: string): asserts value is Record<string, ProjectMcpServerConfig> {

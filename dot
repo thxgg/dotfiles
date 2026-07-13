@@ -283,11 +283,6 @@ update_pi() {
 	info "Installing locked Pi extension dependencies"
 	(cd "$pi_workspace" && "$vp_bin" install --frozen-lockfile)
 
-	if ! pi list 2>/dev/null | grep -q 'pi-mcp-adapter'; then
-		info "Installing Pi MCP adapter package"
-		pi install npm:pi-mcp-adapter@2.11.0
-	fi
-
 	local -a pi_update_env
 	pi_update_env=(env CARGO_NET_GIT_FETCH_WITH_CLI=true)
 

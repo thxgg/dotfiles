@@ -449,14 +449,34 @@ detach_ignored_pi_runtime_links() {
 # they resolve to the correct source. Normalize those links before invoking
 # stow so a previous manual/safe-stow absolute link does not abort the run.
 remove_obsolete_managed_symlinks() {
-    local target_path="$TARGET_DIR/.pi/agent/mcp.json"
-    local expected_source="$STOW_DIR/common/.pi/agent/mcp.json"
+    local target_path expected_source
+    local -a obsolete_paths
+    obsolete_paths=(
+        ".pi/agent/mcp.json"
+        ".pi/agent/extensions/pi-mcp"
+    )
 
-    [[ -L "$target_path" && ! -e "$target_path" ]] || return 0
-    is_managed_target "$target_path" "${expected_source:A}" || return 0
+    for target_path in "${obsolete_paths[@]}"; do
+        expected_source="$STOW_DIR/common/$target_path"
+        target_path="$TARGET_DIR/$target_path"
 
-    rm -f "$target_path"
-    echo "Removed obsolete stow link: $target_path"
+        if [[ -L "$target_path" && ! -e "$target_path" ]]; then
+            is_managed_target "$target_path" "${expected_source:A}" || continue
+            rm -f "$target_path"
+            echo "Removed obsolete stow link: $target_path"
+            continue
+        fi
+
+        # Stow can leave a real directory containing only broken child links
+        # after the tracked source tree is deleted. Remove that shell only when
+        # it contains no regular files and every symlink is broken.
+        if [[ -d "$target_path" && ! -L "$target_path" && ! -e "$expected_source" ]]; then
+            [[ -z "$(find "$target_path" -type f -print -quit)" ]] || continue
+            [[ -z "$(find "$target_path" -type l -exec test -e {} \; -print -quit)" ]] || continue
+            rm -rf "$target_path"
+            echo "Removed obsolete stow link tree: $target_path"
+        fi
+    done
 }
 
 normalize_managed_stow_symlinks() {

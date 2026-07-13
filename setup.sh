@@ -91,28 +91,6 @@ install_pi_workspace_dependencies() {
 	success "Pi extension dependencies installed"
 }
 
-ensure_pi_packages() {
-	local pi_bin=""
-
-	if command -v pi >/dev/null 2>&1; then
-		pi_bin="$(command -v pi)"
-	elif [[ -x "${VP_HOME:-$HOME/.vite-plus}/bin/pi" ]]; then
-		pi_bin="${VP_HOME:-$HOME/.vite-plus}/bin/pi"
-	else
-		error "Pi is required to install Pi packages"
-		return 1
-	fi
-
-	if "$pi_bin" list 2>/dev/null | grep -q 'pi-mcp-adapter'; then
-		success "Pi MCP adapter package is installed"
-		return
-	fi
-
-	info "Installing Pi MCP adapter package"
-	"$pi_bin" install npm:pi-mcp-adapter@2.11.0
-	success "Pi MCP adapter package installed"
-}
-
 require_script() {
 	local script_path="$1"
 	if [[ ! -f "$script_path" ]]; then
@@ -207,7 +185,6 @@ install_pi_workspace_dependencies
 
 info "Applying stow links"
 zsh "$SCRIPT_DIR/safe-stow.sh"
-ensure_pi_packages
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	if [[ -x "$HOME/.local/bin/theme-mode" ]]; then

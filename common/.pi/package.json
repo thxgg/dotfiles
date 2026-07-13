@@ -7,9 +7,9 @@
     "agent/extensions/*"
   ],
   "scripts": {
-    "check": "npm run check --workspace=pi-artifact-cloud-extension && npm run typecheck --workspace=pi-recap-extension && npm run test --workspace=pi-recap-extension && npm run check --workspace=pi-painter-extension && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run test --workspace=pi-skill-toggle && npm run check --workspace=pi-web-tools-extension",
-    "test": "npm run test --workspace=pi-artifact-cloud-extension && npm run test --workspace=pi-recap-extension && npm run test --workspace=pi-painter-extension && npm run test --workspace=pi-skill-toggle && npm run test --workspace=pi-web-tools-extension",
-    "typecheck": "npm run typecheck --workspace=pi-artifact-cloud-extension && npm run typecheck --workspace=pi-recap-extension && npm run typecheck --workspace=pi-painter-extension && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run typecheck --workspace=pi-web-tools-extension"
+    "check": "npm run check --workspace=pi-artifact-cloud-extension && npm run typecheck --workspace=pi-recap-extension && npm run test --workspace=pi-recap-extension && npm run check --workspace=pi-painter-extension && npm run check --workspace=pi-mcp-adapter-local && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run test --workspace=pi-skill-toggle && npm run check --workspace=pi-web-tools-extension",
+    "test": "npm run test --workspace=pi-artifact-cloud-extension && npm run test --workspace=pi-recap-extension && npm run test --workspace=pi-painter-extension && npm run test --workspace=pi-mcp-adapter-local && npm run test --workspace=pi-skill-toggle && npm run test --workspace=pi-web-tools-extension",
+    "typecheck": "npm run typecheck --workspace=pi-artifact-cloud-extension && npm run typecheck --workspace=pi-recap-extension && npm run typecheck --workspace=pi-painter-extension && npm run typecheck --workspace=pi-mcp-adapter-local && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run typecheck --workspace=pi-web-tools-extension"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.80.5",
