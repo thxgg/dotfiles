@@ -3,7 +3,6 @@
   "private": true,
   "dependencies": {
     "@plannotator/pi-extension": "^0.23.0",
-    "pi-autoresearch": "^1.6.2",
-    "pi-mcp-adapter": "^2.11.0"
+    "pi-autoresearch": "^1.6.2"
   }
 }
