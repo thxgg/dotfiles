@@ -1,0 +1,5 @@
+set -gx ANDROID_HOME "$HOME/Android/Sdk"
+set -gx ANDROID_SDK_ROOT "$ANDROID_HOME"
+fish_add_path "$ANDROID_HOME/cmdline-tools/latest/bin"
+fish_add_path "$ANDROID_HOME/platform-tools"
+fish_add_path "$ANDROID_HOME/emulator"
