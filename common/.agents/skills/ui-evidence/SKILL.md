@@ -12,7 +12,7 @@ Use this skill when a task changes visible web UI and the final answer should in
 Capture the UI in a repeatable way:
 
 1. Identify the scenario: app, route, viewport, theme, auth/session, and interaction.
-2. Create a run folder under `.pi/artifacts/ui-evidence/`.
+2. Create a run folder under `.agents/artifacts/ui-evidence/`.
 3. Capture the **before** state before editing UI code.
 4. Make the requested change.
 5. Return to the same scenario with the same viewport/session/data.
@@ -20,14 +20,14 @@ Capture the UI in a repeatable way:
 7. For visual alignment/layout changes, prefer a cropped side-by-side before/after comparison image when feasible, while keeping individual before/after crops if they add context.
 8. Report artifact paths in the final response.
 
-If a project has `UI_EVIDENCE.md`, `.pi/ui-evidence.md`, or `.pi/ui-evidence.json`, read it before choosing routes or viewports.
+If a project has `UI_EVIDENCE.md`, `.agents/ui-evidence.md`, or `.agents/ui-evidence.json`, read it before choosing routes or viewports. For backward compatibility, also honor legacy `.pi/ui-evidence.md` and `.pi/ui-evidence.json` files when present.
 
 ## Artifact Folder
 
 Create a folder named:
 
 ```text
-.pi/artifacts/ui-evidence/YYYYMMDD-HHMMSS-<slug>/
+.agents/artifacts/ui-evidence/YYYYMMDD-HHMMSS-<slug>/
 ```
 
 Use a short slug for the scenario, for example `reservations-filter` or `dashboard-empty-state`.
@@ -56,9 +56,9 @@ See [agent-browser recording recipes](references/agent-browser-recording.md) for
 For static UI changes, capture screenshots:
 
 ```bash
-agent-browser screenshot .pi/artifacts/ui-evidence/<run>/before.png
+agent-browser screenshot ./.agents/artifacts/ui-evidence/<run>/before.png
 # make code changes and refresh/reopen same scenario
-agent-browser screenshot .pi/artifacts/ui-evidence/<run>/after.png
+agent-browser screenshot ./.agents/artifacts/ui-evidence/<run>/after.png
 ```
 
 Use `--full` only when the whole scrollable page matters. Use `--annotate` when element refs or layout explanation matters.
@@ -70,7 +70,7 @@ For small visual changes such as alignment, spacing, or icon/text positioning, p
 For interaction changes, record a short WebM:
 
 ```bash
-agent-browser record start .pi/artifacts/ui-evidence/<run>/flow.webm
+agent-browser record start .agents/artifacts/ui-evidence/<run>/flow.webm
 # perform the interaction using agent-browser refs
 agent-browser record stop
 ```

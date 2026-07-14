@@ -11,9 +11,11 @@ common/.config/herdr/release-notes.json
 common/.config/herdr/session.json
 common/.config/herdr/session-history.json
 common/.config/herdr/*.log
+common/.config/amp/*.amp-write-meta
 .claude/settings.local.json
 
-# Pi local/project state
+# Agent-generated local/project state
+.agents/artifacts/
 .pi/artifacts/
 .pi/ephemeral.json
 .pi/skills/
@@ -28,6 +30,8 @@ common/.pi/agent/*
 !common/.pi/agent/keybindings.json
 !common/.pi/agent/npm/
 !common/.pi/agent/npm/package.json
+!common/.pi/agent/skills/
+!common/.pi/agent/skills/**
 !common/.pi/agent/themes/
 !common/.pi/agent/themes/*.json
 

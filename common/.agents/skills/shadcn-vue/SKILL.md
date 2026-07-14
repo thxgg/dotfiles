@@ -1,7 +1,6 @@
 ---
 name: shadcn-vue
 description: Manages shadcn-vue components and Vue/Nuxt projects — adding, searching, fixing, debugging, styling, composing UI, authoring registries, and using provided utilities. Load for shadcn-vue, Reka UI wrappers, Vue component registries, presets, or Vue/Nuxt projects with components.json.
-user-invocable: false
 allowed-tools: Bash(npx shadcn-vue@latest *), Bash(pnpm dlx shadcn-vue@latest *), Bash(bunx --bun shadcn-vue@latest *)
 ---
 

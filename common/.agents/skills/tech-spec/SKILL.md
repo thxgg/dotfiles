@@ -12,6 +12,8 @@ Treat `../coding-standards/SKILL.md` as the standards source of truth and `../td
 
 This skill is design-only. Do not implement. Save a file only when the user asks for a file; otherwise return the spec inline.
 
+When independent exploration would improve the design, use the current harness's native sub-agent facility. Give each sub-agent a self-contained evidence axis and ask for findings only; do not assume Pi-specific tool names, agent names, or session behavior. If sub-agents are unavailable, perform the explorations sequentially with separate context.
+
 ## Branch selection
 
 1. Use **Path A: Convert context to spec** when the conversation, docs, or codebase already contain enough background to describe the change.
@@ -178,8 +180,8 @@ Completion criterion: the output follows the outline below and is implementation
    - State that there is not enough context for an implementation-ready tech spec.
    - Completion criterion: the agent has not invented requirements, APIs, files, or call stacks.
 2. Start a grilling interview.
-   - Use `../grill-with-docs/` when the user wants docs, ADRs, glossary/domain language, or durable design artifacts created during discovery.
-   - Otherwise use `../grill-me/`.
+   - Load `../grill-with-docs/SKILL.md` when the user wants docs, ADRs, glossary/domain language, or durable design artifacts created during discovery.
+   - Otherwise load `../grill-me/SKILL.md`.
    - Ask one question at a time and provide the recommended answer with each question.
    - If a question can be answered by exploring the codebase, inspect the codebase instead of asking.
    - Completion criterion: the interview has enough context for Path A: problem, users/callers, constraints, affected systems, desired behavior, boundaries, likely APIs, invariants, risks, and acceptance tests.
