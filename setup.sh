@@ -48,10 +48,10 @@ check_network() {
 ensure_pi_runtime() {
 	local vp_bin=""
 	local pi_fallback="${VP_HOME:-$HOME/.vite-plus}/bin/pi"
+	local pi_installed=0
 
 	if command -v pi >/dev/null 2>&1 || [[ -x "$pi_fallback" ]]; then
-		success "Pi is installed"
-		return
+		pi_installed=1
 	fi
 
 	if command -v vp >/dev/null 2>&1; then
@@ -63,9 +63,13 @@ ensure_pi_runtime() {
 		return 1
 	fi
 
-	info "Installing Pi with Vite+"
+	if [[ $pi_installed -eq 1 ]]; then
+		info "Upgrading Pi with Vite+"
+	else
+		info "Installing Pi with Vite+"
+	fi
 	"$vp_bin" install -g @earendil-works/pi-coding-agent
-	success "Pi installed"
+	success "Pi installed and up to date"
 }
 
 install_pi_workspace_dependencies() {
