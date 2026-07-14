@@ -4,10 +4,10 @@
       "url": "https://mcp.linear.app/mcp",
       "idleTimeout": 10
     },
-    "betterstack": {
+    "logs": {
       "url": "https://mcp.betterstack.com"
     },
-    "db_staging": {
+    "database-staging": {
       "command": "docker",
       "args": [
         "run",
@@ -24,7 +24,7 @@
       },
       "idleTimeout": 2
     },
-    "db_prod": {
+    "database-production": {
       "command": "docker",
       "args": [
         "run",
@@ -41,26 +41,8 @@
       },
       "idleTimeout": 2
     },
-    "stripe-business": {
+    "stripe-business-staging": {
       "url": "https://mcp.stripe.com"
-    },
-    "sonarqube": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "SONARQUBE_TOKEN",
-        "-e",
-        "SONARQUBE_URL",
-        "mcp/sonarqube"
-      ],
-      "env": {
-        "SONARQUBE_TOKEN": "${SONARQUBE_TOKEN}",
-        "SONARQUBE_URL": "https://sonarcloud.io"
-      },
-      "idleTimeout": 2
     },
     "heroku": {
       "command": "heroku",
@@ -69,7 +51,7 @@
       ],
       "idleTimeout": 3
     },
-    "hubspot_staging": {
+    "hubspot-staging": {
       "command": "npx",
       "args": [
         "-y",
@@ -80,7 +62,7 @@
       },
       "idleTimeout": 3
     },
-    "hubspot_prod": {
+    "hubspot-production": {
       "command": "npx",
       "args": [
         "-y",
@@ -91,7 +73,7 @@
       },
       "idleTimeout": 3
     },
-    "aws-mcp": {
+    "aws": {
       "command": "uvx",
       "args": [
         "mcp-proxy-for-aws@latest",
@@ -103,13 +85,13 @@
       ],
       "idleTimeout": 3
     },
-    "stripe-business-prod": {
+    "stripe-business-production": {
       "url": "https://mcp.stripe.com"
     },
-    "stripe-memberships": {
+    "stripe-memberships-staging": {
       "url": "https://mcp.stripe.com"
     },
-    "stripe-memberships-prod": {
+    "stripe-memberships-production": {
       "url": "https://mcp.stripe.com"
     }
   }

@@ -107,14 +107,14 @@ enabled = true
 
 # HubSpot CRM MCP. Add HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING and
 # HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD to ~/.env.secrets.
-[mcp_servers.hubspot_staging]
+[mcp_servers.hubspot-staging]
 command = "sh"
 args = ["-lc", 'PRIVATE_APP_ACCESS_TOKEN="$HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING" exec npx -y @hubspot/mcp-server']
 env_vars = ["HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_STAGING"]
 default_tools_approval_mode = "prompt"
 enabled = true
 
-[mcp_servers.hubspot_prod]
+[mcp_servers.hubspot-production]
 command = "sh"
 args = ["-lc", 'PRIVATE_APP_ACCESS_TOKEN="$HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD" exec npx -y @hubspot/mcp-server']
 env_vars = ["HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD"]
@@ -134,23 +134,14 @@ args = ["-y", "@shortcut/mcp@latest"]
 env_vars = ["SHORTCUT_API_TOKEN"]
 enabled = false
 
-[mcp_servers.sonarqube]
-command = "docker"
-args = ["run", "-i", "--rm", "-e", "SONARQUBE_TOKEN", "-e", "SONARQUBE_URL", "mcp/sonarqube"]
-env_vars = ["SONARQUBE_TOKEN"]
-enabled = false
-
-[mcp_servers.sonarqube.env]
-SONARQUBE_URL = "https://sonar.codehospitality.app"
-
-[mcp_servers.db_staging]
+[mcp_servers.database-staging]
 command = "sh"
 args = ["-lc", 'DATABASE_URI="$DATABASE_URI_STAGING" exec docker run -i --rm --network=host -e DATABASE_URI crystaldba/postgres-mcp --access-mode=unrestricted']
 env_vars = ["DATABASE_URI_STAGING"]
 default_tools_approval_mode = "prompt"
 enabled = false
 
-[mcp_servers.db_prod]
+[mcp_servers.database-production]
 command = "sh"
 args = ["-lc", 'DATABASE_URI="$DATABASE_URI_PROD" exec docker run -i --rm --network=host -e DATABASE_URI crystaldba/postgres-mcp --access-mode=unrestricted']
 env_vars = ["DATABASE_URI_PROD"]
@@ -166,24 +157,24 @@ enabled = false
 url = "https://mcp.linear.app/mcp"
 enabled = true
 
-[mcp_servers.aws-mcp]
+[mcp_servers.aws]
 command = "uvx"
 args = ["mcp-proxy-for-aws@latest", "https://aws-mcp.us-east-1.api.aws/mcp", "--profile", "code", "--metadata", "AWS_REGION=eu-west-2"]
 enabled = false
 
-[mcp_servers.stripe-business]
+[mcp_servers.stripe-business-staging]
 url = "https://mcp.stripe.com"
 enabled = false
 
-[mcp_servers.stripe-business-prod]
+[mcp_servers.stripe-business-production]
 url = "https://mcp.stripe.com"
 enabled = false
 
-[mcp_servers.stripe-memberships]
+[mcp_servers.stripe-memberships-staging]
 url = "https://mcp.stripe.com"
 enabled = false
 
-[mcp_servers.stripe-memberships-prod]
+[mcp_servers.stripe-memberships-production]
 url = "https://mcp.stripe.com"
 enabled = false
 

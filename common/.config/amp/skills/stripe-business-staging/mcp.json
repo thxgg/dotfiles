@@ -1,0 +1,5 @@
+{
+  "stripe-business-staging": {
+    "url": "https://mcp.stripe.com"
+  }
+}
