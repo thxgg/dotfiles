@@ -120,6 +120,16 @@ ensure_open_computer_use() {
 	npm install --global open-computer-use
 }
 
+ensure_amp() {
+	if ! command -v curl >/dev/null 2>&1; then
+		warn "curl not found; skipping Amp installation"
+		return
+	fi
+
+	info "Installing or updating Amp with the official binary installer"
+	curl -fsSL https://ampcode.com/install.sh | bash
+}
+
 replace_package_if_needed() {
 	local old_name="$1"
 	local new_name="$2"
@@ -475,6 +485,8 @@ if [[ $DRY_RUN -eq 1 ]]; then
 	printf 'yay -S --needed --noconfirm'
 	printf ' %q' "${unique_packages[@]}"
 	printf '\n'
+	info "Dry run post-install command:"
+	printf 'curl -fsSL https://ampcode.com/install.sh | bash\n'
 	success "Dry run complete"
 	exit 0
 fi
@@ -538,6 +550,7 @@ configure_fish_shell
 
 ensure_vite_plus_node
 ensure_open_computer_use
+ensure_amp
 
 if command -v pipx &>/dev/null; then
 	info "Ensuring pipx path setup"

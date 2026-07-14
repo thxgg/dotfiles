@@ -1,6 +1,8 @@
+tap "ampcode/tap"
 tap "dmmulroy/tap"
 
 # Formulae
+brew "ampcode"
 brew "awscli"
 brew "btop"
 brew "diff-so-fancy"
