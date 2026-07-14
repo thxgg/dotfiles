@@ -41,7 +41,7 @@ function truncate(value: string, max = RESULT_LIMIT): string {
   return `${output}\n\n[Result truncated; use Agent action=result jobId=${"JOB_ID"} for the full structured result.]`;
 }
 
-export function notificationContent(job: AgentJobSnapshot, notification: AgentNotification): string {
+export function notificationContent(job: AgentJobSnapshot, notification: AgentNotification, activeSessionJobs?: number): string {
   if (notification.kind === "permission") {
     const requestId = notification.id.replace(/^permission-/, "");
     const request = job.permissionRequests?.find((item) => item.id === requestId);
@@ -59,12 +59,18 @@ export function notificationContent(job: AgentJobSnapshot, notification: AgentNo
   const worktree = job.worktree
     ? `\nIsolated changes: ${job.worktree.path}${job.worktree.appliedAt ? " (applied)" : ""}. Use Agent action=apply, retain, or discard with jobId=${job.id}.`
     : "";
+  const synthesis = activeSessionJobs === 0
+    ? "No background subagents remain active for this session. Deliver the complete updated final response now. Integrate all relevant findings and reproduce the full self-contained deliverable; do not merely acknowledge this result or refer to an earlier report."
+    : activeSessionJobs === undefined
+      ? ""
+      : `${activeSessionJobs} background subagent(s) remain active for this session. Integrate this result, but wait to deliver the complete final response until all subagents relevant to the user's request are terminal.`;
   return [
     `Background agent ${job.agent} (${job.id}) ${status}.`,
     summary,
     usage ? `Usage: ${usage.turns} turns, ${usage.input + usage.cacheRead} input tokens, ${usage.output} output tokens, $${usage.cost.toFixed(4)}.` : "",
     worktree,
     `Full result: Agent action=result jobId=${job.id}.`,
+    synthesis,
   ].filter(Boolean).join("\n\n");
 }
 
@@ -118,7 +124,10 @@ export function startNotificationPump(pi: ExtensionAPI, ctx: ExtensionContext, s
         const notification = claimed?.notifications?.find((item) => item.id === candidate.notification.id);
         if (!claimed || notification?.state !== "delivering" || notification.leaseOwner !== owner) continue;
         try {
-          const content = notificationContent(claimed, notification);
+          const activeSessionJobs = notification.kind === "completion"
+            ? store.list().filter((job) => belongsToSession(job, sessionId) && ["queued", "running", "waiting"].includes(job.status)).length
+            : undefined;
+          const content = notificationContent(claimed, notification, activeSessionJobs);
           if (!content) {
             store.completeNotification(claimed.id, notification.id, owner);
             continue;

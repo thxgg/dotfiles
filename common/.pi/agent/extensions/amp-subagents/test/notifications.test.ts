@@ -20,6 +20,33 @@ test("completion notification is typed, bounded, and references full results", (
   assert.match(content, /Agent action=result jobId=agent-deadbeef/);
 });
 
+test("final completion requires a complete self-contained parent response", () => {
+  const job: AgentJobSnapshot = {
+    id: "agent-deadbeef", agent: "reviewer", source: "builtin", task: "review", cwd: "/tmp",
+    status: "completed", background: true, backend: "herdr", startedAt: new Date().toISOString(),
+    owner: { sessionId: "session-1" },
+    result: { summary: "One important finding.", filesRead: [], filesChanged: [], validation: [], artifacts: [], toolCalls: [] },
+  };
+  const content = notificationContent(job, completionNotification(job), 0);
+  assert.match(content, /No background subagents remain active/);
+  assert.match(content, /complete updated final response now/);
+  assert.match(content, /reproduce the full self-contained deliverable/);
+  assert.match(content, /do not merely acknowledge/);
+});
+
+test("non-final completion reports remaining active subagents", () => {
+  const job: AgentJobSnapshot = {
+    id: "agent-deadbeef", agent: "reviewer", source: "builtin", task: "review", cwd: "/tmp",
+    status: "completed", background: true, backend: "herdr", startedAt: new Date().toISOString(),
+    owner: { sessionId: "session-1" },
+    result: { summary: "One important finding.", filesRead: [], filesChanged: [], validation: [], artifacts: [], toolCalls: [] },
+  };
+  const content = notificationContent(job, completionNotification(job), 2);
+  assert.match(content, /2 background subagent\(s\) remain active/);
+  assert.match(content, /wait to deliver the complete final response/);
+  assert.doesNotMatch(content, /complete updated final response now/);
+});
+
 test("obsolete permission notifications do not masquerade as completion failures", () => {
   const job: AgentJobSnapshot = {
     id: "agent-deadbeef", agent: "agent", source: "builtin", task: "edit", cwd: "/tmp",
