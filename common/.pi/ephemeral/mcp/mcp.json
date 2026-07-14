@@ -4,6 +4,9 @@
       "url": "https://mcp.linear.app/mcp",
       "idleTimeout": 10
     },
+    "betterstack": {
+      "url": "https://mcp.betterstack.com"
+    },
     "db_staging": {
       "command": "docker",
       "args": [
