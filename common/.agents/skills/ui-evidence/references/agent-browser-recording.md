@@ -5,7 +5,7 @@ Use these recipes from the repository root of the app under test so artifact pat
 ## Start a Scenario
 
 ```bash
-RUN_DIR=".pi/artifacts/ui-evidence/$(date +%Y%m%d-%H%M%S)-<slug>"
+RUN_DIR="./.agents/artifacts/ui-evidence/$(date +%Y%m%d-%H%M%S)-<slug>"
 mkdir -p "$RUN_DIR"
 
 agent-browser open "http://localhost:3000/<route>"
@@ -41,8 +41,8 @@ agent-browser screenshot "$RUN_DIR/after.png"
 Useful variants:
 
 ```bash
-agent-browser screenshot "$RUN_DIR/before-full.png" --full
-agent-browser screenshot "$RUN_DIR/after-annotated.png" --annotate
+agent-browser screenshot --full "$RUN_DIR/before-full.png"
+agent-browser screenshot --annotate "$RUN_DIR/after-annotated.png"
 ```
 
 ## Interaction Recording

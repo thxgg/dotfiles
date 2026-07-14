@@ -7,7 +7,7 @@ Keep evidence artifacts inside the app repository, not in the dotfiles repo, unl
 Use one folder per evidence run:
 
 ```text
-.pi/artifacts/ui-evidence/
+.agents/artifacts/ui-evidence/
 └── YYYYMMDD-HHMMSS-<slug>/
     ├── before.png
     ├── after.png
@@ -19,8 +19,8 @@ Use one folder per evidence run:
 Examples:
 
 ```text
-.pi/artifacts/ui-evidence/20260604-153012-dashboard-empty-state/
-.pi/artifacts/ui-evidence/20260604-154905-reservations-filter/
+.agents/artifacts/ui-evidence/20260604-153012-dashboard-empty-state/
+.agents/artifacts/ui-evidence/20260604-154905-reservations-filter/
 ```
 
 ## Naming
@@ -73,6 +73,6 @@ Caveats:
 
 ## Git Policy
 
-Treat `.pi/artifacts/ui-evidence/` as generated output. Do not commit it unless the user explicitly asks or the project expects visual artifacts in version control.
+Treat `.agents/artifacts/ui-evidence/` as generated output. Do not commit it unless the user explicitly asks or the project expects visual artifacts in version control.
 
 Final answers should still list the local artifact paths so the user can inspect them.
