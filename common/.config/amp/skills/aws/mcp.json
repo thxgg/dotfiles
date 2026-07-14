@@ -1,0 +1,13 @@
+{
+  "aws": {
+    "command": "uvx",
+    "args": [
+      "mcp-proxy-for-aws@latest",
+      "https://aws-mcp.us-east-1.api.aws/mcp",
+      "--profile",
+      "code",
+      "--metadata",
+      "AWS_REGION=eu-west-2"
+    ]
+  }
+}

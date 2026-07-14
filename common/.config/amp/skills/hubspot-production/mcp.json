@@ -1,0 +1,12 @@
+{
+  "hubspot-production": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@hubspot/mcp-server"
+    ],
+    "env": {
+      "PRIVATE_APP_ACCESS_TOKEN": "${HUBSPOT_PRIVATE_APP_ACCESS_TOKEN_PROD}"
+    }
+  }
+}

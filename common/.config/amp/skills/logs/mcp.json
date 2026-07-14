@@ -1,0 +1,23 @@
+{
+  "logs": {
+    "url": "https://mcp.betterstack.com",
+    "includeTools": [
+      "query",
+      "query_help",
+      "explore_logs_query_help",
+      "errors",
+      "error",
+      "errors_query_help",
+      "sources",
+      "source",
+      "source_fields",
+      "applications",
+      "application",
+      "releases",
+      "teams",
+      "clusters",
+      "data_regions",
+      "documentation"
+    ]
+  }
+}

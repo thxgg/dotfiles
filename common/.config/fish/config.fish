@@ -50,6 +50,7 @@ set -q FVM_CACHE_PATH; or set -gx FVM_CACHE_PATH "$HOME/.local/share/fvm"
 set -gx PNPM_HOME "$HOME/.local/share/pnpm"
 set -gx BUN_INSTALL "$HOME/.bun"
 set -gx RIPGREP_CONFIG_PATH "$HOME/.ripgreprc"
+set -gx PLUGINS all
 
 __dotfiles_prepend_path "$HOME/.local/bin"
 __dotfiles_prepend_path "$HOME/.local/share/sonarqube-cli/bin"

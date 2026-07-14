@@ -1,0 +1,8 @@
+{
+  "heroku": {
+    "command": "heroku",
+    "args": [
+      "mcp:start"
+    ]
+  }
+}
