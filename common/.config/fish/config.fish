@@ -52,6 +52,7 @@ set -gx BUN_INSTALL "$HOME/.bun"
 set -gx RIPGREP_CONFIG_PATH "$HOME/.ripgreprc"
 
 __dotfiles_prepend_path "$HOME/.local/bin"
+__dotfiles_prepend_path "$HOME/.local/share/sonarqube-cli/bin"
 __dotfiles_prepend_path "$GOBIN"
 
 if test -d "$HOME/.cargo/bin"
