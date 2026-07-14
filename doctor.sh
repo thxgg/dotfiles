@@ -436,6 +436,81 @@ check_pi_runtime_locality() {
     fi
 }
 
+check_amp_setup() {
+    local amp_bin=""
+    local amp_version=""
+    local amp_config="$TARGET_ROOT/.config/amp/settings.json"
+    local amp_skills="$TARGET_ROOT/.config/amp/skills"
+    local plugin_output=""
+    local skill_name
+    local -a expected_skills
+
+    expected_skills=(
+        aws
+        database-production
+        database-staging
+        heroku
+        hubspot-production
+        hubspot-staging
+        linear
+        logs
+        stripe-business-production
+        stripe-business-staging
+        stripe-memberships-production
+        stripe-memberships-staging
+    )
+
+    if command -v amp >/dev/null 2>&1; then
+        amp_bin="$(command -v amp)"
+    elif [[ -x "$TARGET_ROOT/.amp/bin/amp" ]]; then
+        amp_bin="$TARGET_ROOT/.amp/bin/amp"
+    fi
+
+    if [[ -z "$amp_bin" ]]; then
+        print_status FAIL "Amp is not installed"
+        return
+    fi
+
+    amp_version="$("$amp_bin" --version 2>/dev/null || true)"
+    if [[ -n "$amp_version" ]]; then
+        print_status OK "Amp is installed ($amp_version)"
+    else
+        print_status FAIL "Amp executable failed: $amp_bin"
+    fi
+
+    if [[ ! -f "$amp_config" ]]; then
+        print_status FAIL "Amp settings are missing: $amp_config"
+    elif ! command -v jq >/dev/null 2>&1; then
+        print_status WARN "jq is unavailable; could not validate Amp settings"
+    elif ! jq empty "$amp_config" >/dev/null 2>&1; then
+        print_status FAIL "Amp settings are invalid JSON: $amp_config"
+    elif jq -e 'has("amp.mcpServers")' "$amp_config" >/dev/null 2>&1; then
+        print_status FAIL "Amp MCP servers must be skill-bundled, not globally configured"
+    else
+        print_status OK "Amp settings are valid and have no global MCP servers"
+    fi
+
+    for skill_name in "${expected_skills[@]}"; do
+        if [[ -f "$amp_skills/$skill_name/SKILL.md" && -f "$amp_skills/$skill_name/mcp.json" ]]; then
+            print_status OK "Amp MCP skill is installed: $skill_name"
+        else
+            print_status FAIL "Amp MCP skill is incomplete: $skill_name"
+        fi
+    done
+
+    plugin_output="$(PLUGINS=all "$amp_bin" plugins list 2>&1 || true)"
+    if [[ "$plugin_output" == *"git-interceptor.ts active"* ]]; then
+        print_status OK "Amp git interceptor plugin is active"
+    else
+        print_status FAIL "Amp git interceptor plugin failed to load"
+    fi
+    if [[ "$plugin_output" == *"cloak.ts active"* ]]; then
+        print_status OK "Amp cloak plugin is active"
+    else
+        print_status FAIL "Amp cloak plugin failed to load"
+    fi
+}
+
 check_pi_workspace() {
     local pi_bin=""
     local vp_bin=""
@@ -552,6 +627,19 @@ else
     fi
     check_config_directory
     check_config_child_links
+
+    check_amp=0
+    if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
+        check_amp=1
+    else
+        for child in "${config_children[@]}"; do
+            [[ "$child" == "amp" ]] && check_amp=1
+        done
+    fi
+    if [[ $check_amp -eq 1 ]]; then
+        check_amp_setup
+    fi
+
     if [[ $CONFIG_ONLY_MODE -eq 0 ]]; then
         check_expected_paths
         check_dot_command_link
