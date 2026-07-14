@@ -12,9 +12,9 @@
     "typecheck": "npm run typecheck --workspace=pi-artifact-cloud-extension && npm run typecheck --workspace=pi-recap-extension && npm run typecheck --workspace=pi-painter-extension && npm run typecheck --workspace=pi-mcp-adapter-local && npm run typecheck --workspace=pi-extension-ephemeral && npm run typecheck --workspace=pi-skill-toggle && npm run typecheck --workspace=pi-web-tools-extension"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.80.5",
-    "@earendil-works/pi-coding-agent": "^0.80.5",
-    "@earendil-works/pi-tui": "^0.80.5",
+    "@earendil-works/pi-ai": "^0.80.7",
+    "@earendil-works/pi-coding-agent": "^0.80.7",
+    "@earendil-works/pi-tui": "^0.80.7",
     "typebox": "^1.1.38"
   }
 }
