@@ -445,7 +445,7 @@ run_update_step() {
 	local key="$1"
 	local label="$2"
 	local update_fn="$3"
-	local log_file status detail
+	local log_file exit_status detail
 
 	if [[ $UPDATE_VERBOSE -eq 1 ]]; then
 		"$update_fn"
@@ -454,8 +454,8 @@ run_update_step() {
 
 	log_file="$(mktemp "${TMPDIR:-/tmp}/dot-update-${key}.XXXXXX")"
 	"$update_fn" >"$log_file" 2>&1
-	status=$?
-	if [[ $status -eq 0 ]]; then
+	exit_status=$?
+	if [[ $exit_status -eq 0 ]]; then
 		if [[ "$key" == "repo" ]] && grep -q "Already up to date" "$log_file"; then
 			success "$label already up to date"
 		elif [[ "$key" == "packages" ]]; then
@@ -480,7 +480,7 @@ run_update_step() {
 	fi
 	warn "Re-run '${SCRIPT_NAME} update --verbose' for full output"
 	rm -f "$log_file"
-	return $status
+	return $exit_status
 }
 
 cmd_update() {
