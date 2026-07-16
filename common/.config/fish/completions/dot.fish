@@ -18,6 +18,7 @@ complete -c dot -n "__fish_use_subcommand" -a "help" -d "Show help"
 complete -c dot -l version -d "Show version"
 complete -c dot -s h -l help -d "Show help"
 
+complete -c dot -n "__fish_seen_subcommand_from update" -s v -l verbose -d "Stream full update output"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"

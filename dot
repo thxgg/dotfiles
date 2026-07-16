@@ -25,6 +25,8 @@ CYAN=$'\033[0;36m'
 BOLD=$'\033[1m'
 RESET=$'\033[0m'
 
+UPDATE_VERBOSE=0
+
 info() {
 	printf "${CYAN}[INFO]${RESET} %s\n" "$1"
 }
@@ -114,6 +116,9 @@ ${BOLD}COMMANDS:${RESET}
 ${BOLD}OPTIONS:${RESET}
     --version         Show version information
     -h, --help        Show this help
+
+${BOLD}UPDATE OPTIONS:${RESET}
+    -v, --verbose     Stream full output from every update tool
 
 ${BOLD}EXAMPLES:${RESET}
     ${SCRIPT_NAME} init --skip-network-check
@@ -205,8 +210,8 @@ update_repo() {
 
 	if [[ -d "$DOTFILES_DIR/.jj" ]] && command_exists jj; then
 		info "Detected jj-managed repository"
-		jj git fetch -R "$DOTFILES_DIR"
-		jj -R "$DOTFILES_DIR" rebase -d 'trunk()'
+		jj git fetch -R "$DOTFILES_DIR" || return
+		jj -R "$DOTFILES_DIR" rebase -d 'trunk()' || return
 		success "Repository updated with jj"
 		return
 	fi
@@ -216,7 +221,7 @@ update_repo() {
 		return
 	fi
 
-	git -C "$DOTFILES_DIR" pull --ff-only
+	git -C "$DOTFILES_DIR" pull --ff-only || return
 	success "Repository updated with git"
 }
 
@@ -230,19 +235,19 @@ update_packages() {
 				return
 			fi
 
-			brew update
-			brew upgrade
+			brew update || return
+			brew upgrade || return
 			if [[ -f "$DOTFILES_DIR/macos/Brewfile" ]]; then
-				brew bundle --file="$DOTFILES_DIR/macos/Brewfile"
+				brew bundle --file="$DOTFILES_DIR/macos/Brewfile" || return
 			fi
-			brew cleanup
+			brew cleanup || return
 			;;
 		linux-gnu*)
 			if command_exists yay; then
-				yay -Syu --needed
+				yay -Syu --needed || return
 			elif command_exists pacman; then
 				warn "yay not found; using pacman for repo packages only"
-				sudo pacman -Syu
+				sudo pacman -Syu || return
 			else
 				warn "No supported Linux package manager found; skipping package update"
 				return
@@ -281,7 +286,7 @@ update_pi() {
 	fi
 
 	info "Installing locked Pi extension dependencies"
-	(cd "$pi_workspace" && "$vp_bin" install --frozen-lockfile)
+	(cd "$pi_workspace" && "$vp_bin" install --frozen-lockfile) || return
 
 	local -a pi_update_env
 	pi_update_env=(env CARGO_NET_GIT_FETCH_WITH_CLI=true)
@@ -294,12 +299,12 @@ update_pi() {
 
 	if (cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --help 2>&1 | grep -q -- '--extensions'); then
 		info "Updating pi CLI"
-		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --self)
+		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --self) || return
 		info "Updating pi extensions/packages"
-		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --extensions)
+		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --extensions) || return
 	else
 		warn "pi update --extensions not supported; falling back to legacy pi update"
-		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update)
+		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update) || return
 	fi
 
 	success "pi and extensions updated"
@@ -319,7 +324,7 @@ update_herdr() {
 		herdr_update_cmd+=(--handoff)
 	fi
 
-	"${herdr_update_cmd[@]}"
+	"${herdr_update_cmd[@]}" || return
 	success "Herdr updated"
 }
 
@@ -337,7 +342,7 @@ update_nvim() {
 		"+Lazy! sync" \
 		"+Lazy! clean" \
 		"+Lazy! check" \
-		+qa
+		+qa || return
 
 	info "Updating Mason registries and installed packages"
 	local mason_script mason_status
@@ -425,9 +430,57 @@ LUA
 	fi
 
 	info "Updating Tree-sitter parsers"
-	nvim --headless "+lua require('nvim-treesitter').update():wait(300000)" +qa
+	nvim --headless "+lua require('nvim-treesitter').update():wait(300000)" +qa || return
 
 	success "Neovim plugins and tools updated"
+}
+
+update_theme() {
+	[[ "$OSTYPE" == darwin* && -x "$HOME/.local/bin/theme-mode" ]] || return 0
+	header "Refreshing macOS theme mode"
+	"$HOME/.local/bin/theme-mode" --quiet set auto
+}
+
+run_update_step() {
+	local key="$1"
+	local label="$2"
+	local update_fn="$3"
+	local log_file status detail
+
+	if [[ $UPDATE_VERBOSE -eq 1 ]]; then
+		"$update_fn"
+		return
+	fi
+
+	log_file="$(mktemp "${TMPDIR:-/tmp}/dot-update-${key}.XXXXXX")"
+	"$update_fn" >"$log_file" 2>&1
+	status=$?
+	if [[ $status -eq 0 ]]; then
+		if [[ "$key" == "repo" ]] && grep -q "Already up to date" "$log_file"; then
+			success "$label already up to date"
+		elif [[ "$key" == "packages" ]]; then
+			detail="$(grep -Eo 'Upgraded [0-9]+ outdated packages' "$log_file" | tail -1 || true)"
+			if [[ -n "$detail" ]]; then
+				success "$label updated (${detail#Upgraded })"
+			else
+				success "$label updated"
+			fi
+		else
+			success "$label updated"
+		fi
+		rm -f "$log_file"
+		return 0
+	fi
+
+	error "$label update failed"
+	if grep -Eiq '(^|[[:space:]])(error|failed|failure|refusing)(:|[[:space:]])' "$log_file"; then
+		grep -Ei '(^|[[:space:]])(error|failed|failure|refusing)(:|[[:space:]])' "$log_file" | tail -12 >&2
+	else
+		tail -12 "$log_file" >&2
+	fi
+	warn "Re-run '${SCRIPT_NAME} update --verbose' for full output"
+	rm -f "$log_file"
+	return $status
 }
 
 cmd_update() {
@@ -440,6 +493,10 @@ cmd_update() {
 
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
+			-v|--verbose)
+				UPDATE_VERBOSE=1
+				shift
+				;;
 			--skip-packages)
 				skip_packages=1
 				shift
@@ -465,6 +522,7 @@ cmd_update() {
 Usage: ${SCRIPT_NAME} update [options]
 
 Options:
+  -v, --verbose    Stream full output from every update tool
   --skip-packages  Skip Homebrew/yay updates
   --skip-stow      Skip re-applying stow links
   --skip-pi        Skip pi and extension updates
@@ -481,45 +539,53 @@ EOF
 		esac
 	done
 
-	update_repo
+	if [[ $UPDATE_VERBOSE -eq 0 ]]; then
+		header "Updating dotfiles"
+	fi
+
+	if ! run_update_step repo "Repository" update_repo; then
+		failed_steps+=(repository)
+	fi
 	if [[ $skip_packages -eq 0 ]]; then
-		if ! update_packages; then
+		if ! run_update_step packages "OS packages" update_packages; then
 			failed_steps+=(packages)
 			warn "Package update failed; continuing with remaining update steps"
 		fi
 	fi
 
 	if [[ $skip_stow -eq 0 ]]; then
-		if ! cmd_stow; then
+		if ! run_update_step stow "Stow links" cmd_stow; then
 			failed_steps+=(stow)
 			warn "Stow failed; continuing with remaining update steps"
 		fi
 	fi
 
 	if [[ $skip_nvim -eq 0 ]]; then
-		if ! update_nvim; then
+		if ! run_update_step nvim "Neovim plugins and tools" update_nvim; then
 			failed_steps+=(nvim)
 			warn "Neovim update failed; continuing with remaining update steps"
 		fi
 	fi
 
 	if [[ $skip_pi -eq 0 ]]; then
-		if ! update_pi; then
+		if ! run_update_step pi "pi and extensions" update_pi; then
 			failed_steps+=(pi)
 			warn "pi and extension update failed; continuing with remaining update steps"
 		fi
 	fi
 
 	if [[ $skip_herdr -eq 0 ]]; then
-		if ! update_herdr; then
+		if ! run_update_step herdr "Herdr" update_herdr; then
 			failed_steps+=(herdr)
 			warn "Herdr update failed; continuing with remaining update steps"
 		fi
 	fi
 
 	if [[ "$OSTYPE" == darwin* && -x "$HOME/.local/bin/theme-mode" ]]; then
-		header "Refreshing macOS theme mode"
-		"$HOME/.local/bin/theme-mode" --quiet set auto || warn "Could not refresh theme mode"
+		if ! run_update_step theme "macOS theme mode" update_theme; then
+			failed_steps+=(theme)
+			warn "Could not refresh theme mode"
+		fi
 	fi
 
 	if [[ ${#failed_steps[@]} -gt 0 ]]; then
@@ -755,6 +821,7 @@ complete -c dot -n "__fish_use_subcommand" -a "help" -d "Show help"
 complete -c dot -l version -d "Show version"
 complete -c dot -s h -l help -d "Show help"
 
+complete -c dot -n "__fish_seen_subcommand_from update" -s v -l verbose -d "Stream full update output"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
