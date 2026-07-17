@@ -151,3 +151,6 @@ if test -d "$__dotfiles_pi_node_bin"
     fish_add_path "$__dotfiles_pi_node_bin"
 end
 set -e __dotfiles_pi_node_bin
+
+# opencode
+fish_add_path /home/thxgg/.opencode/bin
