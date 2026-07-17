@@ -1,0 +1,61 @@
+#!/bin/sh
+set -eu
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/cliproxyapi"
+auth_dir="$HOME/.cli-proxy-api"
+config_file="$state_dir/config.yaml"
+token_file="$state_dir/local-token"
+log_file="$state_dir/cliproxyapi.log"
+base_url="http://127.0.0.1:8317"
+
+mkdir -p "$state_dir" "$auth_dir"
+chmod 700 "$state_dir" "$auth_dir"
+
+if [ ! -s "$token_file" ]; then
+    umask 077
+    openssl rand -hex 32 >"$token_file"
+fi
+
+token=$(cat "$token_file")
+cat >"$config_file" <<EOF
+host: "127.0.0.1"
+port: 8317
+auth-dir: "$auth_dir"
+api-keys:
+  - "$token"
+debug: false
+logging-to-file: false
+request-retry: 3
+max-retry-credentials: 1
+EOF
+chmod 600 "$config_file" "$token_file"
+
+if ! curl --silent --fail --max-time 1 "$base_url/v1/models" \
+    --header "Authorization: Bearer $token" >/dev/null 2>&1; then
+    if ! command -v cliproxyapi >/dev/null 2>&1; then
+        echo "claudex: cliproxyapi is not installed" >&2
+        exit 1
+    fi
+
+    nohup cliproxyapi -config "$config_file" >>"$log_file" 2>&1 &
+
+    attempts=0
+    until curl --silent --fail --max-time 1 "$base_url/v1/models" \
+        --header "Authorization: Bearer $token" >/dev/null 2>&1; do
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge 30 ]; then
+            echo "claudex: CLIProxyAPI did not start; see $log_file" >&2
+            exit 1
+        fi
+        sleep 0.2
+    done
+fi
+
+exec env \
+    ANTHROPIC_BASE_URL="$base_url" \
+    ANTHROPIC_AUTH_TOKEN="$token" \
+    CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 \
+    CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1 \
+    CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=3 \
+    ENABLE_TOOL_SEARCH=true \
+    claude --model gpt-5.6-sol "$@"

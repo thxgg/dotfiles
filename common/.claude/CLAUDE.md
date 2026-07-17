@@ -30,3 +30,15 @@ Then send LF-delimited JSON to stdin, e.g.:
 ```
 
 Read JSONL events/responses from stdout. Use strict `\n` framing.
+
+## Mixed-model workflows when running as GPT-5.6 Sol
+
+When the current model is GPT-5.6 Sol inside Claude Code, use native dynamic workflows for tasks where independent analysis materially improves confidence, such as architecture decisions, difficult debugging, plans, and reviews.
+
+For those workflows:
+
+- Run independent analysis branches with both `gpt-5.6-sol` and `claude-fable-5`, normally at high effort.
+- Give both branches the same self-contained evidence and question; do not show either model the other's answer before it commits its own findings.
+- Add a final synthesis or adjudication phase that compares agreements, disagreements, evidence, and unresolved uncertainty.
+- Do not use a mixed-model workflow for routine or tightly scoped work where one agent is sufficient.
+- Prefer read-only independent branches for analysis and review. Isolate parallel implementation branches in worktrees.
