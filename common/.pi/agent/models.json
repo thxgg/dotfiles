@@ -22,31 +22,35 @@
           },
           "contextWindow": 272000,
           "maxTokens": 128000
-        }
-      ]
-    },
-    "openai-codex": {
-      "models": [
+        },
         {
           "id": "gpt-5.6-sol-1m",
           "name": "GPT-5.6 Sol 1M",
-          "api": "openai-codex-responses",
-          "baseUrl": "https://chatgpt.com/backend-api",
+          "api": "openai-responses",
+          "baseUrl": "https://api.openai.com/v1",
           "reasoning": true,
           "thinkingLevelMap": {
-            "minimal": "low",
-            "xhigh": "xhigh"
+            "off": "none",
+            "xhigh": "xhigh",
+            "max": "max"
           },
           "input": ["text", "image"],
           "cost": {
             "input": 5,
             "output": 30,
             "cacheRead": 0.5,
-            "cacheWrite": 0
+            "cacheWrite": 6.25
           },
           "contextWindow": 1050000,
-          "maxTokens": 128000
-        },
+          "maxTokens": 128000,
+          "compat": {
+            "supportsToolSearch": true
+          }
+        }
+      ]
+    },
+    "openai-codex": {
+      "models": [
         {
           "id": "gpt-5.6-sol-fast",
           "name": "GPT-5.6 Sol Fast",
