@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Investigation of Claude Code's subagents, agent view, and dynamic workflows, compared with Ben Davis' Pi implementation, with a phased adaptation plan for the local Pi setup.">
+<title>Claude Code Agents &amp; Dynamic Workflows — Pi Adaptation Plan</title>
+<style>
+  :root {
+    --bg: #eff1f5;
+    --surface: #ffffff;
+    --surface-2: #e6e9ef;
+    --text: #4c4f69;
+    --subtle: #6c6f85;
+    --muted: #8c8fa1;
+    --accent: #7287fd;
+    --accent-soft: #dee2fd;
+    --border: #ccd0da;
+    --good: #40a02b;
+    --warn: #df8e1d;
+    --bad: #d20f39;
+    --code-bg: #e6e9ef;
+    --max: 46rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e2e;
+      --surface: #262637;
+      --surface-2: #313244;
+      --text: #cdd6f4;
+      --subtle: #a6adc8;
+      --muted: #7f849c;
+      --accent: #b4befe;
+      --accent-soft: #3b3d5e;
+      --border: #45475a;
+      --good: #a6e3a1;
+      --warn: #f9e2af;
+      --bad: #f38ba8;
+      --code-bg: #313244;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: clamp(1rem, 0.95rem + 0.25vw, 1.0625rem);
+    line-height: 1.65;
+  }
+  header.hero {
+    background: linear-gradient(160deg, var(--accent-soft), var(--bg) 70%);
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 1.25rem 2.5rem;
+  }
+  .hero-inner, main, footer .foot-inner {
+    max-width: var(--max);
+    margin: 0 auto;
+  }
+  .kicker {
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--subtle);
+    margin: 0 0 0.75rem;
+    font-weight: 600;
+  }
+  h1 {
+    font-size: clamp(1.7rem, 1.3rem + 1.8vw, 2.5rem);
+    line-height: 1.2;
+    margin: 0 0 1rem;
+    letter-spacing: -0.02em;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--subtle);
+    max-width: 40rem;
+    margin: 0 0 1.25rem;
+  }
+  .meta {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  main { padding: 2rem 1.25rem 4rem; }
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.4rem;
+    margin: 0 0 2.5rem;
+  }
+  nav.toc h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--subtle);
+    margin: 0 0 0.6rem;
+  }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 1.3rem;
+    columns: 2;
+    column-gap: 2rem;
+  }
+  @media (max-width: 40rem) {
+    nav.toc ol { columns: 1; }
+  }
+  nav.toc li { margin: 0.2rem 0; break-inside: avoid; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  h2 {
+    font-size: clamp(1.3rem, 1.15rem + 0.7vw, 1.65rem);
+    margin: 3rem 0 0.9rem;
+    letter-spacing: -0.015em;
+    scroll-margin-top: 1rem;
+  }
+  h2 .num {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    margin-right: 0.4rem;
+  }
+  h3 {
+    font-size: 1.12rem;
+    margin: 1.9rem 0 0.5rem;
+  }
+  h4 {
+    font-size: 1rem;
+    margin: 1.4rem 0 0.35rem;
+  }
+  p { margin: 0 0 1rem; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+  li { margin: 0.25rem 0; }
+  li > ul, li > ol { margin-bottom: 0.25rem; }
+  strong { color: var(--text); }
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin: 1.4rem 0;
+  }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .callout-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--subtle);
+    margin-bottom: 0.35rem;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    margin: 1.3rem 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 34rem;
+    font-size: 0.93rem;
+  }
+  caption {
+    caption-side: top;
+    text-align: left;
+    padding: 0.75rem 1rem 0.25rem;
+    font-weight: 600;
+    color: var(--subtle);
+    font-size: 0.85rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border);
+    vertical-align: top;
+  }
+  thead th {
+    border-top: none;
+    background: var(--surface-2);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--subtle);
+  }
+  code, kbd {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  code {
+    background: var(--code-bg);
+    border-radius: 5px;
+    padding: 0.1em 0.35em;
+  }
+  kbd {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 0.05em 0.4em;
+    white-space: nowrap;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    margin: 1.2rem 0;
+    line-height: 1.5;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85rem;
+  }
+  figure { margin: 1.4rem 0; }
+  figcaption {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+  }
+  .status { font-weight: 700; }
+  .status.good { color: var(--good); }
+  .status.warn { color: var(--warn); }
+  .status.bad { color: var(--bad); }
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.4rem;
+    margin: 1.1rem 0;
+  }
+  .phase h3 { margin-top: 0; }
+  .phase .phase-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 0.15rem 0.7rem;
+    margin-bottom: 0.5rem;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.6rem 0;
+  }
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.6rem 1.25rem 2.4rem;
+    color: var(--muted);
+    font-size: 0.87rem;
+  }
+  .back-top { font-size: 0.85rem; }
+  @media print {
+    :root {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --surface-2: #f2f2f2;
+      --text: #111111;
+      --subtle: #333333;
+      --muted: #555555;
+      --accent: #333366;
+      --accent-soft: #eeeeee;
+      --border: #bbbbbb;
+      --code-bg: #f4f4f4;
+    }
+    header.hero { background: none; padding: 0 0 1rem; }
+    nav.toc, .back-top { display: none; }
+    body { font-size: 10.5pt; }
+    pre, .table-wrap, .callout, .phase { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+    h2 { margin-top: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <p class="kicker">Investigation report</p>
+    <h1>Claude Code agents &amp; dynamic workflows, adapted for Pi</h1>
+    <p class="lede">How Claude Code structures subagents, background sessions, and script-driven workflows in its TUI — and a concrete, phased plan for bringing the best of that design to the existing Herdr-backed Pi subagent runtime.</p>
+    <p class="meta">Sources: official Claude Code documentation (code.claude.com, CLI v2.1.212), Ben Davis' <code>my-pi-setup</code> (commit <code>d8534d7e</code>), and the local <code>amp-subagents</code> extension. No repository files were modified.</p>
+  </div>
+</header>
+
+<main>
+
+<nav class="toc" aria-label="Table of contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#conclusion">Executive conclusion</a></li>
+    <li><a href="#subagents">Claude's subagent model</a></li>
+    <li><a href="#background">Foreground &amp; background execution</a></li>
+    <li><a href="#in-session-ux">In-session agents UX</a></li>
+    <li><a href="#agent-view">Agent view &amp; background sessions</a></li>
+    <li><a href="#policy">Permissions, models, hooks, worktrees</a></li>
+    <li><a href="#workflows">Dynamic workflows</a></li>
+    <li><a href="#pi-gaps">Comparison with the Pi implementation</a></li>
+    <li><a href="#ben">Lessons from Ben Davis' setup</a></li>
+    <li><a href="#architecture">Recommended Pi architecture</a></li>
+    <li><a href="#sequence">Implementation sequence</a></li>
+    <li><a href="#anti">What not to copy</a></li>
+    <li><a href="#final">Final recommendation</a></li>
+  </ol>
+</nav>
+
+<section id="conclusion" aria-labelledby="h-conclusion">
+  <h2 id="h-conclusion"><span class="num" aria-hidden="true">1</span>Executive conclusion</h2>
+  <p>Claude Code's key architectural idea is not any single agent feature. It is the deliberate separation of parallel work into <strong>four distinct products</strong>, each with its own coordinator, lifecycle, and UI surface:</p>
+
+  <div class="table-wrap">
+    <table>
+      <caption>Claude Code's four coordination primitives</caption>
+      <thead>
+        <tr><th scope="col">Primitive</th><th scope="col">Coordinator</th><th scope="col">Best use</th><th scope="col">UX surface</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Subagent</strong></td><td>Parent model, turn by turn</td><td>Focused, context-isolated side task</td><td>Inline panel, <code>@agent</code>, <code>/tasks</code></td></tr>
+        <tr><td><strong>Background session</strong></td><td>User</td><td>Independent, durable task</td><td>Full-screen <code>claude agents</code> dashboard</td></tr>
+        <tr><td><strong>Agent team</strong></td><td>Lead agent + shared task list</td><td>A few collaborating peers</td><td>Inline agent panel or split panes</td></tr>
+        <tr><td><strong>Dynamic workflow</strong></td><td>Sandboxed script</td><td>Large, phased, repeatable fan-out</td><td>Phase-oriented <code>/workflows</code> dashboard</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="callout-label">Recommendation in one paragraph</span>
+    <p>Preserve the existing durable, Herdr-backed <code>amp-subagents</code> runtime. Build a native <code>/agents</code> attention dashboard over its persistent state. Harden concurrency, lifecycle, watchdogs, and result delivery, and add schema-validated child outputs. Then implement dynamic workflows as a <strong>separate sandboxed extension</strong> that shares lower-level child infrastructure — without creating a Herdr tab for every workflow child. Defer agent teams.</p>
+  </div>
+</section>
+
+<section id="subagents" aria-labelledby="h-subagents">
+  <h2 id="h-subagents"><span class="num" aria-hidden="true">2</span>Claude's subagent model</h2>
+
+  <h3>Agent definitions</h3>
+  <p>Custom agents are Markdown files with YAML frontmatter and a Markdown system prompt:</p>
+<pre><code>---
+name: code-reviewer
+description: Review code after changes
+tools: Read, Grep, Glob
+disallowedTools: Write, Edit
+model: sonnet
+effort: high
+background: true
+isolation: worktree
+maxTurns: 20
+---
+
+Review for correctness, security, and maintainability.</code></pre>
+
+  <p>Supported policy covers tool allow/deny lists, model and effort, permission mode, max turns, preloaded skills, scoped MCP servers, lifecycle hooks, persistent memory, background policy, worktree isolation, display color, and an initial prompt when the definition runs as a main-session agent.</p>
+
+  <p>Definition precedence (highest first): managed settings → session-only <code>--agents</code> JSON → project <code>.claude/agents/</code> → user <code>~/.claude/agents/</code> → plugin definitions. Built-ins include the read-only <strong>Explore</strong> and <strong>Plan</strong> agents plus a <strong>general-purpose</strong> agent.</p>
+
+  <div class="callout">
+    <span class="callout-label">Notable design shift</span>
+    <p>As of v2.1.198, <code>/agents</code> no longer opens a creation wizard. Users ask Claude to create an agent, or edit the Markdown directly. Configuration became conversational while the durable file stays reviewable — a pattern worth copying.</p>
+  </div>
+
+  <h3>Invocation</h3>
+  <ul>
+    <li><strong>Natural language</strong> — Claude decides whether to delegate, based on the request, context, and the agent's <code>description</code>.</li>
+    <li><strong><code>@agent</code> mention</strong> — guarantees that agent runs for this task. The parent still writes the actual delegation prompt.</li>
+    <li><strong><code>claude --agent &lt;name&gt;</code></strong> — the definition governs the whole main session.</li>
+  </ul>
+
+  <h3>Context isolation</h3>
+  <p>A normal subagent receives its own system prompt, environment details, the delegation prompt, applicable project instructions and memory, explicitly preloaded skills, and its own tools and permissions. It does <em>not</em> inherit parent conversation history, files the parent already read, previously invoked skills, or parent tool transcripts. Only the final summary crosses back into the caller's context.</p>
+  <p>Claude also supports a distinct <strong>fork</strong> primitive that inherits the full conversation, tools, model, history, and prompt cache — the inverse trade-off. It should not be conflated with fresh-context delegation.</p>
+
+  <h3>Nested delegation</h3>
+  <p>Claude allows nesting to depth five, removing the <code>Agent</code> tool at the limit. Only the top-level child's summary reaches the main conversation. For Pi, ordinary children should stay unable to delegate by default: a depth limit alone does not control aggregate cost, concurrency, or lifecycle. Workflows should be the explicit fan-out mechanism.</p>
+</section>
+
+<section id="background" aria-labelledby="h-background">
+  <h2 id="h-background"><span class="num" aria-hidden="true">3</span>Foreground &amp; background execution</h2>
+  <p>Since v2.1.198, subagents run in the <strong>background by default</strong>; Claude uses foreground execution only when it cannot continue without the result.</p>
+
+  <div class="table-wrap">
+    <table>
+      <caption>Execution modes</caption>
+      <thead><tr><th scope="col">Aspect</th><th scope="col">Foreground</th><th scope="col">Background</th></tr></thead>
+      <tbody>
+        <tr><td>Parent conversation</td><td>Blocked</td><td>Remains usable; children run concurrently</td></tr>
+        <tr><td>Result delivery</td><td>Direct, same turn</td><td>Later completion notification</td></tr>
+        <tr><td>Permission prompts</td><td>Passed through immediately</td><td>Surface in main session, naming the child; <kbd>Esc</kbd> denies one call without stopping the agent</td></tr>
+        <tr><td>Visibility</td><td>Inline</td><td><code>/tasks</code>, including finished agents</td></tr>
+        <tr><td>Controls</td><td><kbd>Ctrl+B</kbd> to background</td><td><kbd>Ctrl+X Ctrl+K</kbd> (confirmed twice) stops all</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Completed named agents can be resumed with follow-up messages, keeping their full history and agent ID. Subagent transcripts persist separately and survive parent compaction and session resumption. Explore and Plan remain one-shot with no resumable ID.</p>
+</section>
+
+<section id="in-session-ux" aria-labelledby="h-in-session-ux">
+  <h2 id="h-in-session-ux"><span class="num" aria-hidden="true">4</span>In-session agents UX</h2>
+  <p>Claude renders a compact agent panel below the prompt. Nested rows show descendant counts such as <code>(+N)</code>; opening an agent shows its transcript, siblings, direct children, and a path back to <code>main</code>.</p>
+
+  <div class="table-wrap">
+    <table>
+      <caption>Agent panel controls</caption>
+      <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Select an agent row</td></tr>
+        <tr><td><kbd>Enter</kbd></td><td>Open the agent's transcript and send follow-ups</td></tr>
+        <tr><td><kbd>x</kbd></td><td>Stop a running agent, or dismiss a finished one</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Return focus to the main prompt</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>While viewing a child, plain messages and skills target that child; built-in commands still execute in the main session. Named agents appear in <code>@</code> completion with status. <code>/tasks</code> manages background shells and subagents and is distinct from Claude's internal task checklist (<kbd>Ctrl+T</kbd>).</p>
+
+  <div class="callout">
+    <span class="callout-label">Transferable principle: progressive disclosure</span>
+    <p>Compact status row → peek / current question → child detail → full transcript or attached session. Pi currently jumps from status text straight to a full Herdr terminal; the missing middle layer is the biggest UX gap.</p>
+  </div>
+</section>
+
+<section id="agent-view" aria-labelledby="h-agent-view">
+  <h2 id="h-agent-view"><span class="num" aria-hidden="true">5</span>Agent view &amp; background sessions</h2>
+  <p><code>claude agents</code> is a full-screen supervisor for complete, durable sessions — not in-session subagents. Rows are grouped by attention: <strong>Pinned</strong>, <strong>Ready for review</strong>, <strong>Needs input</strong>, <strong>Working</strong>, <strong>Completed</strong>. Each row shows a state-colored or animated icon, the session name, a model-generated semantic activity headline, elapsed time, and pull-request info where relevant.</p>
+
+  <h3>Core interaction</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Agent view keyboard controls</caption>
+      <thead><tr><th scope="col">Key</th><th scope="col">Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>Space</kbd></td><td>Peek at a session without leaving the dashboard</td></tr>
+        <tr><td><kbd>Enter</kbd> / <kbd>→</kbd></td><td>Attach to the full conversation</td></tr>
+        <tr><td><kbd>←</kbd></td><td>Detach back to the dashboard (never cancels)</td></tr>
+        <tr><td><kbd>Shift+Enter</kbd></td><td>Dispatch a new session and attach immediately</td></tr>
+        <tr><td><kbd>Ctrl+T</kbd></td><td>Pin a session</td></tr>
+        <tr><td><kbd>Ctrl+R</kbd></td><td>Rename a session</td></tr>
+        <tr><td><kbd>Ctrl+X</kbd></td><td>Stop; press again to delete</td></tr>
+        <tr><td><kbd>Ctrl+S</kbd></td><td>Group by state or by directory</td></tr>
+        <tr><td><kbd>Shift+↑</kbd> / <kbd>Shift+↓</kbd></td><td>Reorder rows</td></tr>
+        <tr><td><kbd>Alt+1</kbd>…<kbd>Alt+9</kbd></td><td>Attach directly to session N</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Peek adapts to state: a waiting session shows the exact question with a reply input; a working session shows its status sentence; a completed one shows its result; a PR-linked one shows PR status. Background sessions automatically isolate edits in worktrees and can commit, push, and open draft PRs under constrained rules.</p>
+
+  <div class="callout">
+    <span class="callout-label">Two UX principles worth copying</span>
+    <p><strong>State over raw logs</strong> — rows show a short semantic headline, not the latest tool invocation; raw activity is available deeper in the hierarchy. <strong>Detach ≠ cancel</strong> — leaving a child view never stops it; navigation and cancellation are separate actions. The dashboard exists to answer: what needs me, what is progressing, what finished, and where is the result.</p>
+  </div>
+</section>
+
+<section id="policy" aria-labelledby="h-policy">
+  <h2 id="h-policy"><span class="num" aria-hidden="true">6</span>Permissions, models, hooks, worktrees</h2>
+
+  <h3>Tool restrictions</h3>
+  <ul>
+    <li><code>tools</code> is an allowlist; omission inherits the parent's available tools.</li>
+    <li><code>disallowedTools</code> removes tools from the inherited or specified set; denials apply <em>before</em> allowlist resolution.</li>
+    <li>MCP server-wide patterns (<code>mcp__server</code>, <code>mcp__server__*</code>, <code>mcp__*</code>) are supported.</li>
+    <li>Specific agents can be denied via <code>permissions.deny: ["Agent(name)"]</code>; denying bare <code>Agent</code> disables all delegation.</li>
+    <li>Permission precedence is harness-enforced: <strong>deny → ask → allow</strong>. Agent messages can never approve another agent's permission request or stand in for user consent.</li>
+  </ul>
+
+  <h3>Model resolution</h3>
+  <p>Child model resolves in order: <code>CLAUDE_CODE_SUBAGENT_MODEL</code> env override → per-invocation parameter → agent definition → parent model. Organization model restrictions still apply. Children inherit the parent's extended-thinking state; definitions can set effort but there is no separate thinking toggle.</p>
+
+  <h3>Hooks</h3>
+  <p>Relevant lifecycle events: <code>SubagentStart</code>, <code>SubagentStop</code>, <code>PreToolUse</code>, <code>PostToolUse</code>, <code>PermissionRequest</code>, <code>TaskCreated</code>, <code>TaskCompleted</code>, <code>WorktreeCreate</code>, <code>WorktreeRemove</code>. Agent-frontmatter hooks exist only while that agent runs; a local <code>Stop</code> hook becomes <code>SubagentStop</code> when delegated. Policy lives in the runtime, not in prompt obedience.</p>
+
+  <h3>Worktrees</h3>
+  <ul>
+    <li><code>isolation: worktree</code> gives a subagent a temporary checkout, branched by default from refreshed <code>origin/HEAD</code> (configurable to current <code>HEAD</code>).</li>
+    <li>Unchanged worktrees are removed automatically; changed ones are retained.</li>
+    <li><code>.worktreeinclude</code> copies selected gitignored files into fresh worktrees.</li>
+    <li><code>WorktreeCreate</code>/<code>WorktreeRemove</code> hooks can replace git behavior for other VCS systems.</li>
+    <li>Background sessions auto-isolate before their first in-repo edit unless disabled; children inherit the session's worktree unless separately isolated.</li>
+  </ul>
+  <p>The local Pi implementation's explicit <strong>apply / retain / discard</strong> worktree actions are safer than Claude's auto-cleanup and should be preserved.</p>
+</section>
+
+<section id="workflows" aria-labelledby="h-workflows">
+  <h2 id="h-workflows"><span class="num" aria-hidden="true">7</span>Dynamic workflows</h2>
+  <p>A dynamic workflow is <strong>model-authored JavaScript executed by a dedicated runtime</strong>. The script — not the parent model — owns the control flow. Claude writes the script for the task you describe; the runtime executes it in the background while the session stays responsive.</p>
+
+<pre><code>export const meta = {
+  name: "audit-routes",
+  description: "Audit route authentication",
+};
+
+const discovery = await agent("List every route file.", {
+  schema: {
+    type: "object",
+    required: ["files"],
+    properties: {
+      files: { type: "array", items: { type: "string" } },
+    },
+  },
+});
+
+const audits = await pipeline(
+  discovery.files,
+  file =&gt; agent(`Audit ${file}`, { label: file }),
+);
+
+return audits.filter(Boolean);</code></pre>
+
+  <h3>Why code instead of prose orchestration</h3>
+  <p>The script owns loops, fan-out, branching, phase transitions, intermediate values, aggregation, and retries. Intermediate results stay in script variables instead of expanding the parent context; only the final aggregate returns. This buys larger fan-out, repeatability, typed intermediate results, explicit failure handling, cross-agent verification, and low parent-context pressure.</p>
+
+  <h3>Runtime constraints (documented)</h3>
+  <ul>
+    <li>Up to <strong>16 concurrent agents</strong>, fewer on constrained machines</li>
+    <li>Up to <strong>1,000 agent calls per run</strong></li>
+    <li>No direct shell or filesystem access from orchestration code — agents do the actual work</li>
+    <li>No general mid-run user input; only agent permission prompts can pause a run</li>
+    <li>Paused runs cache completed agent results; agents interrupted mid-flight restart on resume</li>
+    <li>Resume works only within the same Claude session</li>
+  </ul>
+
+  <h3>Invocation and approval</h3>
+  <p>Workflows start via <code>/deep-research</code>, saved workflow commands, "use a workflow" phrasing, the <code>ultracode</code> keyword, or session-wide <code>/effort ultracode</code>. Before running generated code, Claude shows the planned phases with options: <strong>Yes, run it</strong> · <strong>Yes, and don't ask again</strong> · <strong>View raw script</strong> · <strong>No</strong>. <kbd>Ctrl+G</kbd> opens the script in an editor; <kbd>Tab</kbd> lets you adjust the prompt first.</p>
+
+  <h3>Progress UX</h3>
+  <p>A compact progress line appears below the editor; <code>/workflows</code> opens the full hierarchy:</p>
+<pre><code>Workflow run
+└── Phase        (agent counts, tokens, elapsed)
+    └── Agent
+        ├── Prompt
+        ├── Recent tool activity
+        └── Result</code></pre>
+  <p>Controls: <kbd>↑</kbd>/<kbd>↓</kbd> select · <kbd>Enter</kbd>/<kbd>→</kbd> drill in · <kbd>Esc</kbd>/<kbd>←</kbd> back · <kbd>f</kbd> filter by status · <kbd>p</kbd> pause/resume · <kbd>x</kbd> stop · <kbd>r</kbd> restart agent · <kbd>s</kbd> save as a reusable command.</p>
+</section>
+
+<section id="pi-gaps" aria-labelledby="h-pi-gaps">
+  <h2 id="h-pi-gaps"><span class="num" aria-hidden="true">8</span>Comparison with the Pi implementation</h2>
+  <p>The current implementation lives at <code>common/.pi/agent/extensions/amp-subagents/</code> and is <strong>already stronger than basic Claude subagents</strong> in durability, direct observability, and mutation safety:</p>
+  <ul>
+    <li>Built-in, user, and project agent definitions with trust-gated project agents</li>
+    <li>Model, thinking, tool, and permission policies</li>
+    <li>Background-first execution with persistent disk-backed jobs</li>
+    <li>Interactive Herdr child terminals with parent restart/reload resilience</li>
+    <li>Structured activity snapshots, follow-up messaging, resumption</li>
+    <li>Permission forwarding; worktree-isolated mutation with apply/retain/discard</li>
+    <li>Notification leasing; focus, close, cancel, and cleanup actions</li>
+  </ul>
+
+  <h3>Gaps</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Current gaps against the Claude Code design</caption>
+      <thead><tr><th scope="col">Gap</th><th scope="col">Detail</th></tr></thead>
+      <tbody>
+        <tr><td><span class="status bad">No native dashboard</span></td><td><code>/agents</code> emits formatted notifications; it lacks state grouping, filtering, peek, in-place reply, permission views, transcript navigation, worktree review controls, and keyboard-driven interaction.</td></tr>
+        <tr><td><span class="status bad">No workflow primitive</span></td><td>No script-owned abstraction for phases, dynamic fan-out, typed intermediate values, aggregation, or run-level budgets.</td></tr>
+        <tr><td><span class="status warn">No race-safe global concurrency</span></td><td>Capacity is not reserved synchronously before asynchronous launch work, so parallel tool calls could exceed intended limits.</td></tr>
+        <tr><td><span class="status warn">No enforced structured output</span></td><td><code>returnMode</code> is advisory metadata, not a schema-backed contract.</td></tr>
+        <tr><td><span class="status warn">Result consumption unclear</span></td><td>Explicit result retrieval and automatic completion injection need a shared consumed/obsolete state to prevent duplicate parent-context delivery.</td></tr>
+        <tr><td><span class="status warn">No workspace validation</span></td><td><code>amp-subagents</code> is not included in the aggregate <code>common/.pi/package.json</code> check/test/typecheck scripts.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="ben" aria-labelledby="h-ben">
+  <h2 id="h-ben"><span class="num" aria-hidden="true">9</span>Lessons from Ben Davis' setup</h2>
+  <p>After the independent Claude investigation, <code>artifacts/ben-subagents-findings.md</code> and the referenced source were reviewed. Ben's implementation independently reaches the same core boundary Claude drew: <strong>ordinary delegation ≠ workflow orchestration</strong>. Its workflow path:</p>
+
+<pre><code>Model-authored JavaScript
+        │
+        ▼
+Permission-restricted Node subprocess
+        │  narrow, bounded, token-authenticated IPC
+        ▼
+Workflow controller (semaphore, budgets, settle)
+        │
+        ▼
+Isolated child runners</code></pre>
+
+  <p>Strong properties worth adopting:</p>
+  <ul>
+    <li><code>phase()</code>, <code>agent()</code>, and <code>parallel()</code> primitives; scripts orchestrate, agents act</li>
+    <li>Global concurrency of four; maximum 32 child calls per run</li>
+    <li>No filesystem, network, process, imports, eval, or timers in orchestration code</li>
+    <li>Bounded source (512&nbsp;KB), args (256&nbsp;KB), IPC messages, and result (1&nbsp;MB) sizes</li>
+    <li><code>{ ok, output, structured, error }</code> results — <code>agent()</code> never throws into the script</li>
+    <li>Schema-backed terminating <code>structured_output</code> tool</li>
+    <li>First-response watchdog (45&nbsp;s) and per-tool timeout (3&nbsp;min); no overall run deadline</li>
+    <li>Persisted scripts, progress, transcripts, and results; native <code>/workflows</code> dashboard</li>
+  </ul>
+  <p>This is a better basis for Pi workflows than letting ordinary children recursively invoke the existing <code>Agent</code> tool.</p>
+</section>
+
+<section id="architecture" aria-labelledby="h-architecture">
+  <h2 id="h-architecture"><span class="num" aria-hidden="true">10</span>Recommended Pi architecture</h2>
+
+  <h3>Keep three domain layers</h3>
+<pre><code>Agent definition   →  reusable role and policy
+Agent runtime      →  one delegated durable job
+Workflow runtime   →  script-owned orchestration of many children</code></pre>
+  <p>They may share presentation conventions and infrastructure, but must retain separate identity and lifecycle semantics.</p>
+
+  <h3>Share infrastructure, not lifecycle</h3>
+  <p>Reuse or extract: agent discovery, project trust checks, tool-policy normalization, model resolution, permission guards, usage/transcript normalization, activity summaries, structured-output support, concurrency accounting, and worktree helpers. The workflow extension should depend on a lower-level child-runner interface — not on the public model-facing <code>Agent</code> tool.</p>
+
+  <h3>Decouple execution from presentation</h3>
+  <p>For deliberate standalone jobs, keep the current semantics: <em>one Agent job → one observable Herdr child</em>. For workflow-scale fan-out, use compact dashboard-managed children with persisted transcripts, promoting a child into a full Herdr terminal only when the user wants direct interaction. A workflow that creates 20 agents must not produce 20 terminal tabs.</p>
+
+  <h3>Suggested module layout</h3>
+<pre><code>common/.pi/agent/extensions/
+├── agent-core/            # shared services, extracted on demand
+│   ├── discovery.ts
+│   ├── policy.ts
+│   ├── concurrency.ts
+│   ├── activity.ts
+│   ├── structured-output.ts
+│   └── child-runner.ts
+├── amp-subagents/         # existing runtime + new dashboard
+│   ├── runtime.ts
+│   ├── dashboard.ts
+│   └── ...
+└── workflows/             # new, separate extension
+    ├── index.ts
+    ├── controller.ts
+    ├── sandbox.ts
+    ├── sandbox-child.cjs
+    ├── persistence.ts
+    ├── dashboard.ts
+    └── model.ts</code></pre>
+  <p>Do not perform a broad framework extraction up front; extract each shared unit only when the second consumer actually needs it.</p>
+</section>
+
+<section id="sequence" aria-labelledby="h-sequence">
+  <h2 id="h-sequence"><span class="num" aria-hidden="true">11</span>Implementation sequence</h2>
+
+  <div class="phase">
+    <span class="phase-tag">Phase 1</span>
+    <h3>Harden <code>amp-subagents</code></h3>
+    <ol>
+      <li>Add a package manifest; include tests and typecheck in <code>common/.pi/package.json</code>.</li>
+      <li>Add a process-wide race-safe semaphore; reserve capacity synchronously before async launch work; release exactly once on every terminal path.</li>
+      <li>Add a first-assistant-event watchdog (45–60&nbsp;s) and per-tool timeouts (~3&nbsp;min) without a whole-task deadline.</li>
+      <li>Correct child extension startup and bounded, idempotent shutdown.</li>
+      <li>Separate durable history from result-delivery state; add consumed/obsolete states.</li>
+      <li>Add schema-backed child results.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <span class="phase-tag">Phase 2</span>
+    <h3>Native <code>/agents</code> dashboard</h3>
+    <p>Group jobs by <strong>Needs input · Working · Completed</strong>. Rows show state, agent and job ID, semantic activity, backend, elapsed time, model/effort, and worktree state. Suggested controls: <kbd>Space</kbd> peek · <kbd>Enter</kbd> detail · <kbd>r</kbd> reply/resume · <kbd>a</kbd>/<kbd>d</kbd> approve/deny · <kbd>f</kbd> focus Herdr child · <kbd>x</kbd> cancel · <kbd>A</kbd>/<kbd>R</kbd>/<kbd>D</kbd> apply/retain/discard · <kbd>/</kbd> filter · <kbd>Esc</kbd> back. The dashboard is the durable control plane; Herdr stays the deep interactive terminal.</p>
+  </div>
+
+  <div class="phase">
+    <span class="phase-tag">Phase 3</span>
+    <h3>Workflow MVP</h3>
+    <p>A separate <code>workflow</code> tool exposing <code>phase(title)</code>, <code>agent(prompt, { label?, agentType?, schema?, model?, effort? })</code>, and <code>parallel(thunks, { concurrency? })</code>. Initial limits: 4 concurrent children · 32 calls · 512&nbsp;KB source · 256&nbsp;KB args · 1&nbsp;MB result · first response within 45–60&nbsp;s · 3-minute per-tool timeout · no overall deadline. Persist under:</p>
+<pre><code>~/.local/state/pi/workflows/&lt;run-id&gt;/
+├── script.js
+├── args.json
+├── state.json
+├── result.json
+└── agents/&lt;agent-id&gt;/{result.json, transcript.json}</code></pre>
+  </div>
+
+  <div class="phase">
+    <span class="phase-tag">Phase 4</span>
+    <h3><code>/workflows</code> dashboard</h3>
+    <p>Run list → phase list → child list → child detail; cancel run or child; restart failed child; inspect persisted output. Add pause/resume only after cancellation, persistence, and restart semantics are reliable.</p>
+  </div>
+
+  <div class="phase">
+    <span class="phase-tag">Phase 5</span>
+    <h3>Conversational workflow creation</h3>
+    <p>Explicit "use a workflow" prompting; approval showing phases and raw script with external-editor review; user- and project-scoped saving; structured arguments; optional size guidance; a <code>/workflow</code> or <code>/ultracode</code> skill. Establish explicit, inspectable behavior before any magical trigger keyword.</p>
+  </div>
+</section>
+
+<section id="anti" aria-labelledby="h-anti">
+  <h2 id="h-anti"><span class="num" aria-hidden="true">12</span>What not to copy</h2>
+  <div class="callout warn">
+    <span class="callout-label">Anti-patterns</span>
+    <ul>
+      <li><strong>Do not build agent teams yet.</strong> They require shared task mutation, mailboxes, peer discovery, direct teammate interaction, conflict handling, and harder resumption. Claude itself still marks them experimental.</li>
+      <li><strong>Do not merge all background concepts.</strong> Shell jobs, subagent jobs, background sessions, and workflow runs may share visual language but not lifecycle rules.</li>
+      <li><strong>Do not execute generated code in the Pi process.</strong> Model-authored JavaScript belongs in a permission-restricted, killable subprocess with narrow authenticated IPC and strict payload limits.</li>
+      <li><strong>Do not expose raw logs as primary status.</strong> Persist raw activity, but show semantic summaries in list rows.</li>
+      <li><strong>Do not permit unrestricted recursive delegation.</strong> Workflows are the bounded, inspectable fan-out mechanism.</li>
+      <li><strong>Do not create a Herdr tab per workflow child.</strong> That works for a few deliberate jobs, not workflow-scale orchestration.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="final" aria-labelledby="h-final">
+  <h2 id="h-final"><span class="num" aria-hidden="true">13</span>Final recommendation</h2>
+<pre><code>Pi conversation
+├── Agent      →  one focused durable delegation (Herdr-backed)
+├── /agents    →  user-facing job supervisor (attention dashboard)
+└── Workflow   →  sandboxed, phased orchestration
+    └── /workflows  →  run and phase supervisor</code></pre>
+  <p>Preserve the current Herdr-backed runtime for individually important jobs. Add the missing dashboard layer. Harden the child primitive before using it as shared infrastructure. Then introduce workflows as a separate bounded orchestration runtime, inspired by Claude's semantics and Ben's sandbox/controller design.</p>
+
+  <div class="callout">
+    <span class="callout-label">Guiding principle</span>
+    <p>Compact by default, inspectable at every level, durable across lifecycle changes, and explicit about whether coordination belongs to the user, the parent model, a lead agent, or a workflow script.</p>
+  </div>
+
+  <h3>Primary sources</h3>
+  <ul>
+    <li><a href="https://code.claude.com/docs/en/agents">Run agents in parallel</a></li>
+    <li><a href="https://code.claude.com/docs/en/subagents">Create custom subagents</a></li>
+    <li><a href="https://code.claude.com/docs/en/agent-view">Agent view</a></li>
+    <li><a href="https://code.claude.com/docs/en/workflows">Dynamic workflows</a></li>
+    <li><a href="https://code.claude.com/docs/en/agent-teams">Agent teams</a></li>
+    <li><a href="https://code.claude.com/docs/en/worktrees">Worktrees</a></li>
+    <li><a href="https://code.claude.com/docs/en/interactive-mode">Interactive mode</a></li>
+    <li><a href="https://code.claude.com/docs/en/commands">Commands</a></li>
+    <li><a href="https://code.claude.com/docs/en/permissions">Permissions</a></li>
+  </ul>
+  <p class="back-top"><a href="#h-conclusion">Back to top ↑</a></p>
+</section>
+
+</main>
+
+<footer>
+  <div class="foot-inner">
+    <p>Investigation performed against Claude Code CLI v2.1.212 documentation, Ben Davis' <code>my-pi-setup</code> at commit <code>d8534d7e</code>, and the local <code>amp-subagents</code> extension. Documented facts are drawn from official sources; adaptation guidance is the author's interpretation. No repository files were modified during the investigation.</p>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -20,6 +20,7 @@ import {
 import { HerdrClient } from "./herdr-client.ts";
 import { applyAgentWorktree, createAgentWorktree, discardAgentWorktree, retainAgentWorktree } from "./worktree.ts";
 import { ensureTerminalNotification } from "./notifications.ts";
+import { globalAgentCapacity } from "./concurrency.ts";
 
 const AGENT_ACTIONS = ["run", "list", "result", "cancel", "focus", "close", "cleanup", "message", "approve", "deny", "apply", "retain", "discard"] as const;
 const AGENT_SCOPES = ["default", "builtin", "user", "project", "all"] as const;
@@ -67,7 +68,7 @@ export function getJobSnapshots(): AgentJobSnapshot[] {
 }
 
 export function getRunningJobCount(): number {
-  return getJobSnapshots().filter((job) => job.status === "running" || job.status === "queued").length;
+  return getJobSnapshots().filter((job) => job.status === "running" || job.status === "queued" || job.status === "waiting").length;
 }
 
 function cancelInProcess(job: RuntimeJob, reason: string): AgentJobSnapshot {
@@ -194,7 +195,7 @@ export function createAgentTool() {
   return {
     name: "Agent",
     label: "Agent",
-    description: "Run Amp-style Pi subagents. Inside Herdr, each child is an observable interactive Pi terminal with persistent structured results; outside Herdr, an isolated in-process backend is used.",
+    description: "Run specialized Pi subagents. Inside Herdr, each child is an observable interactive Pi terminal with persistent structured results; outside Herdr, an isolated in-process backend is used.",
     promptSnippet: "Run an isolated child Pi subagent (agent/search/oracle/librarian/reviewer/painter) for self-contained work",
     promptGuidelines: [
       "Use Agent when a task can be delegated to an isolated subagent and summarized back to the parent.",
@@ -202,7 +203,7 @@ export function createAgentTool() {
       "Do not ask read-only children to run mutation-producing validation, install dependencies, or modify state. Ask them to inspect evidence and return exact commands for the parent to run.",
       "Subagents run in the background by default. Pass background=false only when the next parent action strictly depends on the result.",
       "When a background subagent completes, integrate its result into the response. Once all subagents relevant to the user's request are terminal, produce the complete updated final answer in that same turn. Do not merely acknowledge the findings or refer to an earlier draft or report; reproduce the final self-contained deliverable.",
-      "Completed Herdr subagents close their dedicated tab automatically; use /resume to inspect their persisted Pi sessions later.",
+      "Completed Herdr subagents remain inspectable until explicitly closed or cleaned up; use /agents or Agent focus/close actions to manage them.",
       "Do not ask subagents to spawn other agents unless a user explicitly requests a workflow that requires it.",
     ],
     parameters: AgentToolSchema,
@@ -235,7 +236,11 @@ export function createAgentTool() {
         if (mutating && existing?.owner?.sessionId && existing.owner.sessionId !== ctx.sessionManager.getSessionId()) {
           return { content: [textContent(`Job ${params.jobId} belongs to another Pi session and cannot be controlled here.`)], details: { action, jobs: [] }, isError: true };
         }
-        if (action === "result") { await reconcileHerdrJobs(params.jobId); snapshot = getJobSnapshots().find((job) => job.id === params.jobId); }
+        if (action === "result") {
+          await reconcileHerdrJobs(params.jobId);
+          snapshot = getJobSnapshots().find((job) => job.id === params.jobId);
+          if (snapshot && isTerminalStatus(snapshot.status)) snapshot = jobStore.consumeCompletionNotifications(snapshot.id) ?? snapshot;
+        }
         if (action === "cancel") { snapshot = await cancelJob(params.jobId); if (snapshot) ensureTerminalNotification(jobStore, snapshot.id); }
         if (action === "focus") snapshot = await focusHerdrJob(params.jobId);
         if (action === "close") snapshot = await closeHerdrJob(params.jobId);
@@ -247,7 +252,7 @@ export function createAgentTool() {
         if (action === "approve" || action === "deny") {
           const current = jobStore.read(params.jobId);
           if (!current?.permissionRequests?.length || current.status !== "waiting") return { content: [textContent(`Job ${params.jobId} is not waiting for a permission decision.`)], details: { action, jobs: current ? [current] : [] }, isError: true };
-          const requestId = current.permissionRequests[0].id;
+          const requestId = current.permissionRequests[0]!.id;
           snapshot = jobStore.update(params.jobId, (value) => ({ ...value, permissionRequests: (value.permissionRequests ?? []).map((request) => request.id === requestId ? { ...request, decision: action === "approve" ? "allow" : "deny", decidedAt: new Date().toISOString() } : request) }));
         }
         if (action === "apply" || action === "retain" || action === "discard") {
@@ -272,6 +277,13 @@ export function createAgentTool() {
       const owner = { sessionId: ctx.sessionManager.getSessionId(), sessionFile: ctx.sessionManager.getSessionFile() ?? undefined };
       const job = makeJob(agent, params.task, params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd, background, backend, owner, toolCallId);
       jobs.set(job.id, job);
+      let capacity;
+      try { capacity = await globalAgentCapacity.acquire(job.controller.signal); }
+      catch (error) {
+        jobs.delete(job.id);
+        return { content: [textContent(`Subagent launch was cancelled while waiting for capacity: ${error instanceof Error ? error.message : String(error)}`)], details: { action, jobs: [] }, isError: true };
+      }
+      const releaseCapacity = () => capacity.release();
       const spec = createJobSpec(snapshotJob(job), agent);
       try {
         jobStore.initialize(spec, snapshotJob(job), composeAgentPrompt(agent));
@@ -283,6 +295,7 @@ export function createAgentTool() {
         }
       } catch (error) {
         jobs.delete(job.id);
+        releaseCapacity();
         const message = `Failed to initialize persistent subagent job: ${error instanceof Error ? error.message : String(error)}`;
         const stored = jobStore.read(job.id);
         if (stored?.worktree) {
@@ -295,6 +308,7 @@ export function createAgentTool() {
       if (backend === "herdr") {
         try { await launchHerdrJob(job, agent, ctx); }
         catch {
+          releaseCapacity();
           const failed = jobStore.read(job.id) ?? snapshotJob(job);
           updateStatus();
           return { content: [textContent(formatJobSummary(failed))], details: { action, jobs: [failed] }, isError: true };
@@ -302,6 +316,9 @@ export function createAgentTool() {
         updateStatus();
         if (background) {
           const started = jobStore.read(job.id)!;
+          void waitForHerdrJob(job.id, job.controller.signal, undefined)
+            .catch(() => undefined)
+            .finally(releaseCapacity);
           return {
             content: [textContent(`Started background Herdr subagent ${started.herdr?.agentName} as job ${job.id} in tab ${started.herdr?.tabId}, pane ${started.herdr?.paneId}. Use Agent action=result with jobId=${job.id} to retrieve it.`)],
             details: { action, jobs: [started] },
@@ -313,7 +330,7 @@ export function createAgentTool() {
           const final = await waitForHerdrJob(job.id, job.controller.signal, (snapshot) => emitJobUpdate(snapshot, onUpdate));
           Object.assign(job, final); pruneJobs(); updateStatus();
           return { content: [textContent(formatJobSummary(final))], details: { action, jobs: [final] } };
-        } finally { signal?.removeEventListener("abort", parentAbort); }
+        } finally { signal?.removeEventListener("abort", parentAbort); releaseCapacity(); }
       }
 
       updateStatus();
@@ -327,7 +344,7 @@ export function createAgentTool() {
           job.endedAt = new Date().toISOString();
           return snapshotJob(job);
         })
-        .finally(() => { signal?.removeEventListener("abort", parentAbort); if (!background) updateStatus(); pruneJobs(); });
+        .finally(() => { signal?.removeEventListener("abort", parentAbort); releaseCapacity(); if (!background) updateStatus(); pruneJobs(); });
       job.promise = promise;
       if (background) {
         void promise;

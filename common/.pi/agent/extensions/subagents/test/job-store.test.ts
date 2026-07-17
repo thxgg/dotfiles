@@ -112,6 +112,18 @@ test("pruning preserves terminal jobs with undelivered notifications", () => {
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test("explicit result retrieval can consume pending completion delivery", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-subagents-consume-"));
+  const store = new JobStore(root);
+  try {
+    const item = fixture(store, "agent-aabbccdd");
+    store.initialize(item.spec, { ...item.snapshot, status: "completed", notifications: [{ id: "done", kind: "completion", state: "pending", createdAt: new Date().toISOString() }] }, "prompt");
+    const consumed = store.consumeCompletionNotifications(item.snapshot.id);
+    assert.equal(consumed?.notifications?.[0]?.state, "consumed");
+    assert.ok(consumed?.notifications?.[0]?.obsoleteAt);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("pruning never removes running jobs", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-job-store-"));
   try {

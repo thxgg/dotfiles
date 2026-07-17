@@ -6,6 +6,7 @@ import {
   SessionManager,
   SettingsManager,
   type ExtensionContext,
+  type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentDefinition } from "./agents.ts";
 import { getActiveToolNames, getDisallowedToolNames } from "./agents.ts";
@@ -15,6 +16,9 @@ import { ensureTerminalNotification } from "./notifications.ts";
 import { jobStore } from "./job-store.ts";
 import { composeAgentPrompt } from "./prompt.ts";
 import { createPermissionGuard } from "./readonly.ts";
+import { bindChildSessionExtensions, shutdownAndDisposeChildSession } from "./child-lifecycle.ts";
+import { createToolTimeoutGuard } from "./tool-timeout.ts";
+import { createStructuredOutputTool, STRUCTURED_OUTPUT_INSTRUCTION } from "./structured-output.ts";
 
 function getMessageText(message: any): string {
   const content = message?.content;
@@ -94,6 +98,7 @@ export async function runInProcessJob(
   let stopReason: string | undefined;
   let errorMessage: string | undefined;
   let maxTurnAbort = false;
+  let structured: unknown;
 
   const activity = (kind: AgentActivity["kind"], summary: string, toolName?: string): AgentActivity => ({ kind, summary, toolName, updatedAt: new Date().toISOString() });
   const describeActivity = (name: string, args: Record<string, unknown>): string => {
@@ -119,7 +124,7 @@ export async function runInProcessJob(
     cwd: job.cwd,
     agentDir: getAgentDir(),
     settingsManager,
-    appendSystemPromptOverride: (base) => [...base, composeAgentPrompt(agent)],
+    appendSystemPromptOverride: (base) => [...base, composeAgentPrompt(agent), ...(agent.outputSchema ? [STRUCTURED_OUTPUT_INSTRUCTION] : [])],
     extensionFactories: [createPermissionGuard(agent, { jobId: job.id, store: jobStore })],
   });
   await loader.reload();
@@ -135,6 +140,13 @@ export async function runInProcessJob(
     thinkingLevel: agent.thinking,
     tools: getActiveToolNames(agent),
     excludeTools: getDisallowedToolNames(agent),
+    ...(agent.outputSchema ? { customTools: [createStructuredOutputTool(agent.outputSchema, (value) => { structured = value; })] } : {}),
+  });
+  await bindChildSessionExtensions(session);
+  const timeoutGuard = createToolTimeoutGuard();
+  timeoutGuard.apply(session);
+  const unsubscribeTimeoutGuard = session.subscribe((event: AgentSessionEvent) => {
+    if (event.type === "agent_start") timeoutGuard.apply(session);
   });
 
   const abortChild = () => { void session.abort(); };
@@ -173,13 +185,30 @@ export async function runInProcessJob(
     }
   });
 
+  let firstResponseTimer: ReturnType<typeof setTimeout> | undefined;
+  const markFirstResponse = (event: AgentSessionEvent) => {
+    if ((event.type === "message_start" || event.type === "message_update" || event.type === "message_end") && event.message.role === "assistant") {
+      if (firstResponseTimer) clearTimeout(firstResponseTimer);
+      firstResponseTimer = undefined;
+    }
+  };
+  const unsubscribeFirstResponse = session.subscribe(markFirstResponse);
   try {
-    await session.prompt(`Task: ${job.task}`);
+    const stalled = new Promise<never>((_resolve, reject) => {
+      firstResponseTimer = setTimeout(() => {
+        const error = new Error("Subagent produced no assistant response event within 45 seconds; provider request may be stalled.");
+        void session.abort();
+        reject(error);
+      }, 45_000);
+      firstResponseTimer.unref?.();
+    });
+    await Promise.race([session.prompt(`Task: ${job.task}`), stalled]);
+    if (agent.outputSchema && structured === undefined) throw new Error("Subagent finished without producing the required structured output.");
     if (maxTurnAbort) throw new Error(`Subagent ${agent.name} stopped after reaching maxTurns=${agent.maxTurns}.`);
     if (errorMessage || stopReason === "error") throw new Error(errorMessage || `Subagent stopped with reason: ${stopReason}`);
     job.status = "completed";
     job.result = {
-      summary: finalSummary || "(no output)", filesRead: Array.from(filesRead).sort(), filesChanged: Array.from(filesChanged).sort(),
+      summary: finalSummary || "(no output)", structured, filesRead: Array.from(filesRead).sort(), filesChanged: Array.from(filesChanged).sort(),
       validation: Array.from(validation), artifacts: Array.from(artifacts).sort(), usage,
       toolCalls: Array.from(toolCalls.values()), stopReason, errorMessage,
     };
@@ -188,14 +217,17 @@ export async function runInProcessJob(
     job.status = job.controller.signal.aborted || maxTurnAbort || /aborted/i.test(message) ? "cancelled" : "failed";
     job.error = message;
     job.result = {
-      summary: finalSummary || message, filesRead: Array.from(filesRead).sort(), filesChanged: Array.from(filesChanged).sort(),
+      summary: finalSummary || message, structured, filesRead: Array.from(filesRead).sort(), filesChanged: Array.from(filesChanged).sort(),
       validation: Array.from(validation), artifacts: Array.from(artifacts).sort(), usage,
       toolCalls: Array.from(toolCalls.values()), stopReason, errorMessage: message,
     };
   } finally {
+    if (firstResponseTimer) clearTimeout(firstResponseTimer);
     job.controller.signal.removeEventListener("abort", abortChild);
+    unsubscribeFirstResponse();
+    unsubscribeTimeoutGuard();
     unsubscribe();
-    session.dispose();
+    await shutdownAndDisposeChildSession(session);
     job.endedAt = new Date().toISOString();
     job.activity = activity("finishing", job.status === "completed" ? "Completed" : job.status === "cancelled" ? "Cancelled" : "Failed");
     emit();

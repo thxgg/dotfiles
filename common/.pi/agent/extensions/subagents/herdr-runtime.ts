@@ -86,7 +86,7 @@ export function buildChildPiArgs(input: {
   if (agent.model) args.push("--model", agent.model);
   if (agent.thinking) args.push("--thinking", agent.thinking);
   const tools = getActiveToolNames(agent);
-  if (tools?.length) args.push("--tools", tools.join(","));
+  if (tools?.length) args.push("--tools", [...tools, ...(agent.outputSchema ? ["structured_output"] : [])].join(","));
   const exclusions = getDisallowedToolNames(agent);
   if (exclusions.length) args.push("--exclude-tools", exclusions.join(","));
   args.push("-e", childBridgePath, "--append-system-prompt", input.promptPath);

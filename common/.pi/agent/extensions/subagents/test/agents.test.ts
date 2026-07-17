@@ -3,10 +3,10 @@ import { test } from "node:test";
 import { discoverAgents, formatAgentList, getActiveToolNames, getAgentByName, getDisallowedToolNames } from "../agents.ts";
 import { composeAgentPrompt } from "../prompt.ts";
 
-test("discovers built-in Amp-style agents", () => {
+test("discovers built-in Pi agents", () => {
   const agents = discoverAgents(process.cwd(), "builtin").agents;
   const names = agents.map((agent) => agent.name).sort();
-  assert.deepEqual(names, ["agent", "check", "frontend-reviewer", "librarian", "oracle", "painter", "reviewer", "search"]);
+  assert.deepEqual(names, ["agent", "check", "fable-reviewer", "frontend-reviewer", "librarian", "oracle", "painter", "reviewer", "search"]);
 });
 
 test("frontend reviewer uses the scoped GLM model", () => {
@@ -56,8 +56,10 @@ test("librarian instructions sequence source and official docs before web search
 });
 
 test("disallowed tools apply even without an allowlist", () => {
+  const base = discoverAgents(process.cwd(), "builtin").agents[0];
+  assert.ok(base);
   const agent = {
-    ...discoverAgents(process.cwd(), "builtin").agents[0],
+    ...base,
     tools: undefined,
     disallowedTools: ["webfetch"],
     permissions: { edit: "deny" as const, write: "deny" as const, bash: "deny" as const },

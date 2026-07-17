@@ -33,6 +33,7 @@ export interface AgentDefinition {
   maxTurns?: number;
   background: BackgroundPolicy;
   returnMode?: string;
+  outputSchema?: unknown;
   hidden: boolean;
   systemPrompt: string;
   source: AgentSource;
@@ -142,6 +143,7 @@ function normalizeAgent(frontmatter: Record<string, unknown>, body: string, sour
     maxTurns: maxTurns && maxTurns > 0 ? Math.floor(maxTurns) : undefined,
     background: parseBackground(frontmatter.background),
     returnMode: asString(frontmatter.returnMode),
+    outputSchema: frontmatter.outputSchema,
     hidden: asBoolean(frontmatter.hidden, false),
     systemPrompt: body.trim(),
     source,

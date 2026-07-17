@@ -6,6 +6,7 @@ import { JobStore } from "./job-store.ts";
 import type { AgentActivity, AgentJobResult, AgentJobSnapshot, ToolCallSummary, UsageStats } from "./job-types.ts";
 import { emptyUsage, isTerminalStatus } from "./job-types.ts";
 import { ensureTerminalNotification } from "./notifications.ts";
+import { createStructuredOutputTool, STRUCTURED_OUTPUT_INSTRUCTION } from "./structured-output.ts";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -83,6 +84,11 @@ export default function childBridge(pi: ExtensionAPI): void {
   }
 
   createPermissionGuard(spec.agent, { jobId: spec.jobId, store })(pi);
+  let structured: unknown;
+  if (spec.agent.outputSchema) {
+    pi.registerTool(createStructuredOutputTool(spec.agent.outputSchema, (value) => { structured = value; }));
+    pi.on("before_agent_start", (event) => ({ systemPrompt: `${event.systemPrompt}\n\n${STRUCTURED_OUTPUT_INSTRUCTION}` }));
+  }
 
   const usage = initial.result?.usage ? { ...initial.result.usage } : emptyUsage();
   const toolCalls = new Map((initial.result?.toolCalls ?? []).map((call) => [call.id, { ...call }]));
@@ -108,6 +114,7 @@ export default function childBridge(pi: ExtensionAPI): void {
 
   const result = (): AgentJobResult => ({
     summary: finalSummary || "(no output)",
+    structured,
     filesRead: Array.from(filesRead).sort(),
     filesChanged: Array.from(filesChanged).sort(),
     validation: Array.from(validation),
@@ -199,7 +206,9 @@ export default function childBridge(pi: ExtensionAPI): void {
     settled = true;
     const now = new Date().toISOString();
     const cancelled = maxTurnAbort || stopReason === "aborted";
-    const failed = !cancelled && (Boolean(errorMessage) || stopReason === "error");
+    const missingStructured = Boolean(spec.agent.outputSchema) && structured === undefined;
+    const failed = !cancelled && (Boolean(errorMessage) || stopReason === "error" || missingStructured);
+    if (missingStructured && !errorMessage) errorMessage = "Subagent finished without producing the required structured output.";
     const terminal = store.update(spec.jobId, (current) => ({
       ...current,
       status: cancelled ? "cancelled" : failed ? "failed" : "completed",
@@ -209,7 +218,8 @@ export default function childBridge(pi: ExtensionAPI): void {
       result: { ...result(), summary: finalSummary || errorMessage || "(no output)" },
     }));
     ensureTerminalNotification(store, spec.jobId);
-    if (terminal?.herdr?.tabId) closeCompletedHerdrTab(terminal.herdr.tabId);
+    // Keep completed Herdr children inspectable. /agents focus/close and cleanup
+    // own the explicit lifecycle after settlement.
   });
 
   pi.on("session_shutdown", (event: any) => {

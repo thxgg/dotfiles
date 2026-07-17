@@ -25,7 +25,7 @@ test("final completion requires a complete self-contained parent response", () =
     id: "agent-deadbeef", agent: "reviewer", source: "builtin", task: "review", cwd: "/tmp",
     status: "completed", background: true, backend: "herdr", startedAt: new Date().toISOString(),
     owner: { sessionId: "session-1" },
-    result: { summary: "One important finding.", filesRead: [], filesChanged: [], validation: [], artifacts: [], toolCalls: [] },
+    result: { summary: "One important finding.", filesRead: [], filesChanged: [], validation: [], artifacts: [], toolCalls: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 } },
   };
   const content = notificationContent(job, completionNotification(job), 0);
   assert.match(content, /No background subagents remain active/);
@@ -39,7 +39,7 @@ test("non-final completion reports remaining active subagents", () => {
     id: "agent-deadbeef", agent: "reviewer", source: "builtin", task: "review", cwd: "/tmp",
     status: "completed", background: true, backend: "herdr", startedAt: new Date().toISOString(),
     owner: { sessionId: "session-1" },
-    result: { summary: "One important finding.", filesRead: [], filesChanged: [], validation: [], artifacts: [], toolCalls: [] },
+    result: { summary: "One important finding.", filesRead: [], filesChanged: [], validation: [], artifacts: [], toolCalls: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 } },
   };
   const content = notificationContent(job, completionNotification(job), 2);
   assert.match(content, /2 background subagent\(s\) remain active/);

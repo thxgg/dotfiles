@@ -199,7 +199,7 @@ export class JobStore {
     return this.update(jobId, (current) => {
       const now = Date.now();
       const notifications = (current.notifications ?? []).map((item) => {
-        if (item.id !== notificationId || item.state === "delivered") return item;
+        if (item.id !== notificationId || item.state === "delivered" || item.state === "consumed") return item;
         const leaseExpired = !item.leaseExpiresAt || Date.parse(item.leaseExpiresAt) <= now;
         if (item.state === "delivering" && !leaseExpired && item.leaseOwner !== owner) return item;
         return { ...item, state: "delivering" as const, leaseOwner: owner, leaseExpiresAt: new Date(now + leaseMs).toISOString() };
@@ -226,6 +226,15 @@ export class JobStore {
     }));
   }
 
+  consumeCompletionNotifications(jobId: string): AgentJobSnapshot | undefined {
+    return this.update(jobId, (current) => ({
+      ...current,
+      notifications: (current.notifications ?? []).map((item) => item.kind === "completion" && item.state !== "delivered"
+        ? { ...item, state: "consumed" as const, obsoleteAt: new Date().toISOString(), leaseOwner: undefined, leaseExpiresAt: undefined }
+        : item),
+    }));
+  }
+
   remove(jobId: string): boolean {
     try { fs.rmSync(this.paths(jobId).dir, { recursive: true, force: true }); return true; }
     catch { return false; }
@@ -234,7 +243,7 @@ export class JobStore {
   prune(limit = HISTORY_LIMIT): string[] {
     const terminal = this.list().filter((job) => isTerminalStatus(job.status)
       && (!job.worktree || Boolean(job.worktree.discardedAt))
-      && (job.notifications ?? []).every((notification) => notification.state === "delivered" || Boolean(notification.obsoleteAt)));
+      && (job.notifications ?? []).every((notification) => notification.state === "delivered" || notification.state === "consumed" || Boolean(notification.obsoleteAt)));
     const overflow = terminal.length - Math.max(0, limit);
     if (overflow <= 0) return [];
     const removed: string[] = [];

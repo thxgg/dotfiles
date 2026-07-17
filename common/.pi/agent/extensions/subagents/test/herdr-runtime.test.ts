@@ -19,7 +19,7 @@ test("does not mistake an arbitrary Node entry script for the Pi CLI", () => {
   assert.deepEqual(getPiInvocation(["--version"]), { command: "pi", args: ["--version"] });
 });
 
-test("completed Herdr children close their dedicated tab without blocking", () => {
+test("legacy explicit close helper remains non-blocking", () => {
   const previous = { HERDR_ENV: process.env.HERDR_ENV, HERDR_SOCKET_PATH: process.env.HERDR_SOCKET_PATH, HERDR_BIN_PATH: process.env.HERDR_BIN_PATH };
   const calls: Array<{ command: string; args: string[]; options: Record<string, unknown> }> = [];
   let unrefCalled = false;
