@@ -24,7 +24,7 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies, runs `pi update --self` plus `pi update --extensions`, and runs `herdr update`
+- `./dot update` pulls latest changes, updates OS packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies, runs `pi update --self` plus `pi update --extensions`, and updates Herdr through Homebrew or its self-updater as appropriate
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health plus the Pi runtime and extension workspace via `doctor.sh`
