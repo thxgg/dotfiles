@@ -318,13 +318,21 @@ update_herdr() {
 		return
 	fi
 
-	local -a herdr_update_cmd
-	herdr_update_cmd=(herdr update)
-	if [[ -n "${HERDR_ENV:-}" ]]; then
-		herdr_update_cmd+=(--handoff)
+	# Homebrew installations disable Herdr's self-updater. Keep this step useful
+	# when package updates are skipped or fail before reaching Herdr.
+	if command_exists brew && brew list --formula herdr >/dev/null 2>&1; then
+		info "Updating Homebrew-managed Herdr"
+		brew upgrade herdr || return
+	else
+		local -a herdr_update_cmd
+		herdr_update_cmd=(herdr update)
+		if [[ -n "${HERDR_ENV:-}" ]]; then
+			herdr_update_cmd+=(--handoff)
+		fi
+
+		"${herdr_update_cmd[@]}" || return
 	fi
 
-	"${herdr_update_cmd[@]}" || return
 	success "Herdr updated"
 }
 
@@ -526,7 +534,7 @@ Options:
   --skip-packages  Skip Homebrew/yay updates
   --skip-stow      Skip re-applying stow links
   --skip-pi        Skip pi and extension updates
-  --skip-herdr     Skip Herdr self-update
+  --skip-herdr     Skip Herdr update
   --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
   --help           Show this help
 EOF
