@@ -2,7 +2,7 @@ import type { AgentDefinition, ThinkingLevel } from "./agents.ts";
 
 export type AgentJobStatus = "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AgentBackend = "in-process" | "herdr";
-export type NotificationState = "pending" | "delivering" | "delivered";
+export type NotificationState = "pending" | "delivering" | "delivered" | "consumed";
 
 export interface UsageStats {
   input: number;
@@ -42,6 +42,7 @@ export interface AgentPermissionRequest {
 
 export interface AgentJobResult {
   summary: string;
+  structured?: unknown;
   filesRead: string[];
   filesChanged: string[];
   validation: string[];

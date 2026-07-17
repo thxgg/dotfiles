@@ -84,7 +84,7 @@ function claimableNotifications(store: JobStore, sessionId: string): Array<{ job
   for (const job of store.list()) {
     if (!belongsToSession(job, sessionId)) continue;
     for (const notification of job.notifications ?? []) {
-      if (notification.state === "delivered" || notification.obsoleteAt) continue;
+      if (notification.state === "delivered" || notification.state === "consumed" || notification.obsoleteAt) continue;
       if (notification.state === "delivering" && notification.leaseExpiresAt && Date.parse(notification.leaseExpiresAt) > now) continue;
       values.push({ job, notification });
     }
@@ -127,7 +127,10 @@ export function startNotificationPump(pi: ExtensionAPI, ctx: ExtensionContext, s
           const activeSessionJobs = notification.kind === "completion"
             ? store.list().filter((job) => belongsToSession(job, sessionId) && ["queued", "running", "waiting"].includes(job.status)).length
             : undefined;
-          const content = notificationContent(claimed, notification, activeSessionJobs);
+          const latest = store.read(claimed.id);
+          const latestNotification = latest?.notifications?.find((item) => item.id === notification.id);
+          if (!latest || latestNotification?.state === "consumed" || latestNotification?.obsoleteAt) continue;
+          const content = notificationContent(latest, latestNotification ?? notification, activeSessionJobs);
           if (!content) {
             store.completeNotification(claimed.id, notification.id, owner);
             continue;

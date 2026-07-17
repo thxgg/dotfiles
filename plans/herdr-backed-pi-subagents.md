@@ -18,7 +18,7 @@ Repository: personal dotfiles managed with GNU Stow.
 Relevant paths:
 
 ```text
-common/.pi/agent/extensions/amp-subagents/
+common/.pi/agent/extensions/subagents/
 ├── index.ts
 ├── runtime.ts
 ├── agents.ts
@@ -56,12 +56,12 @@ Before implementation, read these files completely:
 
 ### Current implementation
 
-- `common/.pi/agent/extensions/amp-subagents/index.ts`
-- `common/.pi/agent/extensions/amp-subagents/runtime.ts`
-- `common/.pi/agent/extensions/amp-subagents/agents.ts`
-- `common/.pi/agent/extensions/amp-subagents/readonly.ts`
-- All files under `common/.pi/agent/extensions/amp-subagents/agents/`
-- Existing tests under `common/.pi/agent/extensions/amp-subagents/test/`
+- `common/.pi/agent/extensions/subagents/index.ts`
+- `common/.pi/agent/extensions/subagents/runtime.ts`
+- `common/.pi/agent/extensions/subagents/agents.ts`
+- `common/.pi/agent/extensions/subagents/readonly.ts`
+- All files under `common/.pi/agent/extensions/subagents/agents/`
+- Existing tests under `common/.pi/agent/extensions/subagents/test/`
 - `common/.pi/agent/extensions/herdr-agent-state.ts`
 - `common/.config/herdr/config.toml`
 - `common/.local/bin/pi`
@@ -172,7 +172,7 @@ Keep both backends:
 Refactor the existing implementation rather than deleting it. A reasonable split is:
 
 ```text
-amp-subagents/
+subagents/
 ├── runtime.ts              # shared job API/backend routing
 ├── in-process-runtime.ts   # extracted existing createAgentSession implementation
 ├── herdr-runtime.ts        # tab/agent orchestration
@@ -503,7 +503,7 @@ Abstract Herdr execution behind a small interface so tests can use a fake execut
 Suggested test command:
 
 ```bash
-node --test common/.pi/agent/extensions/amp-subagents/test/*.test.ts
+node --test common/.pi/agent/extensions/subagents/test/*.test.ts
 ```
 
 Also run any broader extension tests affected by shared helpers.
