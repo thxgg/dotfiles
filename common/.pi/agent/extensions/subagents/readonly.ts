@@ -35,7 +35,8 @@ const SAFE_PREFIX_PATTERNS = [
 export function isReadOnlyCommand(command: string): boolean {
   const trimmed = command.trim();
   if (!trimmed || DESTRUCTIVE_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
-  const withoutAssignments = trimmed.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+)*/, "");
+  const withoutAssignments = trimmed
+    .replace(/^(?:export\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+)*(?:\r?\n\s*)?/i, "");
   return SAFE_PREFIX_PATTERNS.some((pattern) => pattern.test(withoutAssignments));
 }
 

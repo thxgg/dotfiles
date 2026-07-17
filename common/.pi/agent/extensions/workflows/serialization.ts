@@ -11,6 +11,7 @@ export function truncateUtf8(value: string, maxBytes: number): string {
 
 export function toSerializable(value: unknown, depth = 0): unknown {
   if (depth > 20) return "[depth limit]";
+  if (value === undefined) return undefined;
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : String(value);
   if (typeof value === "bigint") return value.toString();
@@ -18,7 +19,7 @@ export function toSerializable(value: unknown, depth = 0): unknown {
   if (value && typeof value === "object") {
     const output: Record<string, unknown> = Object.create(null);
     for (const [key, item] of Object.entries(value).slice(0, 10_000)) {
-      if (!["__proto__", "constructor", "prototype"].includes(key)) output[key] = toSerializable(item, depth + 1);
+      if (!["__proto__", "constructor", "prototype"].includes(key) && item !== undefined) output[key] = toSerializable(item, depth + 1);
     }
     return output;
   }

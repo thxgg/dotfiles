@@ -10,7 +10,7 @@ const MAX_MESSAGE = 512 * 1024;
 const MAX_RESULT = 1024 * 1024;
 
 export interface SandboxAgentResult { ok: boolean; output: string; structured?: unknown; error?: string; }
-export interface SandboxAgentOptions { label?: unknown; phase?: unknown; agentType?: unknown; schema?: unknown; model?: unknown; effort?: unknown; }
+export interface SandboxAgentOptions { label?: unknown; phase?: unknown; schema?: unknown; model?: unknown; effort?: unknown; }
 
 function bytes(value: string): number { return Buffer.byteLength(value, "utf8"); }
 function record(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }

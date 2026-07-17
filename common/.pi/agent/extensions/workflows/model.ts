@@ -27,6 +27,7 @@ export interface WorkflowAgentRecord {
 export interface WorkflowDetails {
   runId: string;
   sessionId: string;
+  owner?: { pid: number; instanceId: string };
   name?: string;
   description?: string;
   background: boolean;

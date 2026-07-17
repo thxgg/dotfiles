@@ -138,7 +138,7 @@ export async function runInProcessJob(
     model: model ?? ctx.model,
     modelRegistry: ctx.modelRegistry,
     thinkingLevel: agent.thinking,
-    tools: getActiveToolNames(agent),
+    tools: getActiveToolNames(agent, Boolean(agent.outputSchema)),
     excludeTools: getDisallowedToolNames(agent),
     ...(agent.outputSchema ? { customTools: [createStructuredOutputTool(agent.outputSchema, (value) => { structured = value; })] } : {}),
   });

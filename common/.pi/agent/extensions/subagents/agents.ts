@@ -259,8 +259,10 @@ export function getDisallowedToolNames(agent: AgentDefinition): string[] {
   return Array.from(disallowed).sort();
 }
 
-export function getActiveToolNames(agent: AgentDefinition): string[] | undefined {
+export function getActiveToolNames(agent: AgentDefinition, includeStructuredOutput = false): string[] | undefined {
   if (!agent.tools) return undefined;
   const disallowed = new Set(getDisallowedToolNames(agent));
-  return agent.tools.filter((tool) => !disallowed.has(tool));
+  const tools = agent.tools.filter((tool) => !disallowed.has(tool));
+  if (includeStructuredOutput && !disallowed.has("structured_output") && !tools.includes("structured_output")) tools.push("structured_output");
+  return tools;
 }
