@@ -672,7 +672,7 @@ Workflow runtime   →  script-owned orchestration of many children</code></pre>
   <div class="phase">
     <span class="phase-tag">Phase 3</span>
     <h3>Workflow MVP</h3>
-    <p>A separate <code>workflow</code> tool exposing <code>phase(title)</code>, <code>agent(prompt, { label?, agentType?, schema?, model?, effort? })</code>, and <code>parallel(thunks, { concurrency? })</code>. Initial limits: 4 concurrent children · 32 calls · 512&nbsp;KB source · 256&nbsp;KB args · 1&nbsp;MB result · first response within 45–60&nbsp;s · 3-minute per-tool timeout · no overall deadline. Persist under:</p>
+    <p>A separate <code>workflow</code> tool exposing <code>phase(title)</code>, <code>agent(prompt, { label?, phase?, schema?, model?, effort? })</code>, and <code>parallel(thunks, { concurrency? })</code>. Initial limits: 4 concurrent children · 32 calls · 512&nbsp;KB source · 256&nbsp;KB args · 1&nbsp;MB result · first response within 45–60&nbsp;s · 3-minute per-tool timeout · no overall deadline. Persist under:</p>
 <pre><code>~/.local/state/pi/workflows/&lt;run-id&gt;/
 ├── script.js
 ├── args.json

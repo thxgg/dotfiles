@@ -13,21 +13,19 @@ export const meta = {
   phases: [{ title: "Review" }, { title: "Verify" }],
 }
 
-phase("Review")
-const reviews = await parallel(args.files.map(file => () =>
-  agent(`Review ${file}`, { label: file, agentType: "reviewer", schema: args.schema })
-))
+const reviews = await phase("Review", () => parallel(args.files.map(file => () =>
+  agent(`Review ${file}`, { label: file, schema: args.schema })
+)))
 
-phase("Verify")
-const verified = await agent(`Verify: ${JSON.stringify(reviews)}`, {
-  label: "verifier",
-  schema: args.verificationSchema,
-})
+const verified = await phase("Verify", () => agent(
+  `Verify: ${JSON.stringify(reviews)}`,
+  { label: "verifier", schema: args.verificationSchema },
+))
 
 return { reviews, verified }
 ```
 
-Available globals: `args`, `phase(title)`, `agent(prompt, options)`, and `parallel(thunks, { concurrency })`.
+Available globals: `args`, `phase(title[, callback])`, `agent(prompt, { label?, phase?, schema?, model?, effort? })`, and `parallel(items, { concurrency })`. Parallel items may be agent promises or zero-argument functions; use functions when requesting a lower `concurrency` limit. Workflow children always use the dedicated ephemeral `workflow-worker`; named standalone subagent types are intentionally unavailable. Children default to `openai-codex/gpt-5.6-sol`; the only model override is `anthropic/claude-fable-5` (shorthands: `gpt-5.6-sol` and `fable-5`).
 
 Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must inspect `ok`. Workflow children are in-process and dashboard-backed by default, avoiding one Herdr tab per child.
 
@@ -43,10 +41,9 @@ Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must 
 
 ## Commands
 
-- `/workflows` — run → agent → transcript dashboard, with cancel/restart/save actions;
-- `/activity` — unified attention view over subagents and workflow runs;
-- `/workflow-run <name> [args]` — run a saved workflow.
+- `/workflows` — floating phase/agent dashboard with transcript inspection, cancel, restart, and Markdown report export;
+- `/activity` — unified attention view over subagents and workflow runs.
 
-Workflow state lives under `${XDG_STATE_HOME:-~/.local/state}/pi/workflows/`. Saved workflow scripts live under `~/.pi/agent/workflows/`.
+Workflow state and one-off run artifacts live under `${XDG_STATE_HOME:-~/.local/state}/pi/workflows/`. Press `s` in a run detail view to export `report.md` beside the run artifacts.
 
 Pi intentionally has no built-in background bash runtime, and this repository has no separate durable background-session supervisor. The unified activity model retains `shell` and `session` as future adapter kinds without fabricating unsupported lifecycle semantics.

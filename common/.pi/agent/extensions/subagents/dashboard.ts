@@ -67,5 +67,5 @@ export class SubagentDashboard {
   }
 }
 export async function showSubagentDashboard(ctx: ExtensionContext, getJobs: () => AgentJobSnapshot[], actions: SubagentDashboardActions): Promise<void> {
-  await ctx.ui.custom<void>((tui, theme, keys, done) => { let dashboard: SubagentDashboard; dashboard = new SubagentDashboard(tui, theme, keys, getJobs, actions, () => done(undefined)); return dashboard; }, { overlay: true, overlayOptions: { anchor: "center", width: "100%", maxHeight: "100%" } });
+  await ctx.ui.custom<void>((tui, theme, keys, done) => { let dashboard: SubagentDashboard; dashboard = new SubagentDashboard(tui, theme, keys, getJobs, actions, () => done(undefined)); return dashboard; });
 }
