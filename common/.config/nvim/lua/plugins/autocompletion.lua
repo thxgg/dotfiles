@@ -4,6 +4,17 @@ return {
 		"saghen/blink.lib",
 	},
 	build = function()
+		-- `dot update` runs `:Lazy! update` while blink.cmp is already loaded,
+		-- and blink caches the repo's git commit at module load. Without a
+		-- reload, the post-update build hook sees the pre-update commit, finds
+		-- lib/libblink_cmp_fuzzy.so.<old> and no-ops, so every later launch
+		-- warns that the native library is missing. Reload so the build checks
+		-- and stamps the freshly checked-out commit.
+		for name in pairs(package.loaded) do
+			if name == "blink.cmp" or vim.startswith(name, "blink.cmp.") then
+				package.loaded[name] = nil
+			end
+		end
 		require("blink.cmp").build():pwait()
 	end,
 	opts = {
