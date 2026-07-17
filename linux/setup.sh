@@ -76,23 +76,6 @@ configure_fish_shell() {
 	fi
 }
 
-configure_pacman_ignored_packages() {
-	local pacman_conf="/etc/pacman.conf"
-
-	if awk '$1 == "IgnorePkg" { for (i = 3; i <= NF; i++) if ($i == "flameshot") found = 1 } END { exit !found }' "$pacman_conf"; then
-		success "Pacman already ignores flameshot updates"
-		return
-	fi
-
-	info "Configuring pacman and yay to ignore flameshot updates"
-	if grep -Eq '^[[:space:]]*IgnorePkg[[:space:]]*=' "$pacman_conf"; then
-		sudo sed -i '0,/^[[:space:]]*IgnorePkg[[:space:]]*=/s/$/ flameshot/' "$pacman_conf"
-	else
-		sudo sed -i '/^[[:space:]]*\[options\][[:space:]]*$/a IgnorePkg = flameshot' "$pacman_conf"
-	fi
-	success "Pacman and yay will ignore flameshot updates"
-}
-
 ensure_vite_plus_node() {
 	local vp_home vp_bin
 
@@ -510,7 +493,6 @@ fi
 
 info "Installing packages with yay"
 ensure_sudo_session
-configure_pacman_ignored_packages
 reconcile_valkey_conflict
 reconcile_flameshot_conflict
 reconcile_nodejs_provider_conflict
