@@ -34,6 +34,7 @@ test("permissions remove denied tools from active tool allowlist", () => {
   const search = getAgentByName(agents, "search");
   assert.ok(search);
   assert.deepEqual(getActiveToolNames(search), ["read", "grep", "find", "ls", "bash"]);
+  assert.deepEqual(getActiveToolNames(search, true), ["read", "grep", "find", "ls", "bash", "structured_output"]);
 });
 
 test("composed prompts expose capability and completion boundaries", () => {
