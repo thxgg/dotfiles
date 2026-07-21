@@ -2,6 +2,7 @@
 .vscode/
 
 # Runtime logs/state
+common/.codex/config.toml
 common/.config/btop/btop.log
 common/.config/opencode/worktrees/
 common/.config/opencode/package-lock.json
