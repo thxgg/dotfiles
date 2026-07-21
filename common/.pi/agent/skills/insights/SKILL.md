@@ -1,6 +1,6 @@
 ---
 name: insights
-description: Reviews Pi primary or subagent sessions and produces evidence-backed suggestions for improving user prompts, AGENTS.md files, skills, system instructions, tooling, and subagent delegation. Use when the user asks to analyze sessions, recurring agent friction, prompt quality, instruction health, or how the parent agent manages subagents.
+description: Retrospectively reviews one or more Pi sessions to identify evidence-backed improvements to prompts, AGENTS.md files, skills, instructions, tooling, or subagent delegation. Use when analyzing completed session behavior, outcomes, friction, or instruction quality. Do not use for live session monitoring, progress updates, current activity checks, or watching an ongoing session.
 ---
 
 # Session Insights
