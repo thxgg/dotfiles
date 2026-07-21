@@ -10,6 +10,7 @@ import {
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { Key, Markdown, matchesKey, Text, type Component, type TUI } from "@earendil-works/pi-tui";
+import { createChildModelRuntime } from "../subagents/model-runtime.ts";
 import { buildParentMessages } from "./context.ts";
 import { resolveSideModel } from "./model.ts";
 import {
@@ -77,11 +78,12 @@ async function createSideSession(question: string, ctx: ExtensionCommandContext,
   });
   await loader.reload();
 
+  const modelRuntime = await createChildModelRuntime(ctx.modelRegistry);
   const { session } = await createAgentSession({
     cwd: ctx.cwd,
     agentDir: getAgentDir(),
     model: sideModel.model,
-    modelRegistry: ctx.modelRegistry,
+    modelRuntime,
     thinkingLevel: "off",
     resourceLoader: loader,
     settingsManager,

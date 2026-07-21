@@ -6,6 +6,7 @@ import {
 import type { AgentDefinition } from "../subagents/agents.ts";
 import { getActiveToolNames, getDisallowedToolNames } from "../subagents/agents.ts";
 import { bindChildSessionExtensions, shutdownAndDisposeChildSession } from "../subagents/child-lifecycle.ts";
+import { createChildModelRuntime } from "../subagents/model-runtime.ts";
 import { createPermissionGuard } from "../subagents/readonly.ts";
 import { createStructuredOutputTool, STRUCTURED_OUTPUT_INSTRUCTION } from "../subagents/structured-output.ts";
 import { createToolTimeoutGuard } from "../subagents/tool-timeout.ts";
@@ -75,8 +76,9 @@ export async function runWorkflowAgent(options: {
   await loader.reload();
   const model = resolveWorkflowModel(options.ctx, options.model);
   if (!model) return { ok: false, output: "", error: `Unsupported workflow model: ${String(options.model)}. Use gpt-5.6-sol or fable-5.`, usage: emptyUsage(), transcript: [] };
+  const modelRuntime = await createChildModelRuntime(options.ctx.modelRegistry);
   const { session } = await createAgentSession({
-    cwd: options.cwd, model, modelRegistry: options.ctx.modelRegistry, resourceLoader: loader, settingsManager: settings,
+    cwd: options.cwd, model, modelRuntime, resourceLoader: loader, settingsManager: settings,
     sessionManager: SessionManager.inMemory(options.cwd), thinkingLevel: (typeof options.effort === "string" ? options.effort : definition.thinking) as any,
     tools: getActiveToolNames(definition, Boolean(options.schema)), excludeTools: [...new Set([...getDisallowedToolNames(definition), "Agent", "workflow", "ask_user"])],
     ...(options.schema ? { customTools: [createStructuredOutputTool(options.schema, (value) => { structured = value; })] } : {}),

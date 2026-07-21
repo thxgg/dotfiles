@@ -15,6 +15,7 @@ import { emptyUsage, snapshotJob } from "./job-types.ts";
 import { ensureTerminalNotification } from "./notifications.ts";
 import { jobStore } from "./job-store.ts";
 import { composeAgentPrompt } from "./prompt.ts";
+import { createChildModelRuntime } from "./model-runtime.ts";
 import { createPermissionGuard } from "./readonly.ts";
 import { bindChildSessionExtensions, shutdownAndDisposeChildSession } from "./child-lifecycle.ts";
 import { createToolTimeoutGuard } from "./tool-timeout.ts";
@@ -129,6 +130,7 @@ export async function runInProcessJob(
   });
   await loader.reload();
 
+  const modelRuntime = await createChildModelRuntime(ctx.modelRegistry);
   const { session } = await createAgentSession({
     cwd: job.cwd,
     agentDir: getAgentDir(),
@@ -136,7 +138,7 @@ export async function runInProcessJob(
     resourceLoader: loader,
     sessionManager: SessionManager.inMemory(job.cwd),
     model: model ?? ctx.model,
-    modelRegistry: ctx.modelRegistry,
+    modelRuntime,
     thinkingLevel: agent.thinking,
     tools: getActiveToolNames(agent, Boolean(agent.outputSchema)),
     excludeTools: getDisallowedToolNames(agent),
