@@ -22,6 +22,10 @@ Core workflow:
 
 Prefer refs from `snapshot` over CSS selectors, and prefer semantic waits like `agent-browser wait --load networkidle` over fixed sleeps.
 
+## Development Servers
+
+When starting a project development server, use the repository's documented command exactly. Do not append port overrides or extra argument separators such as `-- --port` unless the user explicitly requests a port or the documented command requires it. If the default port is occupied, let the development tool automatically select the next available port, then report the URL it prints.
+
 ## Git Commits
 
 ### Workflow
