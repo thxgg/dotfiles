@@ -1,5 +1,5 @@
 import type { AgentToolResult, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { type Component, Text } from "@earendil-works/pi-tui";
 
 type McpToolResultDetails = Record<string, unknown> & { error?: unknown };
 type McpToolContentBlock = AgentToolResult<McpToolResultDetails>["content"][number];
@@ -9,9 +9,11 @@ interface RenderTheme {
   bold?: (text: string) => string;
 }
 
+const plainTheme: RenderTheme = { fg: (_name, text) => text };
+
 export interface McpProxyToolCallInput {
   tool?: string;
-  args?: string;
+  args?: string | Record<string, unknown>;
   connect?: string;
   describe?: string;
   search?: string;
@@ -31,6 +33,29 @@ export interface McpToolResultDisplay {
 }
 
 const DEFAULT_MAX_CALL_INPUT_CHARS = 1500;
+const DEFAULT_MAX_COLLAPSED_LINES = 3;
+
+class CollapsibleText implements Component {
+  constructor(
+    private readonly text: string,
+    private readonly expanded: boolean,
+    private readonly maxCollapsedLines: number,
+    private readonly ellipsis: string,
+    private readonly expandHint: string,
+  ) {}
+
+  render(width: number): string[] {
+    const lines = new Text(this.text, 0, 0).render(width);
+    if (this.expanded || lines.length <= this.maxCollapsedLines) return lines;
+
+    return [
+      ...lines.slice(0, this.maxCollapsedLines),
+      ...new Text(`${this.ellipsis}\n${this.expandHint}`, 0, 0).render(width),
+    ];
+  }
+
+  invalidate(): void {}
+}
 
 function truncateText(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
@@ -96,19 +121,20 @@ export function formatMcpDirectToolCallLines(
   return [displayName, formatJsonish(args, maxInputChars)];
 }
 
-function renderToolCallLines(lines: string[], theme: RenderTheme) {
+function renderToolCallLines(lines: string[], theme?: RenderTheme) {
+  const activeTheme = theme ?? plainTheme;
   const [title = "mcp", ...rest] = lines;
-  const styledTitle = theme.fg("toolTitle", theme.bold ? theme.bold(title) : title);
-  const styledRest = rest.map(line => theme.fg("muted", line));
+  const styledTitle = activeTheme.fg("toolTitle", activeTheme.bold ? activeTheme.bold(title) : title);
+  const styledRest = rest.map(line => activeTheme.fg("muted", line));
   return new Text([styledTitle, ...styledRest].join("\n"), 0, 0);
 }
 
-export function renderMcpProxyToolCall(args: McpProxyToolCallInput, theme: RenderTheme) {
+export function renderMcpProxyToolCall(args: McpProxyToolCallInput, theme?: RenderTheme) {
   return renderToolCallLines(formatMcpProxyToolCallLines(args), theme);
 }
 
 export function createMcpDirectToolCallRenderer(displayName: string) {
-  return (args: Record<string, unknown>, theme: RenderTheme) => {
+  return (args: Record<string, unknown>, theme?: RenderTheme) => {
     return renderToolCallLines(formatMcpDirectToolCallLines(displayName, args), theme);
   };
 }
@@ -141,21 +167,24 @@ export function formatMcpToolResultLines(
 export function renderMcpToolResult(
   result: AgentToolResult<McpToolResultDetails>,
   options: ToolRenderResultOptions,
-  theme: RenderTheme,
+  theme?: RenderTheme,
   context?: McpToolRenderContext,
 ) {
+  const activeTheme = theme ?? plainTheme;
   if (options.isPartial) {
-    return new Text(theme.fg("warning", "Running MCP tool..."), 0, 0);
+    return new Text(activeTheme.fg("warning", "Running MCP tool..."), 0, 0);
   }
 
   const hasErrorDetails = Boolean(result.details.error);
-  const display = formatMcpToolResultLines(result, options.expanded || context?.isError === true || hasErrorDetails);
-  const output = display.lines
-    .map((line) => line === "…" ? theme.fg("muted", line) : theme.fg("toolOutput", line))
-    .join("\n");
-  const hint = display.truncated && !options.expanded
-    ? `\n${theme.fg("muted", "(Ctrl+O to expand)")}`
-    : "";
+  const expanded = options.expanded || context?.isError === true || hasErrorDetails;
+  const display = formatMcpToolResultLines(result, true);
+  const output = display.lines.map((line) => activeTheme.fg("toolOutput", line)).join("\n");
 
-  return new Text(`${output}${hint}`, 0, 0);
+  return new CollapsibleText(
+    output,
+    expanded,
+    DEFAULT_MAX_COLLAPSED_LINES,
+    activeTheme.fg("muted", "…"),
+    activeTheme.fg("muted", "(Ctrl+O to expand)"),
+  );
 }

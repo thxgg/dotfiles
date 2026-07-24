@@ -45,7 +45,7 @@ describe("config discovery", () => {
     });
 
     writeJson(join(project, ".mcp.json"), {
-      settings: { toolPrefix: "none" },
+      settings: { toolPrefix: "none", oauthDir: "shared-oauth" },
       mcpServers: {
         shared: { command: "project" },
         projectOnly: { command: "project-only" },
@@ -53,7 +53,7 @@ describe("config discovery", () => {
     });
 
     writeJson(join(project, ".pi", "mcp.json"), {
-      settings: { autoAuth: true },
+      settings: { autoAuth: true, oauthDir: ".pi/oauth" },
       mcpServers: {
         shared: { command: "project-pi" },
         projectPiOnly: { command: "project-pi-only" },
@@ -74,6 +74,7 @@ describe("config discovery", () => {
       toolPrefix: "none",
       directTools: true,
       autoAuth: true,
+      oauthDir: ".pi/oauth",
     });
   });
 
@@ -118,6 +119,18 @@ describe("config discovery", () => {
     expect(config.settings?.loadSharedProjectConfig).toBe(false);
   });
 
+  it("resolves configured oauthDir against the active project cwd", async () => {
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-oauthdir-project-"));
+    const absolute = mkdtempSync(join(tmpdir(), "pi-mcp-oauthdir-absolute-"));
+
+    const { resolveConfiguredOAuthDir } = await import("../config.ts");
+
+    expect(resolveConfiguredOAuthDir(".pi/oauth", project)).toBe(resolve(project, ".pi/oauth"));
+    expect(resolveConfiguredOAuthDir(absolute, project)).toBe(resolve(absolute));
+    expect(resolveConfiguredOAuthDir("  ", project)).toBeUndefined();
+    expect(() => resolveConfiguredOAuthDir(123, project)).toThrow(/settings\.oauthDir must be a string/);
+  });
+
   it("prefers modern Claude Code config detection over legacy paths", async () => {
     const home = mkdtempSync(join(tmpdir(), "pi-mcp-import-home-"));
     const project = mkdtempSync(join(tmpdir(), "pi-mcp-import-project-"));
@@ -138,6 +151,145 @@ describe("config discovery", () => {
         { kind: "vscode", path: resolve(realProject, ".vscode", "mcp.json") },
       ]),
     );
+  });
+
+  it("imports Codex MCP servers from config.toml", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-codex-toml-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-codex-toml-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+
+    writeJson(join(home, ".pi", "agent", "mcp.json"), {
+      imports: ["codex"],
+      mcpServers: {},
+    });
+    mkdirSync(join(home, ".codex"), { recursive: true });
+    writeFileSync(
+      join(home, ".codex", "config.toml"),
+      [
+        "[mcp_servers.context7]",
+        'url = "https://mcp.context7.com/mcp"',
+        "",
+        "[mcp_servers.serena]",
+        'command = "uvx"',
+        'args = ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"]',
+      ].join("\n"),
+    );
+
+    const { loadMcpConfig, getMcpDiscoverySummary, getServerProvenance } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    expect(config.mcpServers).toEqual({
+      context7: { url: "https://mcp.context7.com/mcp" },
+      serena: {
+        command: "uvx",
+        args: ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+      },
+    });
+    expect(getMcpDiscoverySummary().imports).toEqual([
+      expect.objectContaining({ kind: "codex", path: join(home, ".codex", "config.toml"), serverCount: 2 }),
+    ]);
+    expect(getServerProvenance().get("context7")).toEqual({
+      path: join(home, ".pi", "agent", "mcp.json"),
+      kind: "import",
+      importKind: "codex",
+    });
+  });
+
+  it("maps Codex HTTP authentication fields to adapter fields", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-codex-http-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-codex-http-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+
+    writeJson(join(home, ".pi", "agent", "mcp.json"), { imports: ["codex"], mcpServers: {} });
+    mkdirSync(join(home, ".codex"), { recursive: true });
+    writeFileSync(
+      join(home, ".codex", "config.toml"),
+      [
+        "[mcp_servers.remote]",
+        'url = "https://mcp.example.com/mcp"',
+        'bearer_token_env_var = "CODEX_TOKEN"',
+        'http_headers = { "X-API-Key" = "literal-key" }',
+        'env_http_headers = { "X-Trace-ID" = "CODEX_TRACE_ID" }',
+      ].join("\n"),
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    expect(loadMcpConfig().mcpServers.remote).toEqual({
+      url: "https://mcp.example.com/mcp",
+      auth: "bearer",
+      bearerTokenEnv: "CODEX_TOKEN",
+      headers: {
+        "X-API-Key": "literal-key",
+        "X-Trace-ID": "$env:CODEX_TRACE_ID",
+      },
+    });
+  });
+
+  it("preserves invalid TOML warnings and JSON fallback in provenance", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-codex-fallback-provenance-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-codex-fallback-provenance-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    writeJson(join(home, ".pi", "agent", "mcp.json"), { imports: ["codex"], mcpServers: {} });
+    mkdirSync(join(home, ".codex"), { recursive: true });
+    writeFileSync(join(home, ".codex", "config.toml"), "[mcp_servers.exa\\nurl = \\\"broken\\\"\\n");
+    writeJson(join(home, ".codex", "config.json"), {
+      mcpServers: { exa: { url: "https://mcp.exa.ai/mcp" } },
+    });
+
+    const { getServerProvenance } = await import("../config.ts");
+    expect(getServerProvenance().get("exa")).toEqual({
+      path: join(home, ".pi", "agent", "mcp.json"),
+      kind: "import",
+      importKind: "codex",
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to inspect imported MCP config from codex:"),
+      expect.anything(),
+    );
+  });
+
+  it("reports invalid TOML warnings while discovering the JSON fallback", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-codex-fallback-discovery-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-codex-fallback-discovery-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mkdirSync(join(home, ".codex"), { recursive: true });
+    writeFileSync(join(home, ".codex", "config.toml"), "[mcp_servers.exa\\nurl = \\\"broken\\\"\\n");
+    writeJson(join(home, ".codex", "config.json"), {
+      mcpServers: { exa: { url: "https://mcp.exa.ai/mcp" } },
+    });
+
+    const { findAvailableImportConfigs, getMcpDiscoverySummary } = await import("../config.ts");
+    expect(findAvailableImportConfigs()).toContainEqual({ kind: "codex", path: join(home, ".codex", "config.json") });
+    expect(getMcpDiscoverySummary().imports).toEqual([
+      expect.objectContaining({ kind: "codex", path: join(home, ".codex", "config.json"), serverCount: 1 }),
+    ]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to discover imported MCP config from codex:"),
+      expect.anything(),
+    );
+  });
+
+  it("keeps Codex JSON imports working when config.toml is absent", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-codex-json-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-codex-json-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+
+    writeJson(join(home, ".pi", "agent", "mcp.json"), { imports: ["codex"], mcpServers: {} });
+    writeJson(join(home, ".codex", "config.json"), {
+      mcpServers: { exa: { url: "https://mcp.exa.ai/mcp" } },
+    });
+
+    const { loadMcpConfig } = await import("../config.ts");
+    expect(loadMcpConfig().mcpServers).toEqual({ exa: { url: "https://mcp.exa.ai/mcp" } });
   });
 
   it("merges partial Pi overrides into shared and imported server definitions", async () => {
@@ -193,6 +345,202 @@ describe("config discovery", () => {
       auth: false,
       directTools: true,
     });
+  });
+
+  // SECURITY: credential/url binding in mergeServerMaps. A lower-precedence
+  // source (~/.config/mcp/mcp.json) defines an HTTP server with an
+  // Authorization header; a higher-precedence source (~/.pi/agent/mcp.json)
+  // overrides it. Auth material bound to the original url must not follow the
+  // server to a different url. See config.ts mergeServerMaps.
+  const URL_A = "https://litellm.internal/mcp/";
+  const URL_B = "https://attacker.example/mcp/";
+
+  function writeBakedAndOverride(
+    home: string,
+    project: string,
+    baked: Record<string, unknown>,
+    override: Record<string, unknown>,
+  ): void {
+    process.env.HOME = home;
+    process.chdir(project);
+    // Lowest precedence — the baked, credential-bearing definition.
+    writeJson(join(home, ".config", "mcp", "mcp.json"), {
+      mcpServers: { litellm: baked },
+    });
+    // Higher precedence — the (potentially untrusted) override.
+    writeJson(join(home, ".pi", "agent", "mcp.json"), {
+      mcpServers: { litellm: override },
+    });
+  }
+
+  it("preserves inherited auth when a higher-precedence override keeps the same url", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-a-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-a-project-"));
+    writeBakedAndOverride(
+      home,
+      project,
+      { url: URL_A, headers: { Authorization: "Bearer secret-vk" } },
+      { url: URL_A, directTools: true },
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    expect(config.mcpServers.litellm).toEqual({
+      url: URL_A,
+      headers: { Authorization: "Bearer secret-vk" },
+      directTools: true,
+    });
+  });
+
+  it("drops inherited auth when a higher-precedence override changes the url without supplying new auth", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-b-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-b-project-"));
+    writeBakedAndOverride(
+      home,
+      project,
+      { url: URL_A, headers: { Authorization: "Bearer secret-vk" } },
+      { url: URL_B },
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    expect(config.mcpServers.litellm).toEqual({ url: URL_B });
+    expect(config.mcpServers.litellm.headers).toBeUndefined();
+  });
+
+  it("keeps only the new auth when a higher-precedence override changes both url and headers", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-c-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-c-project-"));
+    writeBakedAndOverride(
+      home,
+      project,
+      { url: URL_A, headers: { Authorization: "Bearer secret-vk" } },
+      { url: URL_B, headers: { Authorization: "Bearer override-token" } },
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    expect(config.mcpServers.litellm).toEqual({
+      url: URL_B,
+      headers: { Authorization: "Bearer override-token" },
+    });
+  });
+
+  it("does not exfiltrate the baked VK when a url-only override repoints the server", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-d-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-d-project-"));
+    // The baked config carries the real VK as an unexpanded interpolation
+    // template; expansion happens at egress. If the header survives a url-only
+    // override, the interpolated VK is shipped to the attacker url.
+    writeBakedAndOverride(
+      home,
+      project,
+      {
+        url: URL_A,
+        headers: { Authorization: "Bearer ${LITELLM_API_KEY}" },
+        bearerTokenEnv: "LITELLM_API_KEY",
+      },
+      { url: URL_B },
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    const entry = config.mcpServers.litellm;
+    expect(entry.url).toBe(URL_B);
+    expect(entry.headers).toBeUndefined();
+    expect(entry.bearerTokenEnv).toBeUndefined();
+    // No auth-bearing material of any kind may reference the VK.
+    expect(JSON.stringify(entry)).not.toContain("LITELLM_API_KEY");
+  });
+
+  // Per-field coverage for each URL-bound auth shape beyond headers and
+  // bearerTokenEnv — guards against regressions where one credential path keeps
+  // leaking while the other tests stay green.
+  it("drops an inherited bearerToken when a url-only override repoints the server", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-bt-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-bt-project-"));
+    writeBakedAndOverride(
+      home,
+      project,
+      { url: URL_A, bearerToken: "secret-bearer-token" },
+      { url: URL_B },
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    const entry = config.mcpServers.litellm;
+    expect(entry).toEqual({ url: URL_B });
+    expect(entry.bearerToken).toBeUndefined();
+    expect(JSON.stringify(entry)).not.toContain("secret-bearer-token");
+  });
+
+  it("drops inherited oauth config when a url-only override repoints the server", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-oauth-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-oauth-project-"));
+    writeBakedAndOverride(
+      home,
+      project,
+      { url: URL_A, oauth: { clientId: "client", clientSecret: "oauth-client-secret" } },
+      { url: URL_B },
+    );
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    const entry = config.mcpServers.litellm;
+    expect(entry).toEqual({ url: URL_B });
+    expect(entry.oauth).toBeUndefined();
+    expect(JSON.stringify(entry)).not.toContain("oauth-client-secret");
+  });
+
+  it("preserves inherited oauth false when a url-only override repoints the server", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-oauth-false-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-oauth-false-project-"));
+    writeBakedAndOverride(home, project, { url: URL_A, oauth: false }, { url: URL_B });
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    expect(config.mcpServers.litellm).toEqual({ url: URL_B, oauth: false });
+  });
+
+  // Three-source laundering: the accumulated (folded) entry's url — not just a
+  // pairwise base — must drive the strip decision. A middle source re-supplies
+  // the auth WITHOUT a url (so it is inherited against the still-url-A entry),
+  // then the top source repoints the url; the top override must still strip the
+  // accumulated auth.
+  it("does not launder auth across three sources when the top source changes the url", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-3src-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-urlauth-3src-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+
+    // Lowest precedence (shared-global): baked url + VK header.
+    writeJson(join(home, ".config", "mcp", "mcp.json"), {
+      mcpServers: { litellm: { url: URL_A, headers: { Authorization: "Bearer secret-vk" } } },
+    });
+    // Middle precedence (pi-global): re-supplies auth but NO url — inherited
+    // against the still-url-A accumulated entry.
+    writeJson(join(home, ".pi", "agent", "mcp.json"), {
+      mcpServers: { litellm: { headers: { Authorization: "Bearer secret-vk" } } },
+    });
+    // Highest precedence (shared-project): repoints the url, supplies no auth.
+    writeJson(join(project, ".mcp.json"), {
+      mcpServers: { litellm: { url: URL_B } },
+    });
+
+    const { loadMcpConfig } = await import("../config.ts");
+    const config = loadMcpConfig();
+
+    const entry = config.mcpServers.litellm;
+    expect(entry).toEqual({ url: URL_B });
+    expect(entry.headers).toBeUndefined();
+    expect(JSON.stringify(entry)).not.toContain("secret-vk");
   });
 
   it("tracks provenance so project servers write locally and shared/imported servers write to Pi config", async () => {
@@ -378,6 +726,21 @@ describe("config discovery", () => {
     expect(sharedPreview.existed).toBe(false);
     expect(sharedPreview.diffText).toContain('+   "mcpServers": {');
     expect(sharedPreview.diffText).toContain('+     "repoprompt": {');
+  });
+
+  it("preserves the mcp toolPrefix setting from config files", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-prefix-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-prefix-project-"));
+    process.env.HOME = home;
+    process.chdir(project);
+
+    writeJson(join(home, ".pi", "agent", "mcp.json"), {
+      settings: { toolPrefix: "mcp" },
+      mcpServers: { demo: { command: "demo" } },
+    });
+
+    const { loadMcpConfig } = await import("../config.ts");
+    expect(loadMcpConfig().settings?.toolPrefix).toBe("mcp");
   });
 
   it("writes selected compatibility imports and a starter project config", async () => {

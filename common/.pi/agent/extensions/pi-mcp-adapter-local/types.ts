@@ -305,7 +305,7 @@ export interface ServerEntry {
    * Set to false to explicitly disable OAuth for this server.
    */
   oauth?: OAuthConfig | false;
-  lifecycle?: "keep-alive" | "lazy" | "eager";
+  lifecycle?: "keep-alive" | "lazy" | "lazy-keep-alive" | "eager";
   idleTimeout?: number; // minutes, overrides global setting
   requestTimeoutMs?: number; // milliseconds, overrides global request timeout when > 0
   // Resource handling
@@ -329,10 +329,12 @@ export interface McpOutputGuardSettings {
 }
 
 // Settings
+export type ToolPrefix = "server" | "none" | "short" | "mcp";
+
 export interface McpSettings {
   /** Load the cross-harness project .mcp.json file. Defaults to true. */
   loadSharedProjectConfig?: boolean;
-  toolPrefix?: "server" | "none" | "short";
+  toolPrefix?: ToolPrefix;
   idleTimeout?: number; // minutes, default 10, 0 to disable
   requestTimeoutMs?: number; // milliseconds, overrides the SDK request timeout when > 0
   directTools?: boolean;
@@ -354,6 +356,15 @@ export interface McpSettings {
    * instruction when unset.
    */
   authRequiredMessage?: string;
+  /**
+   * Override the default OAuth token storage directory.
+   * Relative paths are resolved from the project root (cwd).
+   * Takes precedence over the agent's mcp-oauth/ directory but
+   * can still be overridden by the MCP_OAUTH_DIR env variable.
+   *
+   * Example: ".pi/mcp-oauth" stores tokens in <project>/.pi/mcp-oauth/
+   */
+  oauthDir?: string;
 }
 
 // Root config
@@ -403,6 +414,7 @@ export interface McpPanelCallbacks {
   canAuthenticate: (serverName: string) => boolean;
   authenticate: (serverName: string) => Promise<McpAuthResult>;
   getConnectionStatus: (serverName: string) => "connected" | "idle" | "failed" | "needs-auth";
+  getFailureMessage?: (serverName: string) => string | null;
   refreshCacheAfterReconnect: (serverName: string) => import("./metadata-cache.ts").ServerCacheEntry | null;
 }
 
@@ -416,7 +428,7 @@ export interface McpPanelResult {
  */
 export function getServerPrefix(
   serverName: string,
-  mode: "server" | "none" | "short"
+  mode: ToolPrefix
 ): string {
   if (mode === "none") return "";
   if (mode === "short") {
@@ -424,6 +436,7 @@ export function getServerPrefix(
     if (!short) short = "mcp";
     return short;
   }
+  if (mode === "mcp") return `mcp__${serverName.replace(/-/g, "_")}`;
   return serverName.replace(/-/g, "_");
 }
 
@@ -433,10 +446,11 @@ export function getServerPrefix(
 export function formatToolName(
   toolName: string,
   serverName: string,
-  prefix: "server" | "none" | "short"
+  prefix: ToolPrefix
 ): string {
   const p = getServerPrefix(serverName, prefix);
-  return p ? `${p}_${toolName}` : toolName;
+  const sanitized = toolName.replace(/\./g, "_");
+  return p ? `${p}_${sanitized}` : sanitized;
 }
 
 function normalizeToolName(value: string): string {
@@ -446,7 +460,7 @@ function normalizeToolName(value: string): string {
 export function isToolExcluded(
   toolName: string,
   serverName: string,
-  prefix: "server" | "none" | "short",
+  prefix: ToolPrefix,
   excludeTools?: unknown
 ): boolean {
   if (!Array.isArray(excludeTools) || excludeTools.length === 0) return false;
@@ -456,6 +470,7 @@ export function isToolExcluded(
     normalizeToolName(formatToolName(toolName, serverName, prefix)),
     normalizeToolName(formatToolName(toolName, serverName, "server")),
     normalizeToolName(formatToolName(toolName, serverName, "short")),
+    normalizeToolName(formatToolName(toolName, serverName, "mcp")),
   ]);
 
   for (const excluded of excludeTools) {

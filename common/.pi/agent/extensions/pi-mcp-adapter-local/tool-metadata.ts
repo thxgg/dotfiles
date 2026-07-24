@@ -1,6 +1,6 @@
 import { getToolUiResourceUri } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { McpExtensionState } from "./state.ts";
-import type { ToolMetadata, McpTool, McpResource, ServerEntry } from "./types.ts";
+import type { ToolMetadata, McpTool, McpResource, ServerEntry, ToolPrefix } from "./types.ts";
 import { formatToolName, isToolExcluded } from "./types.ts";
 import { resourceNameToToolName } from "./resource-tools.ts";
 import { extractToolUiStreamMode } from "./utils.ts";
@@ -10,10 +10,11 @@ export function buildToolMetadata(
   resources: McpResource[],
   definition: ServerEntry,
   serverName: string,
-  prefix: "server" | "none" | "short"
+  prefix: ToolPrefix
 ): { metadata: ToolMetadata[]; failedTools: string[] } {
   const metadata: ToolMetadata[] = [];
   const failedTools: string[] = [];
+  const seenNames = new Set<string>();
 
   for (const tool of tools) {
     if (!tool?.name) {
@@ -24,6 +25,12 @@ export function buildToolMetadata(
       continue;
     }
 
+    const name = formatToolName(tool.name, serverName, prefix);
+    if (seenNames.has(name)) {
+      continue;
+    }
+    seenNames.add(name);
+
     let uiResourceUri: string | undefined;
     try {
       uiResourceUri = getToolUiResourceUri({ _meta: tool._meta });
@@ -31,7 +38,7 @@ export function buildToolMetadata(
       failedTools.push(tool.name);
     }
     metadata.push({
-      name: formatToolName(tool.name, serverName, prefix),
+      name,
       originalName: tool.name,
       description: tool.description ?? "",
       inputSchema: tool.inputSchema,
@@ -47,8 +54,14 @@ export function buildToolMetadata(
         continue;
       }
 
+      const name = formatToolName(baseName, serverName, prefix);
+      if (seenNames.has(name)) {
+        continue;
+      }
+      seenNames.add(name);
+
       metadata.push({
-        name: formatToolName(baseName, serverName, prefix),
+        name,
         originalName: baseName,
         description: resource.description ?? `Read resource: ${resource.uri}`,
         resourceUri: resource.uri,

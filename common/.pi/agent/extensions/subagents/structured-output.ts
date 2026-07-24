@@ -28,6 +28,7 @@ export function createStructuredOutputTool(schema: unknown, capture: (value: unk
     label: "Structured Output",
     description: "Return final structured data matching the required schema. Call exactly once as the last action.",
     parameters: Type.Unsafe(schema),
+    constrainedSampling: { type: "json_schema", strict: "prefer" },
     async execute(_toolCallId, params) {
       capture(params);
       return { content: [{ type: "text", text: "Recorded structured result." }], details: params, terminate: true };

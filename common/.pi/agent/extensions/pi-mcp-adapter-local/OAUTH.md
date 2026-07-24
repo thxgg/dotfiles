@@ -139,11 +139,11 @@ Open the returned URL in your local browser. After approval, copy the full redir
 mcp({
   action: "auth-complete",
   server: "my-oauth-server",
-  args: '{"redirectUrl":"http://localhost:19876/callback?code=...&state=..."}'
+  args: { redirectUrl: "http://localhost:19876/callback?code=...&state=..." }
 })
 ```
 
-You can also pass only the `code` query parameter with `args: '{"code":"..."}'`. Redirect URL completion validates the saved OAuth state; raw code completion is available for providers that display a code directly.
+You can also pass only the `code` query parameter with `args: { code: "..." }`. JSON-string args remain supported. Redirect URL completion validates the saved OAuth state; raw code completion is available for providers that display a code directly.
 
 ### Step 2: Use the Server
 
@@ -151,7 +151,7 @@ Once authenticated, use the server normally:
 
 ```
 mcp({ server: "my-oauth-server" })
-mcp({ tool: "my-tool", args: '{"key": "value"}' })
+mcp({ tool: "my-tool", args: { key: "value" } })
 ```
 
 The SDK automatically:
