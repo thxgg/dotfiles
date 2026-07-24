@@ -21,21 +21,53 @@ import { resolveNpxBinary } from "./npx-resolver.ts";
 import { logger } from "./logger.ts";
 import { McpOAuthProvider } from "./mcp-oauth-provider.ts";
 import { extractOAuthConfig, supportsOAuth } from "./mcp-auth-flow.ts";
+import type { AuthStorageOptions } from "./mcp-auth.ts";
 import { registerSamplingHandler, type ServerSamplingConfig } from "./sampling-handler.ts";
 import {
   handleUrlElicitation,
   registerElicitationHandler,
   type ServerElicitationConfig,
 } from "./elicitation-handler.ts";
-import { interpolateEnvRecord, resolveBearerToken, resolveConfigPath } from "./utils.ts";
+import { interpolateEnvRecord, resolveBearerToken, resolveConfigPath, resolveServerUrl } from "./utils.ts";
 import { abortable, throwIfAborted } from "./abort.ts";
 
-interface ServerConnection {
+const MAX_CAPTURED_STDERR_BYTES = 8 * 1024;
+const MAX_CAPTURED_STDERR_LINES = 3;
+
+function boundedStderrChunk(chunk: Buffer | string): Buffer {
+  if (Buffer.isBuffer(chunk)) {
+    const start = Math.max(0, chunk.byteLength - MAX_CAPTURED_STDERR_BYTES);
+    return Buffer.from(chunk.subarray(start));
+  }
+
+  // Limit string conversion before encoding; Buffer.from(largeString) would
+  // otherwise allocate the entire stderr event before applying the cap.
+  const suffix = chunk.length > MAX_CAPTURED_STDERR_BYTES
+    ? chunk.slice(-MAX_CAPTURED_STDERR_BYTES)
+    : chunk;
+  const bytes = Buffer.from(suffix, "utf8");
+  return bytes.byteLength > MAX_CAPTURED_STDERR_BYTES
+    ? Buffer.from(bytes.subarray(bytes.byteLength - MAX_CAPTURED_STDERR_BYTES))
+    : bytes;
+}
+
+function appendStderrTail(tail: Buffer, chunk: Buffer | string): Buffer {
+  const bytes = boundedStderrChunk(chunk);
+  if (bytes.length === 0) return tail;
+  if (tail.length === 0) return bytes;
+  const combined = Buffer.concat([tail, bytes]);
+  return combined.length > MAX_CAPTURED_STDERR_BYTES
+    ? Buffer.from(combined.subarray(combined.length - MAX_CAPTURED_STDERR_BYTES))
+    : combined;
+}
+
+export interface ServerConnection {
   client: Client;
   transport: Transport;
   definition: ServerDefinition;
   tools: McpTool[];
   resources: McpResource[];
+  instructions?: string;
   lastUsedAt: number;
   inFlight: number;
   status: "connected" | "closed" | "needs-auth";
@@ -46,9 +78,11 @@ type UiStreamListener = (serverName: string, notification: ServerStreamResultPat
 export class McpServerManager {
   private connections = new Map<string, ServerConnection>();
   private connectPromises = new Map<string, Promise<ServerConnection>>();
+  private reconnectPromises = new Map<string, Promise<ServerConnection>>();
   private uiStreamListeners = new Map<string, UiStreamListener>();
   private samplingConfig: ServerSamplingConfig | undefined;
   private elicitationConfig: ServerElicitationConfig | undefined;
+  private authStorageOptions: AuthStorageOptions = {};
   private acceptedUrlElicitations = new Map<string, Set<string>>();
   private defaultRequestTimeoutMs: number | undefined;
 
@@ -65,6 +99,10 @@ export class McpServerManager {
 
   setDefaultRequestTimeoutMs(timeoutMs: number | undefined): void {
     this.defaultRequestTimeoutMs = normalizeRequestTimeoutMs(timeoutMs);
+  }
+
+  setAuthStorageOptions(options: AuthStorageOptions): void {
+    this.authStorageOptions = options;
   }
 
   getRequestOptions(name: string, signal?: AbortSignal): RequestOptions | undefined {
@@ -121,6 +159,57 @@ export class McpServerManager {
     }
   }
 
+  /**
+   * Reconnect a server whose connection was proven stale (e.g. by a 404
+   * "session no longer exists" response). Single-flight per server name —
+   * concurrent callers that raced to the same failure share one reconnect —
+   * and identity-guarded: `staleConnection` is only torn down if it is
+   * still the manager's current connection for `name`. If a concurrent
+   * reconnect (or an unrelated connect()) already replaced it with a fresh
+   * connection, that fresh connection is returned untouched.
+   */
+  async reconnect(
+    name: string,
+    definition: ServerDefinition,
+    staleConnection: ServerConnection,
+    signal?: AbortSignal,
+  ): Promise<ServerConnection> {
+    throwIfAborted(signal);
+    const inFlight = this.reconnectPromises.get(name);
+    if (inFlight) {
+      return abortable(inFlight, signal);
+    }
+
+    const promise = this.doReconnect(name, definition, staleConnection).finally(() => {
+      if (this.reconnectPromises.get(name) === promise) {
+        this.reconnectPromises.delete(name);
+      }
+    });
+    this.reconnectPromises.set(name, promise);
+    return abortable(promise, signal);
+  }
+
+  private async doReconnect(
+    name: string,
+    definition: ServerDefinition,
+    staleConnection: ServerConnection,
+  ): Promise<ServerConnection> {
+    const current = this.connections.get(name);
+
+    // Never tear down a connection we didn't prove stale: if the map no
+    // longer holds the connection we were asked to replace, someone else
+    // already reconnected (or connected) first.
+    if (current !== staleConnection) {
+      return current ?? this.connect(name, definition);
+    }
+
+    const staleInFlight = staleConnection.inFlight;
+    await this.close(name);
+    const fresh = await this.connect(name, definition);
+    fresh.inFlight = Math.max(fresh.inFlight, staleInFlight);
+    return fresh;
+  }
+
   private async createConnection(
     name: string,
     definition: ServerDefinition,
@@ -130,6 +219,7 @@ export class McpServerManager {
     const client = this.createClient(name);
 
     let transport: Transport;
+    let stderrTail: Buffer<ArrayBufferLike> = Buffer.alloc(0);
 
     if (definition.command) {
       let command = definition.command;
@@ -144,13 +234,21 @@ export class McpServerManager {
         }
       }
 
-      transport = new StdioClientTransport({
+      const stdioTransport = new StdioClientTransport({
         command,
         args,
         env: resolveEnv(definition.env),
         cwd: resolveConfigPath(definition.cwd) ?? this.defaultCwd,
-        stderr: definition.debug ? "inherit" : "ignore",
+        stderr: definition.debug ? "inherit" : "pipe",
       });
+      // Keep non-debug child diagnostics available for connection failures without
+      // retaining an unbounded stream or changing the existing debug behavior.
+      if (stdioTransport.stderr) {
+        stdioTransport.stderr.on("data", (chunk: Buffer | string) => {
+          stderrTail = appendStderrTail(stderrTail, chunk);
+        });
+      }
+      transport = stdioTransport;
     } else if (definition.url) {
       // HTTP transport with fallback
       transport = await this.createHttpTransport(definition, name, signal);
@@ -164,22 +262,43 @@ export class McpServerManager {
       await client.connect(transport, requestOptions);
       this.attachAdapterNotificationHandlers(name, client);
 
+      const connection: ServerConnection = {
+        client,
+        transport,
+        definition,
+        tools: [],
+        resources: [],
+        instructions: client.getInstructions?.(),
+        lastUsedAt: Date.now(),
+        inFlight: 0,
+        status: "connected",
+      };
+
+      // Reflect the SDK's own close signal in connection status, guarded by
+      // identity so a stale connection's late close (e.g. the old
+      // connection from before a session-recovery reconnect) can never
+      // clobber a fresh connection that has since taken its place in
+      // `this.connections`. This intentionally uses `client.onclose`
+      // (Protocol's public hook), not `transport.onclose` — the SDK's
+      // Protocol takes ownership of that one internally for pending-request
+      // rejection, and overwriting it would break that. `client.onerror` is
+      // avoided too: it can fire on benign events (e.g. the optional GET
+      // SSE stream failing) that don't mean the connection is closed.
+      client.onclose = () => {
+        if (this.connections.get(name) === connection) {
+          connection.status = "closed";
+        }
+      };
+
       // Discover tools and resources
       const [tools, resources] = await Promise.all([
         this.fetchAllTools(client, requestOptions),
         this.fetchAllResources(client, requestOptions),
       ]);
+      connection.tools = tools;
+      connection.resources = resources;
 
-      return {
-        client,
-        transport,
-        definition,
-        tools,
-        resources,
-        lastUsedAt: Date.now(),
-        inFlight: 0,
-        status: "connected",
-      };
+      return connection;
     } catch (error) {
       // Check for UnauthorizedError - server requires OAuth
       if (error instanceof UnauthorizedError && supportsOAuth(definition)) {
@@ -202,6 +321,16 @@ export class McpServerManager {
       // Clean up both client and transport on any error
       await client.close().catch(() => {});
       await transport.close().catch(() => {});
+
+      if (stderrTail.length > 0) {
+        const stderrText = stderrTail.toString("utf8").trim();
+        const lines = stderrText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        if (lines.length > 0) {
+          const baseMessage = error instanceof Error ? error.message : String(error);
+          const detail = lines.slice(-MAX_CAPTURED_STDERR_LINES).join(" — ");
+          throw new Error(`${baseMessage} (${detail})`, { cause: error });
+        }
+      }
       throw error;
     }
   }
@@ -280,7 +409,8 @@ export class McpServerManager {
     signal?: AbortSignal,
   ): Promise<Transport> {
     throwIfAborted(signal);
-    const url = new URL(definition.url!);
+    const serverUrl = resolveServerUrl(definition)!;
+    const url = new URL(serverUrl);
 
     // Build headers first (including any bearer token)
     const headers = resolveHeaders(definition.headers) ?? {};
@@ -302,13 +432,14 @@ export class McpServerManager {
       const oauthConfig = extractOAuthConfig(definition);
       authProvider = new McpOAuthProvider(
         serverName,
-        definition.url!,
+        serverUrl,
         oauthConfig,
         {
           onRedirect: async (_authUrl) => {
             // URL is captured by startAuth, no need to log
           },
-        }
+        },
+        this.authStorageOptions
       );
     }
 

@@ -65,12 +65,40 @@ export function interpolateEnvVars(value: string): string {
     .replace(/\$env:(\w+)/g, (_, name) => process.env[name] ?? "");
 }
 
+function getMissingEnvVars(value: string): string[] {
+  const missing = new Set<string>();
+  for (const match of value.matchAll(/\$\{(\w+)\}|\$env:(\w+)/g)) {
+    const name = match[1] ?? match[2];
+    if (name && process.env[name] === undefined) {
+      missing.add(name);
+    }
+  }
+  return [...missing];
+}
+
 export function interpolateEnvRecord(values: Record<string, string> | undefined): Record<string, string> | undefined {
   if (!values) return undefined;
 
   const resolved: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
     resolved[key] = interpolateEnvVars(value);
+  }
+  return resolved;
+}
+
+export function resolveServerUrl(definition: Pick<ServerEntry, "url">): string | undefined {
+  if (definition.url === undefined) return undefined;
+
+  const missing = getMissingEnvVars(definition.url);
+  if (missing.length > 0) {
+    throw new Error(`Missing environment variable${missing.length === 1 ? "" : "s"} in MCP server URL: ${missing.join(", ")}`);
+  }
+
+  const resolved = interpolateEnvVars(definition.url);
+  try {
+    new URL(resolved);
+  } catch (error) {
+    throw new Error(`Invalid MCP server URL after environment interpolation: ${resolved}`, { cause: error });
   }
   return resolved;
 }
@@ -91,6 +119,39 @@ export function resolveBearerToken(definition: Pick<ServerEntry, "bearerToken" |
     return interpolateEnvVars(definition.bearerToken);
   }
   return definition.bearerTokenEnv ? process.env[definition.bearerTokenEnv] : undefined;
+}
+
+/** Remove OSC control strings, including payloads that have no terminator. */
+export function stripOscSequences(text: string): string {
+  let result = "";
+  let index = 0;
+  while (index < text.length) {
+    const isEscOsc = text.charCodeAt(index) === 0x1b && text[index + 1] === "]";
+    const isC1Osc = text.charCodeAt(index) === 0x9d;
+    if (!isEscOsc && !isC1Osc) {
+      result += text[index++];
+      continue;
+    }
+
+    index += isEscOsc ? 2 : 1;
+    while (index < text.length) {
+      const code = text.charCodeAt(index++);
+      if (code === 0x07 || code === 0x9c) break;
+      if (code === 0x1b && text[index] === "\\") {
+        index++;
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+export function sanitizeTerminalText(text: string): string {
+  return stripOscSequences(text)
+    .replace(/(?:\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_])/g, "")
+    .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function truncateAtWord(text: string, target: number): string {

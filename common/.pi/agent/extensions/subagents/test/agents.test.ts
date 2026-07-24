@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { discoverAgents, formatAgentList, getActiveToolNames, getAgentByName, getDisallowedToolNames } from "../agents.ts";
 import { composeAgentPrompt } from "../prompt.ts";
+import { createStructuredOutputTool } from "../structured-output.ts";
 
 test("discovers built-in Pi agents", () => {
   const agents = discoverAgents(process.cwd(), "builtin").agents;
@@ -54,6 +55,16 @@ test("librarian instructions sequence source and official docs before web search
   const librarian = getAgentByName(discoverAgents(process.cwd(), "builtin").agents, "librarian")!;
   assert.ok(librarian.systemPrompt.indexOf("Call repo_cache") < librarian.systemPrompt.indexOf("Consult known official documentation URLs"));
   assert.ok(librarian.systemPrompt.indexOf("Consult known official documentation URLs") < librarian.systemPrompt.indexOf("Use websearch for discovery only"));
+});
+
+test("structured output prefers provider-enforced JSON schema sampling", () => {
+  const tool = createStructuredOutputTool({
+    type: "object",
+    properties: { answer: { type: "string" } },
+    required: ["answer"],
+    additionalProperties: false,
+  }, () => undefined);
+  assert.deepEqual(tool.constrainedSampling, { type: "json_schema", strict: "prefer" });
 });
 
 test("disallowed tools apply even without an allowlist", () => {

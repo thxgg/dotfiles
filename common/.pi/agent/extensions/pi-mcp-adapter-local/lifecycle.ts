@@ -1,8 +1,11 @@
 import type { ServerDefinition } from "./types.ts";
 import type { McpServerManager } from "./server-manager.ts";
+import { hasPendingAuth } from "./mcp-auth-flow.ts";
 import { logger } from "./logger.ts";
+import { sanitizeTerminalText } from "./utils.ts";
 
 export type ReconnectCallback = (serverName: string) => void;
+export type ReconnectFailureCallback = (serverName: string, error: unknown) => void;
 
 export class McpLifecycleManager {
   private manager: McpServerManager;
@@ -12,9 +15,10 @@ export class McpLifecycleManager {
   private globalIdleTimeout: number = 10 * 60 * 1000;
   private healthCheckInterval?: NodeJS.Timeout;
   private onReconnect?: ReconnectCallback;
+  private onReconnectFailure?: ReconnectFailureCallback;
   private onIdleShutdown?: (serverName: string) => void;
 
-  constructor(manager: McpServerManager) {
+  constructor(manager: McpServerManager, private readonly hasPendingAuthForServer = hasPendingAuth) {
     this.manager = manager;
   }
 
@@ -25,6 +29,11 @@ export class McpLifecycleManager {
   setReconnectCallback(callback: ReconnectCallback): void {
     this.onReconnect = callback;
   }
+
+  setReconnectFailureCallback(callback: ReconnectFailureCallback): void {
+    this.onReconnectFailure = callback;
+  }
+
 
   markKeepAlive(name: string, definition: ServerDefinition): void {
     this.keepAliveServers.set(name, definition);
@@ -57,13 +66,19 @@ export class McpLifecycleManager {
       const connection = this.manager.getConnection(name);
 
       if (!connection || connection.status !== "connected") {
+        if (this.hasPendingAuthForServer(name)) {
+          logger.debug(`Skipping reconnect for ${name} while OAuth authorization is pending`);
+          continue;
+        }
         try {
           await this.manager.connect(name, definition);
           logger.debug(`Reconnected to ${name}`);
           // Notify extension to update metadata
           this.onReconnect?.(name);
         } catch (error) {
-          console.error(`MCP: Failed to reconnect to ${name}:`, error);
+          this.onReconnectFailure?.(name, error);
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(`MCP: Failed to reconnect to ${name}: ${sanitizeTerminalText(message)}`);
         }
       }
     }

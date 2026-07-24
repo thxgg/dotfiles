@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { getAgentPath } from "./agent-dir.ts";
 import type { McpConfig, ServerEntry, McpSettings, ImportKind, ServerProvenance } from "./types.ts";
 
@@ -21,7 +22,10 @@ const IMPORT_PATHS: Record<ImportKind, string[]> = {
     join(homedir(), ".claude", "claude_desktop_config.json"),
   ],
   "claude-desktop": [join(homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json")],
-  codex: [join(homedir(), ".codex", "config.json")],
+  codex: [
+    join(homedir(), ".codex", "config.toml"),
+    join(homedir(), ".codex", "config.json"),
+  ],
   windsurf: [join(homedir(), ".windsurf", "mcp.json")],
   vscode: [".vscode/mcp.json"],
 };
@@ -142,12 +146,12 @@ export function getMcpDiscoverySummary(overridePath?: string, cwd = process.cwd(
 
   const imports = (Object.keys(IMPORT_PATHS) as ImportKind[])
     .map((kind) => {
-      const path = resolveImportPath(kind, cwd);
-      if (!path) return null;
+      const imported = loadImportedConfig(kind, cwd, `Failed to inspect imported MCP config from ${kind}:`);
+      if (!imported) return null;
       return {
         kind,
-        path,
-        serverCount: getImportServerCount(kind, path),
+        path: imported.path,
+        serverCount: Object.keys(extractServers(imported.value, kind)).length,
       } satisfies ImportConfigSummary;
     })
     .filter((value): value is ImportConfigSummary => value !== null);
@@ -265,13 +269,41 @@ function mergeConfigs(base: McpConfig, next: McpConfig): McpConfig {
   };
 }
 
+// Credential-bearing fields whose value is bound to a specific server `url`.
+// When a higher-precedence config source repoints an existing server at a
+// different url, these MUST NOT be inherited from the lower-precedence entry —
+// otherwise the original endpoint's credentials would be shipped to the new
+// url. See the SECURITY note in mergeServerMaps.
+const URL_BOUND_AUTH_FIELDS = ["headers", "bearerToken", "bearerTokenEnv"] as const;
+
 function mergeServerMaps(
   base: Record<string, ServerEntry>,
   next: Record<string, ServerEntry>,
 ): Record<string, ServerEntry> {
   const merged = { ...base };
   for (const [name, definition] of Object.entries(next)) {
-    merged[name] = { ...(merged[name] ?? {}), ...definition };
+    const existing = merged[name];
+    // SECURITY (credential/url binding): the merge is per-field, so a
+    // higher-precedence source that supplies only a new `url` for an existing
+    // server would otherwise retain the lower-precedence entry's auth material
+    // (Authorization header, bearer token, OAuth config) and send it to the new
+    // url — a credential-exfiltration vector when the higher-precedence source
+    // is less trusted than the one that first defined the server. Bind auth to
+    // the url that supplied it: when the url changes, drop inherited auth
+    // material before merging. Auth explicitly re-supplied by `definition` still
+    // applies (it is spread last). Behaviour is unchanged when the url is
+    // identical or the override omits `url` (partial overrides still inherit).
+    let baseEntry: ServerEntry = existing ?? {};
+    if (existing && typeof definition.url === "string" && definition.url !== existing.url) {
+      baseEntry = { ...existing };
+      for (const field of URL_BOUND_AUTH_FIELDS) {
+        delete baseEntry[field];
+      }
+      if (baseEntry.oauth !== false) {
+        delete baseEntry.oauth;
+      }
+    }
+    merged[name] = { ...baseEntry, ...definition };
   }
   return merged;
 }
@@ -287,19 +319,14 @@ function expandImports(config: McpConfig, cwd = process.cwd()): McpConfig {
 
   const importedServers: Record<string, ServerEntry> = {};
   for (const importKind of config.imports) {
-    const importPath = resolveImportPath(importKind, cwd);
-    if (!importPath) continue;
+    const imported = loadImportedConfig(importKind, cwd, `Failed to import MCP config from ${importKind}:`);
+    if (!imported) continue;
 
-    try {
-      const imported = JSON.parse(readFileSync(importPath, "utf-8"));
-      const servers = extractServers(imported, importKind);
-      for (const [name, definition] of Object.entries(servers)) {
-        if (!importedServers[name]) {
-          importedServers[name] = definition;
-        }
+    const servers = extractServers(imported.value, importKind);
+    for (const [name, definition] of Object.entries(servers)) {
+      if (!importedServers[name]) {
+        importedServers[name] = definition;
       }
-    } catch (error) {
-      console.warn(`Failed to import MCP config from ${importKind}:`, error);
     }
   }
 
@@ -310,24 +337,37 @@ function expandImports(config: McpConfig, cwd = process.cwd()): McpConfig {
   };
 }
 
-function resolveImportPath(importKind: ImportKind, cwd = process.cwd()): string | null {
-  const candidates = IMPORT_PATHS[importKind] ?? [];
-  for (const candidate of candidates) {
-    const fullPath = candidate.startsWith(".") ? resolve(cwd, candidate) : candidate;
-    if (existsSync(fullPath)) {
-      return fullPath;
+function resolveImportCandidates(importKind: ImportKind, cwd: string): string[] {
+  return (IMPORT_PATHS[importKind] ?? []).map((candidate) =>
+    candidate.startsWith(".") ? resolve(cwd, candidate) : candidate,
+  );
+}
+
+function readImportedConfig(path: string): unknown {
+  const raw = readFileSync(path, "utf-8");
+  return path.endsWith(".toml") ? parseToml(raw) : JSON.parse(raw);
+}
+
+function loadImportedConfig(
+  importKind: ImportKind,
+  cwd: string,
+  warningPrefix: string,
+): { path: string; value: unknown } | null {
+  for (const path of resolveImportCandidates(importKind, cwd)) {
+    if (!existsSync(path)) continue;
+
+    try {
+      return { path, value: readImportedConfig(path) };
+    } catch (error) {
+      console.warn(warningPrefix, error);
     }
   }
+
   return null;
 }
 
-function getImportServerCount(importKind: ImportKind, path: string): number {
-  try {
-    const raw = JSON.parse(readFileSync(path, "utf-8"));
-    return Object.keys(extractServers(raw, importKind)).length;
-  } catch {
-    return 0;
-  }
+function resolveImportPath(importKind: ImportKind, cwd = process.cwd()): string | null {
+  return loadImportedConfig(importKind, cwd, `Failed to discover imported MCP config from ${importKind}:`)?.path ?? null;
 }
 
 function readValidatedConfig(path: string, label: string): McpConfig | null {
@@ -369,8 +409,10 @@ function extractServers(config: unknown, kind: ImportKind): Record<string, Serve
   switch (kind) {
     case "claude-desktop":
     case "claude-code":
-    case "codex":
       servers = obj.mcpServers;
+      break;
+    case "codex":
+      servers = obj.mcp_servers ?? obj.mcpServers;
       break;
     case "cursor":
     case "windsurf":
@@ -385,7 +427,40 @@ function extractServers(config: unknown, kind: ImportKind): Record<string, Serve
     return {};
   }
 
-  return servers as Record<string, ServerEntry>;
+  const mappedServers: Record<string, ServerEntry> = {};
+  for (const [name, entry] of Object.entries(servers)) {
+    if (kind !== "codex" || !entry || typeof entry !== "object" || Array.isArray(entry)) {
+      mappedServers[name] = entry as ServerEntry;
+      continue;
+    }
+
+    const mapped = { ...(entry as Record<string, unknown>) };
+    const bearerTokenEnv = mapped.bearer_token_env_var;
+    const httpHeaders = mapped.http_headers;
+    const envHttpHeaders = mapped.env_http_headers;
+
+    if (typeof bearerTokenEnv === "string") {
+      mapped.bearerTokenEnv = bearerTokenEnv;
+      if (mapped.auth === undefined) mapped.auth = "bearer";
+    }
+    if (httpHeaders && typeof httpHeaders === "object" && !Array.isArray(httpHeaders)) {
+      mapped.headers = { ...(mapped.headers as Record<string, string> | undefined), ...(httpHeaders as Record<string, string>) };
+    }
+    if (envHttpHeaders && typeof envHttpHeaders === "object" && !Array.isArray(envHttpHeaders)) {
+      const headers = { ...(mapped.headers as Record<string, string> | undefined) };
+      for (const [header, envVar] of Object.entries(envHttpHeaders)) {
+        if (typeof envVar === "string" && headers[header] === undefined) headers[header] = `$env:${envVar}`;
+      }
+      mapped.headers = headers;
+    }
+
+    delete mapped.bearer_token_env_var;
+    delete mapped.http_headers;
+    delete mapped.env_http_headers;
+    mappedServers[name] = mapped as ServerEntry;
+  }
+
+  return mappedServers;
 }
 
 function serializeRawConfig(raw: Record<string, unknown>): string {
@@ -621,18 +696,15 @@ export function getServerProvenance(overridePath?: string, cwd = process.cwd()):
 
     if (loaded.imports?.length) {
       for (const importKind of loaded.imports) {
-        const importPath = resolveImportPath(importKind, cwd);
-        if (!importPath) continue;
+        const imported = loadImportedConfig(importKind, cwd, `Failed to inspect imported MCP config from ${importKind}:`);
+        if (!imported) continue;
 
-        try {
-          const imported = JSON.parse(readFileSync(importPath, "utf-8"));
-          const servers = extractServers(imported, importKind);
-          for (const name of Object.keys(servers)) {
-            if (!provenance.has(name)) {
-              provenance.set(name, { path: userPath, kind: "import", importKind });
-            }
+        const servers = extractServers(imported.value, importKind);
+        for (const name of Object.keys(servers)) {
+          if (!provenance.has(name)) {
+            provenance.set(name, { path: userPath, kind: "import", importKind });
           }
-        } catch {}
+        }
       }
     }
 
@@ -683,4 +755,15 @@ export function writeDirectToolsConfig(
     setServersObject(raw, servers);
     writeRawConfigObject(filePath, raw);
   }
+}
+
+export function resolveConfiguredOAuthDir(raw: unknown, cwd = process.cwd()): string | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string") {
+    throw new Error("settings.oauthDir must be a string");
+  }
+
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  return resolve(cwd, trimmed);
 }

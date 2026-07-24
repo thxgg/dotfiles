@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildToolMetadata } from "../tool-metadata.ts";
 
 const mocks = vi.hoisted(() => ({
   lazyConnect: vi.fn(),
   getFailureAgeSeconds: vi.fn(),
+  clearFailure: vi.fn(),
   authenticate: vi.fn(),
   supportsOAuth: vi.fn(),
 }));
@@ -10,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../init.ts", () => ({
   lazyConnect: mocks.lazyConnect,
   getFailureAgeSeconds: mocks.getFailureAgeSeconds,
+  clearFailure: mocks.clearFailure,
 }));
 
 vi.mock("../mcp-auth-flow.ts", () => ({
@@ -22,6 +25,7 @@ describe("direct tools auto auth", () => {
     vi.resetModules();
     mocks.lazyConnect.mockReset();
     mocks.getFailureAgeSeconds.mockReset().mockReturnValue(null);
+    mocks.clearFailure.mockReset();
     mocks.authenticate.mockReset().mockResolvedValue("authenticated");
     mocks.supportsOAuth.mockReset().mockReturnValue(true);
   });
@@ -69,14 +73,23 @@ describe("direct tools auto auth", () => {
       completedUiSessions: [],
     } as any;
 
+    const { metadata } = buildToolMetadata(
+      [{ name: "namespace.tool", description: "Namespaced tool" }] as any,
+      [],
+      state.config.mcpServers.demo,
+      "demo",
+      "server",
+    );
+    const [tool] = metadata;
+
     const executor = createDirectToolExecutor(
       () => state,
       () => null,
       {
         serverName: "demo",
-        originalName: "search",
-        prefixedName: "demo_search",
-        description: "Search",
+        originalName: tool.originalName,
+        prefixedName: tool.name,
+        description: tool.description,
       },
     );
 
@@ -92,7 +105,7 @@ describe("direct tools auto auth", () => {
     expect(state.manager.getRequestOptions).toHaveBeenCalledWith("demo", controller.signal);
     expect(connected.client.callTool).toHaveBeenCalledWith(
       {
-        name: "search",
+        name: "namespace.tool",
         arguments: { q: "hello" },
         _meta: undefined,
       },

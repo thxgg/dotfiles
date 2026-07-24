@@ -1,12 +1,12 @@
 import type { ExtensionAPI, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.ts";
 import { Type } from "typebox";
-import { showStatus, showTools, reconnectServers, authenticateServer, logoutServer, openMcpAuthPanel, openMcpPanel, openMcpSetup } from "./commands.ts";
+import { showStatus, showTools, reconnectServer, reconnectServers, authenticateServer, logoutServer, openMcpAuthPanel, openMcpPanel, openMcpSetup } from "./commands.ts";
 import { loadMcpConfig } from "./config.ts";
 import { buildProxyDescription, createDirectToolExecutor, getMissingConfiguredDirectToolServers, resolveDirectTools } from "./direct-tools.ts";
 import { flushMetadataCache, initializeMcp, updateStatusBar } from "./init.ts";
 import { loadMetadataCache } from "./metadata-cache.ts";
-import { executeAuthComplete, executeAuthStart, executeCall, executeConnect, executeDescribe, executeList, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.ts";
+import { executeAuthComplete, executeAuthStart, executeCall, executeConnect, executeDescribe, executeInstructions, executeList, executeSearch, executeStatus, executeUiMessages } from "./proxy-modes.ts";
 import { getConfigPathFromArgv, normalizeDirectToolInputSchema, truncateAtWord } from "./utils.ts";
 import { initializeOAuth, shutdownOAuth } from "./mcp-auth-flow.ts";
 import { createMcpDirectToolCallRenderer, renderMcpProxyToolCall, renderMcpToolResult } from "./tool-result-renderer.ts";
@@ -67,13 +67,22 @@ export default function mcpAdapter(pi: ExtensionAPI) {
     || directSpecs.length === 0
     || missingConfiguredDirectToolServers.length > 0;
 
+  // OMP remaps `typebox` to a host shim that historically lacked Type.Unsafe.
+  // Prefer Unsafe when present (real TypeBox / fixed OMP shim); otherwise pass
+  // the normalized JSON Schema through as a plain object so toolWireSchema and
+  // validateToolArguments still treat it as JSON Schema.
+  const toToolParameters = (schema: Record<string, unknown>) =>
+    typeof (Type as { Unsafe?: (value: never) => unknown }).Unsafe === "function"
+      ? (Type as { Unsafe: (value: never) => unknown }).Unsafe(schema as never)
+      : schema;
+
   for (const spec of directSpecs) {
     (pi.registerTool as (tool: unknown) => unknown)({
       name: spec.prefixedName,
       label: `MCP: ${spec.originalName}`,
       description: spec.description || "(no description)",
       promptSnippet: truncateAtWord(spec.description, 100) || `MCP tool from ${spec.serverName}`,
-      parameters: Type.Unsafe(normalizeDirectToolInputSchema(spec.inputSchema) as never),
+      parameters: toToolParameters(normalizeDirectToolInputSchema(spec.inputSchema)),
       execute: createDirectToolExecutor(() => state, () => initPromise, spec),
       renderCall: createMcpDirectToolCallRenderer(spec.prefixedName),
       renderResult: renderMcpToolResult,
@@ -247,7 +256,10 @@ export default function mcpAdapter(pi: ExtensionAPI) {
         return;
       }
 
-      await authenticateServer(serverName, state.config, ctx);
+      const result = await authenticateServer(serverName, state.config, ctx);
+      if (result.ok) {
+        await reconnectServer(state, ctx, serverName);
+      }
     },
   });
 
@@ -260,9 +272,16 @@ export default function mcpAdapter(pi: ExtensionAPI) {
       renderCall: renderMcpProxyToolCall,
       parameters: Type.Object({
         tool: Type.Optional(Type.String({ description: "Tool name to call (e.g., 'xcodebuild_list_sims')" })),
-        args: Type.Optional(Type.String({ description: "Arguments as JSON string (e.g., '{\"key\": \"value\"}')" })),
+        args: Type.Optional(Type.Union([
+          Type.String({ description: "Arguments as a JSON string (e.g., '{\"key\": \"value\"}')" }),
+          Type.Object({}, {
+            additionalProperties: true,
+            description: 'Arguments as a JSON object (e.g., { "key": "value" })',
+          }),
+        ], { description: "Tool arguments as a JSON object, or as a JSON string encoding one" })),
         connect: Type.Optional(Type.String({ description: "Server name to connect (lazy connect + metadata refresh)" })),
         describe: Type.Optional(Type.String({ description: "Tool name to describe (shows parameters)" })),
+        instructions: Type.Optional(Type.String({ description: "Server name to show that server's usage instructions" })),
         search: Type.Optional(Type.String({ description: "Search tools by name/description" })),
         regex: Type.Optional(Type.Boolean({ description: "Treat search as regex (default: substring match)" })),
         includeSchemas: Type.Optional(Type.Boolean({ description: "Include parameter schemas in search results (default: true)" })),
@@ -272,9 +291,10 @@ export default function mcpAdapter(pi: ExtensionAPI) {
       renderResult: renderMcpToolResult,
       async execute(_toolCallId, params: {
         tool?: string;
-        args?: string;
+        args?: string | Record<string, unknown>;
         connect?: string;
         describe?: string;
+        instructions?: string;
         search?: string;
         regex?: boolean;
         includeSchemas?: boolean;
@@ -282,19 +302,26 @@ export default function mcpAdapter(pi: ExtensionAPI) {
         action?: string;
       }, signal, _onUpdate, _ctx) {
         let parsedArgs: Record<string, unknown> | undefined;
-        if (params.args) {
-          try {
-            parsedArgs = JSON.parse(params.args);
-            if (typeof parsedArgs !== "object" || parsedArgs === null || Array.isArray(parsedArgs)) {
-              const gotType = Array.isArray(parsedArgs) ? "array" : parsedArgs === null ? "null" : typeof parsedArgs;
-              throw new Error(`Invalid args: expected a JSON object, got ${gotType}`);
+        if (params.args !== undefined && params.args !== "") {
+          let args: unknown;
+          if (typeof params.args === "string") {
+            try {
+              args = JSON.parse(params.args);
+            } catch (error) {
+              if (error instanceof SyntaxError) {
+                throw new Error(`Invalid args JSON: ${error.message}`, { cause: error });
+              }
+              throw error;
             }
-          } catch (error) {
-            if (error instanceof SyntaxError) {
-              throw new Error(`Invalid args JSON: ${error.message}`, { cause: error });
-            }
-            throw error;
+          } else {
+            args = params.args;
           }
+
+          if (typeof args !== "object" || args === null || Array.isArray(args)) {
+            const gotType = Array.isArray(args) ? "array" : args === null ? "null" : typeof args;
+            throw new Error(`Invalid args: expected a JSON object, got ${gotType}`);
+          }
+          parsedArgs = args as Record<string, unknown>;
         }
 
         if (!state && initPromise) {
@@ -351,6 +378,9 @@ export default function mcpAdapter(pi: ExtensionAPI) {
         }
         if (params.describe) {
           return executeDescribe(state, params.describe);
+        }
+        if (params.instructions) {
+          return executeInstructions(state, params.instructions);
         }
         if (params.search) {
           return executeSearch(state, params.search, params.regex, params.server, params.includeSchemas);

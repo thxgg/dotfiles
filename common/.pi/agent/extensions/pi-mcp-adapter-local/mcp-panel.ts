@@ -1,8 +1,10 @@
 import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { copyToClipboard } from "@earendil-works/pi-coding-agent";
 import { createPanelKeys, type PanelKeybindings, type PanelKeys } from "./panel-keys.ts";
 import { isToolExcluded } from "./types.ts";
-import type { McpConfig, McpPanelCallbacks, McpPanelResult, ServerProvenance } from "./types.ts";
+import type { McpConfig, McpPanelCallbacks, McpPanelResult, ServerProvenance, ToolPrefix } from "./types.ts";
 import { resourceNameToToolName } from "./resource-tools.ts";
+import { sanitizeTerminalText, stripOscSequences } from "./utils.ts";
 import type { MetadataCache, ServerCacheEntry, CachedTool } from "./metadata-cache.ts";
 
 interface PanelTheme {
@@ -75,25 +77,15 @@ function fuzzyScore(query: string, text: string): number {
 }
 
 function sanitizeDisplayText(text: string | null | undefined): string {
-  return (text ?? "")
-    .replace(/(?:\x1b\][\s\S]*?(?:\x07|\x1b\\)|\x9d[\s\S]*?(?:\x07|\x1b\\|\x9c))/g, "")
-    .replace(/(?:\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_])/g, "")
-    .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return sanitizeTerminalText(text ?? "");
 }
 
 function sanitizeRowContent(content: string): string {
+  const withoutOsc = stripOscSequences(content);
   let result = "";
   let pendingSpace = false;
-  for (let i = 0; i < content.length; i++) {
-    const rest = content.slice(i);
-    const osc = rest.match(/^(?:\x1b\][\s\S]*?(?:\x07|\x1b\\)|\x9d[\s\S]*?(?:\x07|\x1b\\|\x9c))/);
-    if (osc) {
-      i += osc[0].length - 1;
-      continue;
-    }
-
+  for (let i = 0; i < withoutOsc.length; i++) {
+    const rest = withoutOsc.slice(i);
     const ansi = rest.match(/^(?:\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_])/);
     if (ansi) {
       result += ansi[0];
@@ -101,7 +93,7 @@ function sanitizeRowContent(content: string): string {
       continue;
     }
 
-    const code = content.charCodeAt(i);
+    const code = withoutOsc.charCodeAt(i);
     if (code <= 0x1f || code === 0x7f || (code >= 0x80 && code <= 0x9f)) {
       pendingSpace = true;
       continue;
@@ -111,7 +103,7 @@ function sanitizeRowContent(content: string): string {
       result += " ";
     }
     pendingSpace = false;
-    result += content[i];
+    result += withoutOsc[i];
   }
   return result;
 }
@@ -140,6 +132,7 @@ interface ServerState {
   excludeTools?: string[];
   exposeResources: boolean;
   connectionStatus: ConnectionStatus;
+  failureMessage?: string | null;
   tools: ToolState[];
   hasCachedData: boolean;
 }
@@ -152,7 +145,7 @@ interface VisibleItem {
 
 class McpPanel {
   private noticeLines: string[];
-  private prefix: "server" | "none" | "short";
+  private prefix: ToolPrefix;
   private servers: ServerState[] = [];
   private cursorIndex = 0;
   private nameQuery = "";
@@ -239,6 +232,7 @@ class McpPanel {
       }
 
       const status = callbacks.getConnectionStatus(serverName);
+      const failureMessage = callbacks.getFailureMessage?.(serverName) ?? null;
 
       this.servers.push({
         name: serverName,
@@ -248,6 +242,7 @@ class McpPanel {
         excludeTools: definition.excludeTools,
         exposeResources: definition.exposeResources !== false,
         connectionStatus: status,
+        failureMessage,
         tools,
         hasCachedData: !!serverCache,
       });
@@ -453,24 +448,23 @@ class McpPanel {
     if (matchesKey(data, "ctrl+r")) {
       const item = this.visibleItems[this.cursorIndex];
       if (!item) return;
+      this.reconnectServer(this.servers[item.serverIndex]);
+      return;
+    }
+
+    if (matchesKey(data, "ctrl+y")) {
+      const item = this.visibleItems[this.cursorIndex];
+      if (!item) return;
       const server = this.servers[item.serverIndex];
-      if (server.connectionStatus === "connecting") return;
-      server.connectionStatus = "connecting";
-      this.callbacks.reconnect(server.name).then(() => {
-        server.connectionStatus = this.callbacks.getConnectionStatus(server.name);
-        if (server.connectionStatus === "connected") {
-          const entry = this.callbacks.refreshCacheAfterReconnect(server.name);
-          if (entry) {
-            this.rebuildServerTools(server, entry);
-          }
-          server.hasCachedData = true;
-        }
+      if (server.connectionStatus !== "failed" || !server.failureMessage) return;
+      const serverName = sanitizeDisplayText(server.name);
+      const failureMessage = sanitizeDisplayText(server.failureMessage);
+      copyToClipboard(failureMessage).then(() => {
+        this.authNotice = `Copied error for ${serverName} to clipboard`;
         this.tui.requestRender();
       }).catch((error) => {
-        server.connectionStatus = "failed";
         const message = sanitizeDisplayText(error instanceof Error ? error.message : String(error));
-        const serverName = sanitizeDisplayText(server.name);
-        this.authNotice = `Reconnect failed for ${serverName}: ${message}`;
+        this.authNotice = `Failed to copy error for ${serverName}: ${message}`;
         this.tui.requestRender();
       });
       return;
@@ -510,6 +504,7 @@ class McpPanel {
 
   private authenticateServer(server: ServerState): void {
     if (this.authInFlight) return;
+    if (server.connectionStatus === "connecting") return;
     const serverName = sanitizeDisplayText(server.name);
     if (!this.callbacks.canAuthenticate(server.name)) {
       this.authNotice = `${serverName} does not use OAuth authentication.`;
@@ -522,10 +517,16 @@ class McpPanel {
 
     this.callbacks.authenticate(server.name).then((result) => {
       server.connectionStatus = this.callbacks.getConnectionStatus(server.name);
+      if (result.ok) {
+        this.authNotice = `OAuth finished for ${serverName}. Reconnecting...`;
+        this.authInFlight = null;
+        this.tui.requestRender();
+        this.reconnectServer(server, { afterAuth: true });
+        return;
+      }
+
       const message = sanitizeDisplayText(result.message);
-      this.authNotice = result.ok
-        ? `OAuth finished for ${serverName}. Run reconnect if it is still idle.`
-        : `OAuth failed for ${serverName}${message ? `: ${message}` : ". Check the notification for details."}`;
+      this.authNotice = `OAuth failed for ${serverName}${message ? `: ${message}` : ". Check the notification for details."}`;
       this.authInFlight = null;
       this.tui.requestRender();
     }).catch((error) => {
@@ -533,6 +534,36 @@ class McpPanel {
       server.connectionStatus = this.callbacks.getConnectionStatus(server.name);
       this.authNotice = `OAuth failed for ${serverName}: ${message}`;
       this.authInFlight = null;
+      this.tui.requestRender();
+    });
+  }
+
+  private reconnectServer(server: ServerState, options: { afterAuth?: boolean } = {}): void {
+    if (server.connectionStatus === "connecting") return;
+    const serverName = sanitizeDisplayText(server.name);
+    server.connectionStatus = "connecting";
+    this.tui.requestRender();
+
+    this.callbacks.reconnect(server.name).then((connected) => {
+      server.connectionStatus = this.callbacks.getConnectionStatus(server.name);
+      server.failureMessage = this.callbacks.getFailureMessage?.(server.name) ?? null;
+      if (server.connectionStatus === "connected") {
+        const entry = this.callbacks.refreshCacheAfterReconnect(server.name);
+        if (entry) {
+          this.rebuildServerTools(server, entry);
+        }
+        server.hasCachedData = true;
+      }
+      if (options.afterAuth) {
+        this.authNotice = connected && server.connectionStatus === "connected"
+          ? `OAuth finished for ${serverName}. Reconnected.`
+          : `OAuth finished for ${serverName}, but reconnect did not complete. Press ctrl+r to retry.`;
+      }
+      this.tui.requestRender();
+    }).catch((error) => {
+      server.connectionStatus = "failed";
+      const message = sanitizeDisplayText(error instanceof Error ? error.message : String(error));
+      this.authNotice = `Reconnect failed for ${serverName}: ${message}`;
       this.tui.requestRender();
     });
   }
@@ -695,6 +726,11 @@ class McpPanel {
 
         if (item.type === "server") {
           lines.push(row(this.renderServerRow(server, isCursor)));
+          if (isCursor && server.connectionStatus === "failed" && server.failureMessage) {
+            for (const line of this.wrapText(sanitizeDisplayText(server.failureMessage), innerW - 6)) {
+              lines.push(row(`    ${fg(t.cancel, line)}`));
+            }
+          }
         } else if (item.toolIndex !== undefined) {
           lines.push(row(this.renderToolRow(server.tools[item.toolIndex], isCursor, innerW)));
         }
@@ -759,6 +795,7 @@ class McpPanel {
           italic("⏎") + " expand/auth",
           italic("ctrl+a") + " auth",
           italic("ctrl+r") + " reconnect",
+          ...(this.selectedServerHasFailureMessage() ? [italic("ctrl+y") + " copy error"] : []),
           italic("?") + " desc search",
           italic("ctrl+s") + " save",
           italic("esc") + " clear/close",
@@ -825,6 +862,47 @@ class McpPanel {
     }
 
     return `${prefix} ${toggleIcon} ${nameStr}${importLabel}  ${toolInfo}${statusLabel}`;
+  }
+
+  private selectedServerHasFailureMessage(): boolean {
+    const item = this.visibleItems[this.cursorIndex];
+    if (!item) return false;
+    const server = this.servers[item.serverIndex];
+    return server.connectionStatus === "failed" && !!server.failureMessage;
+  }
+
+  private wrapText(text: string, width: number): string[] {
+    const max = Math.max(8, width);
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let current = "";
+    const splitLongWord = (word: string): string => {
+      let rest = word;
+      while (visibleWidth(rest) > max) {
+        let take = "";
+        let index = 0;
+        while (index < rest.length && visibleWidth(take + rest[index]) <= max) {
+          take += rest[index];
+          index++;
+        }
+        if (!take) take = rest[0];
+        lines.push(take);
+        rest = rest.slice(take.length);
+      }
+      return rest;
+    };
+
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (visibleWidth(candidate) <= max) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        current = splitLongWord(word);
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length > 0 ? lines : [text];
   }
 
   private renderConnectionStatus(server: ServerState): string {

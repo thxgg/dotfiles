@@ -12,26 +12,23 @@ const mocks = vi.hoisted(() => ({
   releaseCallbackServer: vi.fn(),
   open: vi.fn(),
   sdkAuth: vi.fn(),
-  finishAuth: vi.fn(),
-  transportClose: vi.fn(),
+  fetch: vi.fn(),
 }));
 
 class MockUnauthorizedError extends Error {}
 
-class MockStreamableHTTPClientTransport {
-  constructor(_url: URL, _options: unknown) {}
-
-  close = mocks.transportClose;
-  finishAuth = mocks.finishAuth;
-}
-
 vi.mock("@modelcontextprotocol/sdk/client/auth.js", () => ({
   auth: mocks.sdkAuth,
+  extractWWWAuthenticateParams: (response: Response) => {
+    const header = response.headers.get("www-authenticate") ?? "";
+    const resourceMetadata = /resource_metadata="([^"]+)"/.exec(header)?.[1];
+    const scope = /scope="([^"]+)"/.exec(header)?.[1];
+    return {
+      ...(resourceMetadata ? { resourceMetadataUrl: new URL(resourceMetadata) } : {}),
+      ...(scope ? { scope } : {}),
+    };
+  },
   UnauthorizedError: MockUnauthorizedError,
-}));
-
-vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
-  StreamableHTTPClientTransport: MockStreamableHTTPClientTransport,
 }));
 
 vi.mock("../mcp-callback-server.ts", () => ({
@@ -63,11 +60,12 @@ describe("mcp-auth-flow explicit auth", () => {
     mocks.releaseCallbackServer.mockReset();
     mocks.open.mockReset();
     mocks.sdkAuth.mockReset().mockResolvedValue("AUTHORIZED");
-    mocks.finishAuth.mockReset().mockResolvedValue(undefined);
-    mocks.transportClose.mockReset().mockResolvedValue(undefined);
+    mocks.fetch.mockReset().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", mocks.fetch);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     rmSync(authDir, { recursive: true, force: true });
     if (originalOAuthDir === undefined) {
       delete process.env.MCP_OAUTH_DIR;
@@ -131,7 +129,6 @@ describe("mcp-auth-flow explicit auth", () => {
 
     expect(status).toBe("authenticated");
     expect(mocks.sdkAuth).toHaveBeenCalledTimes(1);
-    expect(mocks.transportClose).not.toHaveBeenCalled();
     expect(mocks.ensureCallbackServer).not.toHaveBeenCalled();
     expect(mocks.waitForCallback).not.toHaveBeenCalled();
     expect(mocks.open).not.toHaveBeenCalled();
@@ -282,6 +279,47 @@ describe("mcp-auth-flow explicit auth", () => {
     expect(stored?.clientInfo?.clientId).toBe("fresh-client");
     expect(stored?.codeVerifier).toBeUndefined();
     expect(getOAuthState("stale")).not.toBe("old-state");
+  });
+
+  it("keeps same-name pending OAuth flows isolated by auth storage", async () => {
+    delete process.env.MCP_OAUTH_DIR;
+    const projectA = mkdtempSync(join(tmpdir(), "pi-mcp-auth-flow-a-"));
+    const projectB = mkdtempSync(join(tmpdir(), "pi-mcp-auth-flow-b-"));
+    const authStorageOptionsA = { baseDir: join(projectA, ".pi", "oauth") };
+    const authStorageOptionsB = { baseDir: join(projectB, ".pi", "oauth") };
+    let call = 0;
+    mocks.sdkAuth.mockImplementation(async (provider) => {
+      call++;
+      if (call <= 2) {
+        await provider.saveClientInformation({ client_id: `client-${call}` });
+        await provider.redirectToAuthorization(new URL(`https://auth.example.com/authorize-${call}`));
+        return "REDIRECT";
+      }
+      await provider.saveTokens({ access_token: "token-b", token_type: "Bearer" });
+      return "AUTHORIZED";
+    });
+    const { startAuth, completeAuthFromInput, shutdownOAuth } = await import("../mcp-auth-flow.ts");
+    const { getAuthForUrl, getOAuthState } = await import("../mcp-auth.ts");
+
+    await startAuth("shared", "https://api.example.com/mcp", {
+      url: "https://api.example.com/mcp",
+      auth: "oauth",
+    }, { authStorageOptions: authStorageOptionsA });
+    await startAuth("shared", "https://api.example.com/mcp", {
+      url: "https://api.example.com/mcp",
+      auth: "oauth",
+    }, { authStorageOptions: authStorageOptionsB });
+
+    expect(getOAuthState("shared", authStorageOptionsA)).toBeDefined();
+    expect(getOAuthState("shared", authStorageOptionsB)).toBeDefined();
+
+    await completeAuthFromInput("shared", "code-b", { authStorageOptions: authStorageOptionsB });
+
+    expect(getAuthForUrl("shared", "https://api.example.com/mcp", authStorageOptionsA)?.tokens).toBeUndefined();
+    expect(getAuthForUrl("shared", "https://api.example.com/mcp", authStorageOptionsB)?.tokens?.accessToken).toBe("token-b");
+    await shutdownOAuth();
+    rmSync(projectA, { recursive: true, force: true });
+    rmSync(projectB, { recursive: true, force: true });
   });
 
   it("preserves stored dynamic client info when tokens exist", async () => {
@@ -503,9 +541,11 @@ describe("mcp-auth-flow explicit auth", () => {
       auth: "oauth",
     })).resolves.toBe("authenticated");
 
-    expect(mocks.finishAuth).toHaveBeenCalledWith("manual-code");
+    expect(mocks.sdkAuth).toHaveBeenNthCalledWith(2, expect.anything(), {
+      serverUrl: "https://api.example.com/mcp",
+      authorizationCode: "manual-code",
+    });
     expect(mocks.cancelPendingCallback).not.toHaveBeenCalled();
-    expect(mocks.transportClose).toHaveBeenCalledTimes(1);
     expect(getOAuthState("browser-fail")).toBeUndefined();
   });
 
@@ -534,7 +574,31 @@ describe("mcp-auth-flow explicit auth", () => {
     expect(mocks.open).toHaveBeenCalledWith(authorizationUrl);
   });
 
+  it("reuses a pending manual OAuth flow instead of starting a new one", async () => {
+    mocks.sdkAuth.mockImplementationOnce(async (provider) => {
+      await provider.redirectToAuthorization(new URL("https://auth.example.com/authorize?client_id=first"));
+      return "REDIRECT";
+    });
+    const { hasPendingAuth, startAuth } = await import("../mcp-auth-flow.ts");
+
+    const definition = {
+      url: "https://api.example.com/mcp",
+      auth: "oauth" as const,
+    };
+    const first = await startAuth("manual-repeat", "https://api.example.com/mcp", definition);
+    const second = await startAuth("manual-repeat", "https://api.example.com/mcp", definition);
+
+    expect(first.authorizationUrl).toBe("https://auth.example.com/authorize?client_id=first");
+    expect(second).toEqual(first);
+    expect(hasPendingAuth("manual-repeat")).toBe(true);
+    expect(mocks.sdkAuth).toHaveBeenCalledTimes(1);
+  });
+
   it("releases reserved callback state after direct completeAuth", async () => {
+    const resourceMetadataUrl = "https://api.example.com/.well-known/oauth-protected-resource";
+    mocks.fetch.mockResolvedValueOnce(new Response(null, {
+      headers: { "www-authenticate": `Bearer resource_metadata="${resourceMetadataUrl}", scope="mcp:read"` },
+    }));
     mocks.sdkAuth.mockImplementationOnce(async (provider) => {
       await provider.redirectToAuthorization(new URL("https://auth.example.com/authorize"));
       return "REDIRECT";
@@ -545,14 +609,27 @@ describe("mcp-auth-flow explicit auth", () => {
     await startAuth("direct-complete", "https://api.example.com/mcp", {
       url: "https://api.example.com/mcp",
       auth: "oauth",
+      headers: { "X-Tenant": "tenant-a" },
     });
     const oauthState = getOAuthState("direct-complete");
 
     await expect(completeAuth("direct-complete", "auth-code")).resolves.toBe("authenticated");
 
-    expect(mocks.finishAuth).toHaveBeenCalledWith("auth-code");
+    const probeInit = mocks.fetch.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(probeInit.headers).get("x-tenant")).toBe("tenant-a");
+    expect(JSON.parse(String(probeInit.body)).params.clientInfo.name).toBe("pi-mcp-adapter");
+    expect(mocks.sdkAuth).toHaveBeenNthCalledWith(1, expect.anything(), {
+      serverUrl: "https://api.example.com/mcp",
+      resourceMetadataUrl: new URL(resourceMetadataUrl),
+      scope: "mcp:read",
+    });
+    expect(mocks.sdkAuth).toHaveBeenNthCalledWith(2, expect.anything(), {
+      serverUrl: "https://api.example.com/mcp",
+      authorizationCode: "auth-code",
+      resourceMetadataUrl: new URL(resourceMetadataUrl),
+      scope: "mcp:read",
+    });
     expect(mocks.releaseCallbackServer).toHaveBeenCalledWith(oauthState);
-    expect(mocks.transportClose).toHaveBeenCalledTimes(1);
     expect(getOAuthState("direct-complete")).toBeUndefined();
   });
 

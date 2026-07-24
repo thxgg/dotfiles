@@ -6,8 +6,11 @@ const mocks = vi.hoisted(() => ({
   lazyConnect: vi.fn(),
   updateServerMetadata: vi.fn(),
   updateMetadataCache: vi.fn(),
+  markKeepAliveAfterConnect: vi.fn(),
   getFailureAgeSeconds: vi.fn(),
   updateStatusBar: vi.fn(),
+  clearFailure: vi.fn(),
+  recordFailure: vi.fn(),
   clients: [] as any[],
   transports: [] as any[],
   connectImpl: vi.fn(),
@@ -25,8 +28,11 @@ vi.mock("../init.ts", () => ({
   lazyConnect: mocks.lazyConnect,
   updateServerMetadata: mocks.updateServerMetadata,
   updateMetadataCache: mocks.updateMetadataCache,
+  markKeepAliveAfterConnect: mocks.markKeepAliveAfterConnect,
   getFailureAgeSeconds: mocks.getFailureAgeSeconds,
   updateStatusBar: mocks.updateStatusBar,
+  clearFailure: mocks.clearFailure,
+  recordFailure: mocks.recordFailure,
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
@@ -62,6 +68,13 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 
 vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
   StreamableHTTPClientTransport: vi.fn(),
+  StreamableHTTPError: class StreamableHTTPError extends Error {
+    code: number;
+    constructor(code: number, message: string) {
+      super(`Streamable HTTP error: ${message}`);
+      this.code = code;
+    }
+  },
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/sse.js", () => ({
@@ -80,8 +93,11 @@ describe("proxy auto auth", () => {
     mocks.lazyConnect.mockReset().mockResolvedValue(false);
     mocks.updateServerMetadata.mockReset();
     mocks.updateMetadataCache.mockReset();
+    mocks.markKeepAliveAfterConnect.mockReset();
     mocks.getFailureAgeSeconds.mockReset().mockReturnValue(null);
     mocks.updateStatusBar.mockReset();
+    mocks.clearFailure.mockReset();
+    mocks.recordFailure.mockReset();
     mocks.clients.length = 0;
     mocks.transports.length = 0;
     mocks.connectImpl.mockReset().mockResolvedValue(undefined);
@@ -122,13 +138,14 @@ describe("proxy auto auth", () => {
 
     const state = {
       config: {
-        settings: { autoAuth: true, toolPrefix: "server" },
+        settings: { autoAuth: true, toolPrefix: "mcp" },
         mcpServers: {
           demo: { url: "https://api.example.com/mcp", auth: "oauth" },
         },
       },
       manager,
       toolMetadata: new Map(),
+      serverInstructions: new Map(),
       failureTracker: new Map(),
       ui: { setStatus: vi.fn() },
     } as any;
@@ -142,6 +159,10 @@ describe("proxy auto auth", () => {
     );
     expect(manager.close).toHaveBeenCalledWith("demo");
     expect(manager.connect).toHaveBeenCalledTimes(2);
+    expect(state.toolMetadata.get("demo")?.[0]).toMatchObject({
+      name: "mcp__demo_search",
+      originalName: "search",
+    });
     expect(result.content[0].text).toContain("demo (1 tools)");
   });
 
@@ -396,7 +417,7 @@ describe("proxy auto auth", () => {
         return false;
       }
       state.toolMetadata.set(serverName, [{
-        name: "demo_search",
+        name: "mcp__demo_search",
         originalName: "search",
         description: "Search",
         inputSchema: { type: "object", properties: {} },
@@ -408,7 +429,7 @@ describe("proxy auto auth", () => {
     manager.setDefaultRequestTimeoutMs(2500);
     const state = {
       config: {
-        settings: { toolPrefix: "server" },
+        settings: { toolPrefix: "mcp" },
         mcpServers: {
           demo: { command: "node", args: ["server.js"], requestTimeoutMs: 5000 },
         },
@@ -420,8 +441,8 @@ describe("proxy auto auth", () => {
     } as any;
 
     const [first, second] = await Promise.all([
-      executeCall(state, "demo_search", { q: "one" }),
-      executeCall(state, "demo_search", { q: "two" }),
+      executeCall(state, "mcp__demo_search", { q: "one" }),
+      executeCall(state, "mcp__demo_search", { q: "two" }),
     ]);
 
     expect(mocks.clients).toHaveLength(1);

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   resolveDirectTools: vi.fn(() => []),
   showStatus: vi.fn(),
   showTools: vi.fn(),
+  reconnectServer: vi.fn(),
   reconnectServers: vi.fn(),
   authenticateServer: vi.fn(),
   logoutServer: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock("../direct-tools.ts", () => ({
 vi.mock("../commands.ts", () => ({
   showStatus: mocks.showStatus,
   showTools: mocks.showTools,
+  reconnectServer: mocks.reconnectServer,
   reconnectServers: mocks.reconnectServers,
   authenticateServer: mocks.authenticateServer,
   logoutServer: mocks.logoutServer,
@@ -136,6 +138,7 @@ describe("mcpAdapter session lifecycle", () => {
   beforeEach(() => {
     delete process.env.MCP_DIRECT_TOOLS;
     vi.resetModules();
+    vi.doUnmock("typebox");
     for (const value of Object.values(mocks)) {
       if (typeof value === "function" && "mockReset" in value) {
         value.mockReset();
@@ -194,6 +197,34 @@ describe("mcpAdapter session lifecycle", () => {
       name: "mcp",
       renderResult: expect.any(Function),
     }));
+  });
+
+  it("registers direct MCP tools when the host TypeBox shim omits Unsafe", async () => {
+    vi.doMock("typebox", () => ({
+      Type: {
+        Object: (properties: Record<string, unknown>, options?: Record<string, unknown>) => ({ type: "object", properties, ...options }),
+        String: (options?: Record<string, unknown>) => ({ type: "string", ...options }),
+        Boolean: (options?: Record<string, unknown>) => ({ type: "boolean", ...options }),
+        Optional: (schema: Record<string, unknown>) => ({ ...schema, optional: true }),
+        Union: (schemas: unknown[], options?: Record<string, unknown>) => ({ anyOf: schemas, ...options }),
+      },
+    }));
+    mocks.resolveDirectTools.mockReturnValue([
+      {
+        serverName: "demo",
+        originalName: "search",
+        prefixedName: "demo_search",
+        description: "Search demo",
+        inputSchema: { type: "object", properties: { query: { type: "string" } } },
+      },
+    ]);
+
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api } = createPi();
+    mcpAdapter(api);
+
+    const directTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "demo_search")?.[0];
+    expect(directTool.parameters).toEqual({ type: "object", properties: { query: { type: "string" } } });
   });
 
   it("normalizes direct MCP tool schemas before registration", async () => {
@@ -266,6 +297,51 @@ describe("mcpAdapter session lifecycle", () => {
       renderResult: expect.any(Function),
     }));
     expect(api.registerTool).not.toHaveBeenCalledWith(expect.objectContaining({ name: "mcp" }));
+  });
+
+  it("registers proxy args as string or object without patternProperties", async () => {
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api } = createPi();
+    mcpAdapter(api);
+
+    const proxyTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "mcp")?.[0];
+    expect(proxyTool).toBeDefined();
+
+    const argsSchema = proxyTool.parameters.properties.args;
+    expect(argsSchema.anyOf).toEqual([
+      expect.objectContaining({ type: "string" }),
+      expect.objectContaining({ type: "object", additionalProperties: true }),
+    ]);
+    expect(JSON.stringify(argsSchema)).not.toContain("patternProperties");
+  });
+
+  it("forwards native object proxy args into executeCall", async () => {
+    const state = createState();
+    mocks.initializeMcp.mockResolvedValue(state);
+    mocks.executeCall.mockResolvedValue({ content: [{ type: "text", text: "ok" }] });
+
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api, handlers } = createPi();
+    mcpAdapter(api);
+
+    const sessionStart = handlers.get("session_start");
+    await sessionStart?.({}, {});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const proxyTool = api.registerTool.mock.calls.find((call: any[]) => call[0].name === "mcp")?.[0];
+    expect(proxyTool).toBeDefined();
+
+    await proxyTool.execute("call-1", { tool: "demo_search", args: { q: "hello", limit: 10 } });
+
+    expect(mocks.executeCall).toHaveBeenCalledWith(
+      state,
+      "demo_search",
+      { q: "hello", limit: 10 },
+      undefined,
+      expect.any(Function),
+      undefined,
+    );
   });
 
   it("routes manual auth actions through the proxy tool", async () => {
@@ -504,9 +580,10 @@ describe("mcpAdapter session lifecycle", () => {
     expect(mocks.authenticateServer).not.toHaveBeenCalled();
   });
 
-  it("keeps explicit `/mcp-auth <server>` routed to direct authentication", async () => {
+  it("reconnects after explicit `/mcp-auth <server>` succeeds", async () => {
     const state = createState();
     mocks.initializeMcp.mockResolvedValue(state);
+    mocks.authenticateServer.mockResolvedValue({ ok: true });
 
     const { default: mcpAdapter } = await import("../index.ts");
     const { api, handlers } = createPi();
@@ -522,6 +599,30 @@ describe("mcpAdapter session lifecycle", () => {
     await commandDef.handler("github", { hasUI: true, ui });
 
     expect(mocks.authenticateServer).toHaveBeenCalledWith("github", state.config, expect.any(Object));
+    expect(mocks.reconnectServer).toHaveBeenCalledWith(state, expect.any(Object), "github");
+    expect(mocks.openMcpAuthPanel).not.toHaveBeenCalled();
+  });
+
+  it("does not reconnect after explicit `/mcp-auth <server>` fails", async () => {
+    const state = createState();
+    mocks.initializeMcp.mockResolvedValue(state);
+    mocks.authenticateServer.mockResolvedValue({ ok: false });
+
+    const { default: mcpAdapter } = await import("../index.ts");
+    const { api, handlers } = createPi();
+    mcpAdapter(api);
+
+    const ui = { notify: vi.fn() };
+    const sessionStart = handlers.get("session_start");
+    await sessionStart?.({}, { hasUI: true, ui });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const commandDef = api.registerCommand.mock.calls.find((call: any[]) => call[0] === "mcp-auth")?.[1];
+    await commandDef.handler("github", { hasUI: true, ui });
+
+    expect(mocks.authenticateServer).toHaveBeenCalledWith("github", state.config, expect.any(Object));
+    expect(mocks.reconnectServer).not.toHaveBeenCalled();
     expect(mocks.openMcpAuthPanel).not.toHaveBeenCalled();
   });
 

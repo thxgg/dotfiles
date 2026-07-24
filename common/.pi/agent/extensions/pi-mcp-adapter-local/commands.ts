@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { McpExtensionState } from "./state.ts";
-import type { McpAuthResult, McpConfig, ServerEntry, McpPanelCallbacks, McpPanelResult, ImportKind } from "./types.ts";
+import type { McpAuthResult, McpConfig, McpPanelCallbacks, McpPanelResult, ImportKind } from "./types.ts";
 import {
   ensureCompatibilityImports,
   getMcpDiscoverySummary,
@@ -12,13 +12,13 @@ import {
   writeSharedServerEntry,
   writeStarterProjectConfig,
 } from "./config.ts";
-import { lazyConnect, updateMetadataCache, updateStatusBar, getFailureAgeSeconds } from "./init.ts";
+import { markKeepAliveAfterConnect, updateMetadataCache, updateStatusBar, getFailureAgeSeconds, getFailureMessage, clearFailure, recordFailure } from "./init.ts";
 import { loadMetadataCache } from "./metadata-cache.ts";
 import { buildToolMetadata } from "./tool-metadata.ts";
 import { supportsOAuth, authenticate, removeAuth } from "./mcp-auth-flow.ts";
-import { getAuthForUrl } from "./mcp-auth.ts";
+import { getAuthForUrl, getAuthStorageOptions } from "./mcp-auth.ts";
 import { loadOnboardingState, markSetupCompleted as persistSetupCompleted, markSharedConfigHintShown } from "./onboarding-state.ts";
-import { openPath } from "./utils.ts";
+import { openPath, resolveServerUrl, sanitizeTerminalText } from "./utils.ts";
 
 export async function showStatus(state: McpExtensionState, ctx: ExtensionContext): Promise<void> {
   if (!ctx.hasUI) return;
@@ -41,7 +41,8 @@ export async function showStatus(state: McpExtensionState, ctx: ExtensionContext
       status = "needs auth";
       statusIcon = "⚠";
     } else if (failedAgo !== null) {
-      status = `failed ${failedAgo}s ago`;
+      const reason = sanitizeTerminalText(getFailureMessage(state, name) ?? "");
+      status = reason ? `failed ${failedAgo}s ago — ${reason}` : `failed ${failedAgo}s ago`;
       statusIcon = "✗";
       failed = true;
     } else if (metadata !== undefined) {
@@ -81,6 +82,64 @@ export async function showTools(state: McpExtensionState, ctx: ExtensionContext)
   ctx.ui.notify(lines.join("\n"), "info");
 }
 
+export async function reconnectServer(
+  state: McpExtensionState,
+  ctx: ExtensionContext,
+  name: string,
+): Promise<boolean> {
+  const definition = state.config.mcpServers[name];
+  if (!definition) {
+    if (ctx.hasUI) {
+      ctx.ui.notify(`Server "${name}" not found in config`, "error");
+    }
+    return false;
+  }
+
+  try {
+    await state.manager.close(name);
+    const connection = await state.manager.connect(name, definition);
+    if (connection.status === "needs-auth") {
+      if (ctx.hasUI) {
+        ctx.ui.notify(`MCP: ${name} requires OAuth. Run /mcp-auth ${name} first.`, "warning");
+      }
+      updateStatusBar(state);
+      return false;
+    }
+
+    const prefix = state.config.settings?.toolPrefix ?? "server";
+    const { metadata, failedTools } = buildToolMetadata(connection.tools, connection.resources, definition, name, prefix);
+    state.toolMetadata.set(name, metadata);
+    if (connection.instructions) {
+      state.serverInstructions.set(name, connection.instructions);
+    } else {
+      state.serverInstructions.delete(name);
+    }
+    updateMetadataCache(state, name);
+    markKeepAliveAfterConnect(state, name);
+    clearFailure(state, name);
+
+    if (ctx.hasUI) {
+      ctx.ui.notify(
+        `MCP: Reconnected to ${name} (${connection.tools.length} tools, ${connection.resources.length} resources)`,
+        "info"
+      );
+      if (failedTools.length > 0) {
+        ctx.ui.notify(`MCP: ${name} - ${failedTools.length} tools skipped`, "warning");
+      }
+    }
+    updateStatusBar(state);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    recordFailure(state, name, message);
+    if (ctx.hasUI) {
+      ctx.ui.notify(`MCP: Failed to reconnect to ${name}: ${sanitizeTerminalText(message)}`, "error");
+    }
+    updateStatusBar(state);
+    return false;
+  }
+}
+
 export async function reconnectServers(
   state: McpExtensionState,
   ctx: ExtensionContext,
@@ -93,44 +152,9 @@ export async function reconnectServers(
     return;
   }
 
-  const entries = targetServer
-    ? [[targetServer, state.config.mcpServers[targetServer]] as [string, ServerEntry]]
-    : Object.entries(state.config.mcpServers);
-
-  for (const [name, definition] of entries) {
-    try {
-      await state.manager.close(name);
-
-      const connection = await state.manager.connect(name, definition);
-      if (connection.status === "needs-auth") {
-        if (ctx.hasUI) {
-          ctx.ui.notify(`MCP: ${name} requires OAuth. Run /mcp-auth ${name} first.`, "warning");
-        }
-        continue;
-      }
-      const prefix = state.config.settings?.toolPrefix ?? "server";
-
-      const { metadata, failedTools } = buildToolMetadata(connection.tools, connection.resources, definition, name, prefix);
-      state.toolMetadata.set(name, metadata);
-      updateMetadataCache(state, name);
-      state.failureTracker.delete(name);
-
-      if (ctx.hasUI) {
-        ctx.ui.notify(
-          `MCP: Reconnected to ${name} (${connection.tools.length} tools, ${connection.resources.length} resources)`,
-          "info"
-        );
-        if (failedTools.length > 0) {
-          ctx.ui.notify(`MCP: ${name} - ${failedTools.length} tools skipped`, "warning");
-        }
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      state.failureTracker.set(name, Date.now());
-      if (ctx.hasUI) {
-        ctx.ui.notify(`MCP: Failed to reconnect to ${name}: ${message}`, "error");
-      }
-    }
+  const names = targetServer ? [targetServer] : Object.keys(state.config.mcpServers);
+  for (const name of names) {
+    await reconnectServer(state, ctx, name);
   }
 
   updateStatusBar(state);
@@ -160,15 +184,18 @@ export async function authenticateServer(
     return { ok: false, message };
   }
 
-  if (!definition.url) {
-    const message = `Server "${serverName}" has no URL configured (OAuth requires HTTP transport)`;
-    ctx.ui.notify(message, "error");
-    return { ok: false, message };
-  }
-
   try {
+    const serverUrl = resolveServerUrl(definition);
+    if (!serverUrl) {
+      const message = `Server "${serverName}" has no URL configured (OAuth requires HTTP transport)`;
+      ctx.ui.notify(message, "error");
+      return { ok: false, message };
+    }
+
     ctx.ui.setStatus("mcp-auth", `Authenticating ${serverName}...`);
-    const status = await authenticate(serverName, definition.url, definition, {
+    const authStorageOptions = getAuthStorageOptions(config.settings?.oauthDir, ctx.cwd);
+    const status = await authenticate(serverName, serverUrl, definition, {
+      ...(authStorageOptions.baseDir ? { authStorageOptions } : {}),
       onAuthorizationUrl: (authorizationUrl) => {
         ctx.ui.notify(
           `Open this URL to authenticate ${serverName}:\n\n${authorizationUrl}\n\n` +
@@ -179,12 +206,8 @@ export async function authenticateServer(
     });
 
     if (status === "authenticated") {
-      const message = `OAuth authentication successful for "${serverName}"! Run /mcp reconnect ${serverName} to connect with the new token.`;
-      ctx.ui.notify(
-        `OAuth authentication successful for "${serverName}"!\n` +
-        `Run /mcp reconnect ${serverName} to connect with the new token.`,
-        "info"
-      );
+      const message = `OAuth authentication successful for "${serverName}".`;
+      ctx.ui.notify(message, "info");
       return { ok: true, message };
     }
 
@@ -212,7 +235,7 @@ export async function logoutServer(
     return { ok: false, message };
   }
 
-  await removeAuth(serverName);
+  await removeAuth(serverName, { authStorageOptions: state.authStorageOptions });
   await state.manager.close(serverName);
   updateStatusBar(state);
 
@@ -311,7 +334,7 @@ function buildMcpPanelCallbacks(
   ctx: ExtensionContext,
 ): McpPanelCallbacks {
   return {
-    reconnect: (serverName: string) => lazyConnect(state, serverName),
+    reconnect: (serverName: string) => reconnectServer(state, ctx, serverName),
     canAuthenticate: (serverName: string) => {
       const definition = config.mcpServers[serverName];
       return definition ? supportsOAuth(definition) : false;
@@ -323,12 +346,18 @@ function buildMcpPanelCallbacks(
       if (connection?.status === "needs-auth") {
         return "needs-auth";
       }
+      let serverUrl: string | undefined;
+      try {
+        serverUrl = definition ? resolveServerUrl(definition) : undefined;
+      } catch {
+        return "failed";
+      }
       if (
         definition?.auth === "oauth"
-        && definition.url
+        && serverUrl
         && definition.oauth !== false
         && definition.oauth?.grantType !== "client_credentials"
-        && !getAuthForUrl(serverName, definition.url)?.tokens
+        && !getAuthForUrl(serverName, serverUrl, state.authStorageOptions)?.tokens
       ) {
         return "needs-auth";
       }
@@ -336,6 +365,7 @@ function buildMcpPanelCallbacks(
       if (getFailureAgeSeconds(state, serverName) !== null) return "failed";
       return "idle";
     },
+    getFailureMessage: (serverName: string) => getFailureMessage(state, serverName),
     refreshCacheAfterReconnect: (serverName: string) => {
       const freshCache = loadMetadataCache();
       return freshCache?.servers?.[serverName] ?? null;
