@@ -12,6 +12,3 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/.local/share/artifact-cloud %h/.local/state/artifact-cloud
-
-[Install]
-WantedBy=default.target

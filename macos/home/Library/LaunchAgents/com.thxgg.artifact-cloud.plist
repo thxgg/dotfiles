@@ -13,9 +13,6 @@
     <string>exec "$HOME/.local/bin/artifact-cloud" serve</string>
   </array>
 
-  <key>RunAtLoad</key>
-  <true/>
-
   <key>KeepAlive</key>
   <dict>
     <key>SuccessfulExit</key>

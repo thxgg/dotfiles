@@ -23,16 +23,16 @@ The recovery objectives are **RPO 24 hours** (daily maintenance) and **RTO 30 mi
 
 ## Scheduled jobs and logs
 
-macOS uses `com.thxgg.artifact-cloud-maintenance.plist` at 03:17 daily and `com.thxgg.artifact-cloud-drill.plist` on the first day of each month. Linux uses matching maintenance and drill user timers. The systemd journal bounds Linux logs. On macOS, launchd writes under `~/Library/Logs/Artifact Cloud`; maintenance keeps seven compressed 1 MB rotations without requiring elevated privileges. Maintenance reports persist under `~/.local/state/artifact-cloud/reports`, with `latest.log` pointing to the latest successful run.
+The artifact server does not start automatically; run `artifact-cloud start` when needed. macOS uses `com.thxgg.artifact-cloud-maintenance.plist` at 03:17 daily and `com.thxgg.artifact-cloud-drill.plist` on the first day of each month. Linux uses matching maintenance and drill user timers. The systemd journal bounds Linux logs. On macOS, launchd writes under `~/Library/Logs/Artifact Cloud`; maintenance keeps seven compressed 1 MB rotations without requiring elevated privileges. Maintenance reports persist under `~/.local/state/artifact-cloud/reports`, with `latest.log` pointing to the latest successful run.
 
 ```sh
-# macOS
+# macOS scheduled maintenance
 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.thxgg.artifact-cloud-maintenance.plist
 launchctl kickstart -k "gui/$(id -u)/com.thxgg.artifact-cloud-maintenance"
 
-# Linux
-systemctl --user enable --now artifact-cloud.service artifact-cloud-maintenance.timer
-journalctl --user -u artifact-cloud.service
+# Linux scheduled maintenance (the server remains manual)
+systemctl --user enable --now artifact-cloud-maintenance.timer artifact-cloud-drill.timer
+journalctl --user -u artifact-cloud-maintenance.service
 ```
 
 ## Restore and drills
