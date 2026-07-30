@@ -78,5 +78,46 @@ rm -rf "${TMPDIR:-/tmp}/hyprpanel"
 
 export XDG_CONFIG_HOME="$config_root"
 
+prepare_lua_compatible_runtime() {
+    local launcher="/usr/share/hyprpanel/hyprpanel-app"
+    local runtime_file="$runtime_dir/hyprpanel-ags.js"
+
+    if [[ ! -r "$launcher" ]]; then
+        printf 'HyprPanel launcher not found: %s\n' "$launcher" >&2
+        return 1
+    fi
+
+    awk '
+        /^cat <<EOF \| base64 --decode > \$file$/ { in_payload = 1; next }
+        in_payload && /^EOF$/ { exit }
+        in_payload { print }
+    ' "$launcher" | base64 --decode > "$runtime_file"
+
+    python3 - "$runtime_file" <<'PY'
+from pathlib import Path
+import sys
+
+runtime_path = Path(sys.argv[1])
+source = runtime_path.read_text()
+replacements = {
+    'hyprlandService9.dispatch("workspace", targetWorkspaceNumber.toString());':
+        'hyprlandService9.message(`dispatch hl.dsp.focus({ workspace = ${targetWorkspaceNumber} })`);',
+    'hyprlandService12.dispatch("workspace", wsId.toString());':
+        'hyprlandService12.message(`dispatch hl.dsp.focus({ workspace = ${wsId} })`);',
+}
+
+for old, new in replacements.items():
+    count = source.count(old)
+    if count != 1:
+        raise SystemExit(f"Expected one HyprPanel workspace dispatcher, found {count}: {old}")
+    source = source.replace(old, new)
+
+runtime_path.write_text(source)
+PY
+
+    printf '%s\n' "$runtime_file"
+}
+
+runtime_file="$(prepare_lua_compatible_runtime)"
 cd "$runtime_dir"
-exec hyprpanel
+exec /usr/bin/gjs -m "$runtime_file"
