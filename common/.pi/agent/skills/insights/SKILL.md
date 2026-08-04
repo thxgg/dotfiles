@@ -1,6 +1,7 @@
 ---
 name: insights
 description: Retrospectively reviews one or more Pi sessions to identify evidence-backed improvements to prompts, AGENTS.md files, skills, instructions, tooling, or subagent delegation. Use when analyzing completed session behavior, outcomes, friction, or instruction quality. Do not use for live session monitoring, progress updates, current activity checks, or watching an ongoing session.
+disable-model-invocation: true
 ---
 
 # Session Insights
