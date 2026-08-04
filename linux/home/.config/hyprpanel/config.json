@@ -387,6 +387,7 @@
       ],
       "right": [
         "systray",
+        "volume",
         "network",
         "clock",
         "notifications"
