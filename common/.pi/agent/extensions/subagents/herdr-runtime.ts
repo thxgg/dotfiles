@@ -91,7 +91,6 @@ export function buildChildPiArgs(input: {
   if (exclusions.length) args.push("--exclude-tools", exclusions.join(","));
   args.push("-e", childBridgePath, "--append-system-prompt", input.promptPath);
   args.push(input.trusted ? "--approve" : "--no-approve");
-  args.push(`Task: ${job.task}`);
   return args;
 }
 

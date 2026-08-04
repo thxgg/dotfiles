@@ -101,6 +101,7 @@ export default function childBridge(pi: ExtensionAPI): void {
   let errorMessage = initial.result?.errorMessage;
   let maxTurnAbort = false;
   let settled = isTerminalStatus(initial.status);
+  let taskSubmitted = initial.status !== "queued";
 
   const activity = (kind: AgentActivity["kind"], summary: string, toolName?: string): AgentActivity => ({ kind, summary, toolName, updatedAt: new Date().toISOString() });
   const describeActivity = (name: string, args: Record<string, unknown>): string => {
@@ -142,6 +143,10 @@ export default function childBridge(pi: ExtensionAPI): void {
     try { sessionFile = ctx.sessionManager.getSessionFile() ?? undefined; } catch { /* optional */ }
     try { sessionId = ctx.sessionManager.getSessionId(); } catch { /* optional */ }
     safeUpdate((current) => ({ ...current, sessionFile, sessionId }));
+    if (!taskSubmitted) {
+      taskSubmitted = true;
+      pi.sendUserMessage(`Task: ${initial.task}`);
+    }
   });
 
   pi.on("agent_start", () => {

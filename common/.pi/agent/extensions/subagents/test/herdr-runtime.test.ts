@@ -77,7 +77,7 @@ test("child Pi argv preserves model, trust, allowlist, and unconditional exclusi
   assert.equal(args.includes("--tools"), false);
   assert.equal(args[args.indexOf("--exclude-tools") + 1], "Agent,edit,webfetch,write");
   assert.equal(args.includes("--no-approve"), true);
-  assert.equal(args.at(-1), `Task: ${job.task}`);
+  assert.equal(args.some((arg) => arg.includes(job.task)), false);
   assert.equal(args[args.indexOf("--append-system-prompt") + 1], "/tmp/prompt path.md");
 });
 

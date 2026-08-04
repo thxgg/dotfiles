@@ -91,23 +91,20 @@ export function parseAgentInfo(stdout: string): HerdrAgentInfo {
   return result.agent;
 }
 
-export function buildTabCreateArgs(workspaceId: string, cwd: string, label: string): string[] {
-  return ["tab", "create", "--workspace", workspaceId, "--cwd", cwd, "--label", label, "--no-focus"];
+export function buildTabCreateArgs(workspaceId: string, cwd: string, label: string, env: Record<string, string>): string[] {
+  const args = ["tab", "create", "--workspace", workspaceId, "--cwd", cwd, "--label", label, "--no-focus"];
+  for (const [key, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) {
+    args.push("--env", `${key}=${value}`);
+  }
+  return args;
 }
 
 export function buildAgentStartArgs(input: {
   name: string;
-  cwd: string;
-  tabId: string;
-  env: Record<string, string>;
+  paneId: string;
   argv: string[];
 }): string[] {
-  const args = ["agent", "start", input.name, "--cwd", input.cwd, "--tab", input.tabId, "--no-focus"];
-  for (const [key, value] of Object.entries(input.env).sort(([a], [b]) => a.localeCompare(b))) {
-    args.push("--env", `${key}=${value}`);
-  }
-  args.push("--", ...input.argv);
-  return args;
+  return ["agent", "start", input.name, "--kind", "pi", "--pane", input.paneId, "--", ...input.argv];
 }
 
 export class HerdrClient {
@@ -133,6 +130,19 @@ export class HerdrClient {
     return result.stdout;
   }
 
+  private async startAgent(args: string[], options: { cwd: string; signal?: AbortSignal }): Promise<string> {
+    const deadline = Date.now() + 30_000;
+    while (true) {
+      try {
+        return await this.exec(args, { ...options, timeout: 35_000 });
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("agent_pane_busy") || Date.now() >= deadline) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (options.signal?.aborted) throw new Error("Herdr agent start was aborted while waiting for the tab shell.");
+      }
+    }
+  }
+
   async launch(input: {
     workspaceId: string;
     cwd: string;
@@ -142,13 +152,11 @@ export class HerdrClient {
     argv: string[];
     signal?: AbortSignal;
   }): Promise<{ metadata: HerdrJobMetadata; warnings: string[] }> {
-    const tab = parseTabCreated(await this.exec(buildTabCreateArgs(input.workspaceId, input.cwd, input.label), { cwd: input.cwd, signal: input.signal }));
+    const tab = parseTabCreated(await this.exec(buildTabCreateArgs(input.workspaceId, input.cwd, input.label, input.env), { cwd: input.cwd, signal: input.signal }));
     try {
-      const started = parseAgentStarted(await this.exec(buildAgentStartArgs({
+      const started = parseAgentStarted(await this.startAgent(buildAgentStartArgs({
         name: input.agentName,
-        cwd: input.cwd,
-        tabId: tab.tab.tab_id,
-        env: input.env,
+        paneId: tab.root_pane.pane_id,
         argv: input.argv,
       }), { cwd: input.cwd, signal: input.signal }));
       const metadata: HerdrJobMetadata = {
@@ -158,13 +166,7 @@ export class HerdrClient {
         paneId: started.agent.pane_id,
         terminalId: started.agent.terminal_id,
       };
-      const warnings: string[] = [];
-      try {
-        await this.exec(["pane", "close", tab.root_pane.pane_id]);
-      } catch (error) {
-        warnings.push(`Child launched, but temporary pane cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      return { metadata, warnings };
+      return { metadata, warnings: [] };
     } catch (error) {
       try { await this.exec(["tab", "close", tab.tab.tab_id]); } catch { /* preserve the launch error */ }
       throw error;
