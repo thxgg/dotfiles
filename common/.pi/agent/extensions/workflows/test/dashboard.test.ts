@@ -8,7 +8,7 @@ test("workflow transcript renders as physical rows without embedded newlines", (
     runId: "wf_aabbccddeeff", sessionId: "session", background: true, status: "running", startedAt: Date.now(), phases: [], currentPhase: "Review", sourcePath: "/tmp/script.js",
     agents: [{ index: 1, label: "agent-1", state: "running", startedAt: Date.now(), preview: "first\nsecond", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 }, transcript: [{ role: "toolResult", text: "one\ntwo\nthree" }] }],
   };
-  const dashboard = new WorkflowDashboard({ requestRender() {}, terminal: { rows: 24 } } as any, { bold: (value: string) => value, fg: (_color: string, value: string) => value } as any, { matches: (data: string, action: string) => data === "\r" && action === "tui.select.confirm" } as any, () => new Map([[run.runId, run]]), { async cancel() {}, async restart() {}, async saveReport() { return "saved"; } }, () => {});
+  const dashboard = new WorkflowDashboard({ requestRender() {}, terminal: { rows: 24 } } as any, { bold: (value: string) => value, fg: (_color: string, value: string) => value } as any, { matches: (data: string, action: string) => data === "\r" && action === "tui.select.confirm" } as any, () => new Map([[run.runId, run]]), { async open() {}, async cancel() {}, async restart() {}, async saveReport() { return "saved"; } }, () => {});
   try {
     dashboard.handleInput("\r");
     dashboard.handleInput("\r");
@@ -18,4 +18,17 @@ test("workflow transcript renders as physical rows without embedded newlines", (
     assert.ok(lines.some((line) => line.includes("three")));
     assert.equal(lines.some((line) => line.includes("\n")), false);
   } finally { dashboard.dispose(); }
+});
+
+test("workflow detail opens the selected child session with o", () => {
+  const run: WorkflowDetails = {
+    runId: "wf_aabbccddeeff", sessionId: "session", background: true, status: "completed", startedAt: Date.now(), phases: [{ title: "Review" }], sourcePath: "/tmp/script.js",
+    agents: [{ index: 7, label: "review", phase: "Review", state: "done", startedAt: Date.now(), sessionFile: "/tmp/child.jsonl", preview: "done", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 1 }, transcript: [] }],
+  };
+  const opened: Array<[string, number]> = [];
+  const dashboard = new WorkflowDashboard({ requestRender() {}, terminal: { rows: 24 } } as any, { bold: (value: string) => value, fg: (_color: string, value: string) => value } as any, { matches: (data: string, action: string) => data === "\r" && action === "tui.select.confirm" } as any, () => new Map([[run.runId, run]]), { async open(runId, index) { opened.push([runId, index]); }, async cancel() {}, async restart() {}, async saveReport() { return "saved"; } }, () => {});
+  dashboard.handleInput("\r");
+  dashboard.handleInput("\r");
+  dashboard.handleInput("o");
+  assert.deepEqual(opened, [[run.runId, 7]]);
 });

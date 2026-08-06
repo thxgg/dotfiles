@@ -83,7 +83,7 @@ function isValidationCommand(command: string): boolean {
   return /\b(test|tests|check|lint|typecheck|tsc|pytest|vitest|jest|cargo\s+test|go\s+test|npm\s+test|pnpm\s+test|bun\s+test)\b/i.test(command);
 }
 
-export async function runInProcessJob(
+export async function runSessionJob(
   job: RuntimeJob,
   agent: AgentDefinition,
   ctx: ExtensionContext,
@@ -100,6 +100,9 @@ export async function runInProcessJob(
   let errorMessage: string | undefined;
   let maxTurnAbort = false;
   let structured: unknown;
+  const metrics = job.metrics ?? { launchStartedAt: job.startedAt };
+  job.metrics = metrics;
+  const markEvent = (name: string) => { metrics.lastEvent = name; metrics.lastEventAt = new Date().toISOString(); };
 
   const activity = (kind: AgentActivity["kind"], summary: string, toolName?: string): AgentActivity => ({ kind, summary, toolName, updatedAt: new Date().toISOString() });
   const describeActivity = (name: string, args: Record<string, unknown>): string => {
@@ -118,6 +121,8 @@ export async function runInProcessJob(
   job.thinking = agent.thinking;
   job.status = "running";
   job.activity = activity("reasoning", "Starting delegated task");
+  metrics.sessionStartedAt = new Date().toISOString();
+  markEvent("session_created");
   emit();
 
   const settingsManager = createSettingsManager(job.cwd, agent);
@@ -136,7 +141,7 @@ export async function runInProcessJob(
     agentDir: getAgentDir(),
     settingsManager,
     resourceLoader: loader,
-    sessionManager: SessionManager.inMemory(job.cwd),
+    sessionManager: SessionManager.create(job.cwd),
     model: model ?? ctx.model,
     modelRuntime,
     thinkingLevel: agent.thinking,
@@ -145,6 +150,10 @@ export async function runInProcessJob(
     ...(agent.outputSchema ? { customTools: [createStructuredOutputTool(agent.outputSchema, (value) => { structured = value; })] } : {}),
   });
   await bindChildSessionExtensions(session);
+  job.sessionFile = session.sessionFile;
+  job.sessionId = session.sessionId;
+  markEvent("session_bound");
+  emit();
   const timeoutGuard = createToolTimeoutGuard();
   timeoutGuard.apply(session);
   const unsubscribeTimeoutGuard = session.subscribe((event: AgentSessionEvent) => {
@@ -154,7 +163,10 @@ export async function runInProcessJob(
   const abortChild = () => { void session.abort(); };
   job.controller.signal.addEventListener("abort", abortChild, { once: true });
   const unsubscribe = session.subscribe((event: any) => {
+    markEvent(String(event.type));
+    if ((event.type === "message_start" || event.type === "message_update" || event.type === "message_end") && event.message?.role === "assistant" && !metrics.firstResponseAt) metrics.firstResponseAt = new Date().toISOString();
     if (event.type === "tool_execution_start") {
+      if (!metrics.firstToolAt) metrics.firstToolAt = new Date().toISOString();
       const args = asRecord(event.args);
       const call: ToolCallSummary = { id: String(event.toolCallId ?? `${event.toolName}-${toolCalls.size + 1}`), name: String(event.toolName ?? "unknown"), args, status: "running" };
       toolCalls.set(call.id, call);
@@ -206,7 +218,7 @@ export async function runInProcessJob(
     });
     await Promise.race([session.prompt(`Task: ${job.task}`), stalled]);
     if (agent.outputSchema && structured === undefined) throw new Error("Subagent finished without producing the required structured output.");
-    if (maxTurnAbort) throw new Error(`Subagent ${agent.name} stopped after reaching maxTurns=${agent.maxTurns}.`);
+    if (maxTurnAbort) throw new Error(`Subagent ${agent.name} stopped after reaching maxTurns=${agent.maxTurns}. Partial output is retained. Narrow the task or resume the saved session.`);
     if (errorMessage || stopReason === "error") throw new Error(errorMessage || `Subagent stopped with reason: ${stopReason}`);
     job.status = "completed";
     job.result = {
@@ -216,7 +228,10 @@ export async function runInProcessJob(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    job.status = job.controller.signal.aborted || maxTurnAbort || /aborted/i.test(message) ? "cancelled" : "failed";
+    const cancelled = job.controller.signal.aborted && !maxTurnAbort || /cancelled by parent|parent agent tool call was aborted/i.test(message);
+    const hasPartial = Boolean(finalSummary || toolCalls.size || filesRead.size || filesChanged.size || usage.turns);
+    job.status = cancelled ? "cancelled" : hasPartial ? "incomplete" : "failed";
+    job.failureKind = cancelled ? "cancelled" : "task_failed";
     job.error = message;
     job.result = {
       summary: finalSummary || message, structured, filesRead: Array.from(filesRead).sort(), filesChanged: Array.from(filesChanged).sort(),
@@ -231,7 +246,7 @@ export async function runInProcessJob(
     unsubscribe();
     await shutdownAndDisposeChildSession(session);
     job.endedAt = new Date().toISOString();
-    job.activity = activity("finishing", job.status === "completed" ? "Completed" : job.status === "cancelled" ? "Cancelled" : "Failed");
+    job.activity = activity("finishing", job.status === "completed" ? "Completed" : job.status === "incomplete" ? "Incomplete; partial result retained" : job.status === "cancelled" ? "Cancelled" : "Failed");
     emit();
     ensureTerminalNotification(jobStore, job.id);
   }

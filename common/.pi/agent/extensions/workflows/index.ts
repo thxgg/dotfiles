@@ -11,6 +11,7 @@ import { showActivityDashboard } from "./activity.ts";
 import { prepareWorkflowScript } from "./meta.ts";
 import { emptyUsage, formatElapsed, shortenHome, type WorkflowAgentRecord, type WorkflowDetails } from "./model.ts";
 import { runWorkflowAgent } from "./runner.ts";
+import { openSessionPane } from "../subagents/session-pane.ts";
 import { runWorkflowSandbox, type SandboxAgentResult } from "./sandbox.ts";
 import { listWorkflows, loadWorkflow, persistWorkflow, reconcileOrphanedWorkflows, runDir } from "./store.ts";
 
@@ -64,8 +65,8 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
   pi.registerMessageRenderer<WorkflowNotificationDetails>("workflow-notification", (message, _options, theme) => {
     const run = message.details?.run;
     if (!run) return new Text("Workflow update", 0, 0);
-    const icon = run.status === "completed" ? theme.fg("success", "✓") : theme.fg("error", "✗");
-    const status = theme.fg(run.status === "completed" ? "success" : "error", run.status);
+    const icon = run.status === "completed" ? theme.fg("success", "✓") : run.status === "incomplete" ? theme.fg("warning", "◐") : theme.fg("error", "✗");
+    const status = theme.fg(run.status === "completed" ? "success" : run.status === "incomplete" ? "warning" : "error", run.status);
     const meta = `${run.done}/${run.total} agents${run.failed ? ` · ${run.failed} failed` : ""} · ${formatElapsed(run.startedAt, run.finishedAt)}${run.currentPhase ? ` · ${run.currentPhase}` : ""}`;
     return new Text(`${icon} ${theme.fg("toolTitle", theme.bold("Workflow"))} ${theme.fg("accent", run.name ?? run.runId)}\n  ${status} ${theme.fg("dim", `· ${meta}`)}\n  ${theme.fg("dim", `Artifacts: ${run.artifacts}`)}\n  ${theme.fg("muted", "The parent agent is reviewing the findings and deciding what to do next.")}`, 0, 0);
   });
@@ -79,7 +80,8 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
     if (!ctx.hasUI) return true;
     const prepared = prepareWorkflowScript(source);
     const phases = prepared.meta.phases.map((phase) => `• ${phase.title}${phase.detail ? ` — ${phase.detail}` : ""}`).join("\n") || "• Dynamic phases declared at runtime";
-    return ctx.ui.confirm("Run generated workflow?", `${prepared.meta.name ?? "Unnamed workflow"}\n\n${prepared.meta.description ?? ""}\n\n${phases}\n\nThe orchestration script runs sandboxed and may spawn up to 32 agent calls.`);
+    const diagnostics = prepared.diagnostics.length ? `\n\nPreflight:\n${prepared.diagnostics.map((item) => `• ${item.message}`).join("\n")}` : "";
+    return ctx.ui.confirm("Run generated workflow?", `${prepared.meta.name ?? "Unnamed workflow"}\n\n${prepared.meta.description ?? ""}\n\n${phases}${diagnostics}\n\nThe orchestration script runs sandboxed and may spawn up to 32 agent calls.`);
   };
   const run = async (input: { runId?: string; displayName?: string; source: string; args: unknown; background: boolean; ctx: any; signal?: AbortSignal; onUpdate?: (details: WorkflowDetails) => void }): Promise<WorkflowDetails> => {
     const prepared = prepareWorkflowScript(input.source);
@@ -101,15 +103,21 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
           return controller.schedule(async (signal) => {
             record.state = "running"; record.preview = "Starting"; checkpoint();
             const outcome = await runWorkflowAgent({ prompt, schema: options.schema, model: options.model, effort: options.effort, cwd: input.ctx.cwd, projectTrusted: input.ctx.isProjectTrusted(), ctx: input.ctx, signal, onProgress(progress) { Object.assign(record, { preview: progress.output?.slice(0, 300) ?? record.preview, usage: progress.usage ?? record.usage, model: progress.model ?? record.model, transcript: progress.transcript ?? record.transcript }); checkpoint(); } });
-            record.finishedAt = Date.now(); record.state = outcome.ok ? "done" : outcome.error === "Workflow child was cancelled." ? "cancelled" : "error"; record.preview = outcome.output || outcome.error || "No output"; record.error = outcome.error; record.usage = outcome.usage; record.model = outcome.model; record.transcript = outcome.transcript; checkpoint();
+            record.finishedAt = Date.now(); record.state = outcome.ok ? "done" : outcome.error === "Workflow child was cancelled." ? "cancelled" : "error"; record.preview = outcome.output || outcome.error || "No output"; record.error = outcome.error; record.usage = outcome.usage; record.model = outcome.model; record.transcript = outcome.transcript; record.sessionFile = outcome.sessionFile; record.sessionId = outcome.sessionId; checkpoint();
             return { ok: outcome.ok, output: outcome.output, structured: outcome.structured, error: outcome.error };
           }, invocationSignal).catch((error) => { record.state = "error"; record.error = error instanceof Error ? error.message : String(error); record.finishedAt = Date.now(); checkpoint(); return { ok: false, output: "", error: record.error }; });
         },
       });
       details.status = "completed";
-    } catch (error) { details.status = controller.signal.aborted ? "cancelled" : "failed"; details.error = error instanceof Error ? error.message : String(error); controller.abort(details.error); }
+    } catch (error) {
+      const cancelled = controller.signal.aborted;
+      const hasPartial = details.agents.some((agent) => agent.preview || agent.transcript.length || agent.usage.turns);
+      details.status = cancelled ? "cancelled" : hasPartial ? "incomplete" : "failed";
+      details.failureKind = cancelled ? "cancelled" : hasPartial ? "task_failed" : "launch_failed";
+      details.error = error instanceof Error ? error.message : String(error); controller.abort(details.error);
+    }
     const settled = await controller.settle(details.status !== "completed");
-    if (!settled) { details.status = "failed"; details.error = `${details.error ? `${details.error}; ` : ""}children did not settle before shutdown timeout`; }
+    if (!settled) { details.status = "incomplete"; details.failureKind = "runtime_lost"; details.error = `${details.error ? `${details.error}; ` : ""}children did not settle before shutdown timeout`; }
     details.finishedAt = Date.now(); if (checkpointTimer) clearTimeout(checkpointTimer); persistWorkflow(details); active.delete(runId); updateStatus(); return details;
   };
 
@@ -127,6 +135,12 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
     const sessionId = ctx.sessionManager.getSessionId();
     const latest = listWorkflows().find((run) => run.sessionId === sessionId)?.runId;
     await showWorkflowDashboard(ctx, () => new Map([...active].map(([id, value]) => [id, value.details])), {
+      async open(runId, agentIndex) {
+        const run = active.get(runId)?.details ?? loadWorkflow(runId);
+        const agent = run?.agents.find((value) => value.index === agentIndex);
+        if (!agent?.sessionFile) throw new Error(`Session for workflow child ${agentIndex} is not available yet.`);
+        await openSessionPane({ sessionFile: agent.sessionFile, cwd: ctx.cwd, label: `${runId}-${agentIndex}` });
+      },
       async cancel(runId) { const current = active.get(runId); if (!current) throw new Error(`${runId} is not active.`); current.controller.abort("Cancelled from /workflows."); },
       async restart(runId) { void restartRun(runId, ctx); },
       async saveReport(runId) { return saveReport(runId); },
@@ -162,6 +176,6 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
       const details = await completion; if (details.status !== "completed") throw new Error(summary(details)); return { content: [{ type: "text", text: `${summary(details)}\n\nResult:\n${JSON.stringify(details.result, null, 2)}` }], details: { action, runs: [details] } };
     },
     renderCall(args, theme) { const meta = args.script ? prepareWorkflowScript(args.script).meta : undefined; return new Text(`${theme.fg("toolTitle", theme.bold("Workflow "))}${theme.fg("accent", args.action ?? "run")}${meta?.name ? theme.fg("muted", ` ${meta.name}`) : ""}`, 0, 0); },
-    renderResult(result, _options, theme) { const run = (result.details as any)?.runs?.[0] as WorkflowDetails | undefined; return new Text(run ? `${theme.fg(run.status === "completed" ? "success" : run.status === "running" ? "warning" : "error", "■")} ${theme.fg("accent", run.name ?? run.runId)} ${theme.fg("dim", summary(run))}` : (result.content[0] as any)?.text ?? "", 0, 0); },
+    renderResult(result, _options, theme) { const run = (result.details as any)?.runs?.[0] as WorkflowDetails | undefined; return new Text(run ? `${theme.fg(run.status === "completed" ? "success" : run.status === "running" || run.status === "incomplete" ? "warning" : "error", "■")} ${theme.fg("accent", run.name ?? run.runId)} ${theme.fg("dim", summary(run))}` : (result.content[0] as any)?.text ?? "", 0, 0); },
   });
 }

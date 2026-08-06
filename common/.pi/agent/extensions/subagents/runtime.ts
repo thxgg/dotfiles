@@ -8,31 +8,25 @@ import {
   type AgentDefinition, type AgentDiscoveryResult, type AgentScope,
   discoverAgents, formatAgentList, getAgentByName,
 } from "./agents.ts";
-import { runInProcessJob } from "./in-process-runtime.ts";
+import { runSessionJob } from "./in-process-runtime.ts";
 import { composeAgentPrompt } from "./prompt.ts";
 import { jobStore } from "./job-store.ts";
-import type { AgentJobSnapshot, RuntimeJob } from "./job-types.ts";
+import type { AgentJobSnapshot, AgentJobSpec, RuntimeJob } from "./job-types.ts";
 import { isTerminalStatus, snapshotJob } from "./job-types.ts";
-import {
-  cancelHerdrJob, cleanupHerdrJobs, closeHerdrJob, createJobSpec,
-  focusHerdrJob, launchHerdrJob, messageHerdrJob, shouldUseHerdr, waitForHerdrJob,
-} from "./herdr-runtime.ts";
-import { HerdrClient } from "./herdr-client.ts";
 import { applyAgentWorktree, createAgentWorktree, discardAgentWorktree, retainAgentWorktree } from "./worktree.ts";
 import { ensureTerminalNotification } from "./notifications.ts";
 import { globalAgentCapacity } from "./concurrency.ts";
 
-const AGENT_ACTIONS = ["run", "list", "result", "cancel", "focus", "close", "cleanup", "message", "approve", "deny", "apply", "retain", "discard"] as const;
+const AGENT_ACTIONS = ["run", "list", "result", "cancel", "cleanup", "approve", "deny", "apply", "retain", "discard"] as const;
 const AGENT_SCOPES = ["default", "builtin", "user", "project", "all"] as const;
 const JOB_HISTORY_LIMIT = 50;
 
 const AgentToolSchema = Type.Object({
-  action: Type.Optional(StringEnum([...AGENT_ACTIONS], { description: "run a subagent, list agents/jobs, get a result, or control a Herdr child. Default: run when agent/task are provided, otherwise list." })),
+  action: Type.Optional(StringEnum([...AGENT_ACTIONS], { description: "run a subagent, list agents/jobs, get a result, or control a job. Default: run when agent/task are provided, otherwise list." })),
   agent: Type.Optional(Type.String({ description: "Agent name to run, for example agent, search, oracle, librarian, reviewer, or painter." })),
   task: Type.Optional(Type.String({ description: "Self-contained task for the child agent." })),
   background: Type.Optional(Type.Boolean({ description: "Run without blocking and return a job id. Defaults to true unless the agent definition forbids background execution." })),
   jobId: Type.Optional(Type.String({ description: "Job id for result, control, messaging, permission, or worktree actions." })),
-  message: Type.Optional(Type.String({ description: "Follow-up message for action=message." })),
   agentScope: Type.Optional(StringEnum([...AGENT_SCOPES], { description: "Agent definition scopes to search. default = built-in/package plus user agents. project/all require explicit opt-in and confirmation.", default: "default" })),
   includeHidden: Type.Optional(Type.Boolean({ description: "Include hidden agents in list output. Default false." })),
   confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Prompt before running project-local agents. Default true when UI is available." })),
@@ -53,16 +47,16 @@ const jobs = new Map<string, RuntimeJob>();
 
 function textContent(text: string) { return { type: "text" as const, text }; }
 
+function createJobSpec(job: AgentJobSnapshot, agent: AgentDefinition): AgentJobSpec {
+  const paths = jobStore.paths(job.id);
+  return { version: 2, jobId: job.id, stateDir: paths.dir, promptPath: paths.prompt, createdAt: job.startedAt, agent };
+}
+
 export function getJobSnapshots(): AgentJobSnapshot[] {
   const merged = new Map<string, AgentJobSnapshot>();
   for (const stored of jobStore.list()) merged.set(stored.id, stored);
   for (const job of jobs.values()) {
-    if (job.backend === "herdr") {
-      const stored = jobStore.read(job.id);
-      if (stored) merged.set(job.id, stored);
-    } else {
-      merged.set(job.id, snapshotJob(job));
-    }
+    merged.set(job.id, snapshotJob(job));
   }
   return Array.from(merged.values()).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 }
@@ -84,66 +78,37 @@ function cancelInProcess(job: RuntimeJob, reason: string): AgentJobSnapshot {
 
 export async function cancelJob(jobId: string, reason = "Cancelled by parent agent."): Promise<AgentJobSnapshot | undefined> {
   const active = jobs.get(jobId);
-  if (active?.backend === "in-process") return cancelInProcess(active, reason);
-  const stored = jobStore.read(jobId);
-  if (stored?.backend === "herdr") {
-    const result = await cancelHerdrJob(jobId, reason);
-    if (active && result) Object.assign(active, result);
-    return result;
-  }
-  return active ? snapshotJob(active) : stored;
+  if (active) return cancelInProcess(active, reason);
+  return jobStore.read(jobId);
 }
 
 function pruneJobs(): void {
-  const inProcess = Array.from(jobs.values()).filter((job) => job.backend === "in-process").sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  for (const job of inProcess.slice(0, Math.max(0, inProcess.length - JOB_HISTORY_LIMIT))) {
+  const sessionJobs = Array.from(jobs.values()).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  for (const job of sessionJobs.slice(0, Math.max(0, sessionJobs.length - JOB_HISTORY_LIMIT))) {
     if (isTerminalStatus(job.status)) jobs.delete(job.id);
   }
   jobStore.prune(JOB_HISTORY_LIMIT);
 }
 
-export async function abortRunningJobs(reason = "Session shutdown", includeDetachedHerdr = false): Promise<void> {
+export async function abortRunningJobs(reason = "Session shutdown"): Promise<void> {
   const pending: Promise<unknown>[] = [];
   for (const job of jobs.values()) {
     if (isTerminalStatus(job.status)) continue;
-    if (job.backend === "herdr") {
-      if (includeDetachedHerdr || !job.background) pending.push(cancelHerdrJob(job.id, reason).then((snapshot) => { if (snapshot) ensureTerminalNotification(jobStore, snapshot.id); }));
-    } else {
-      cancelInProcess(job, reason);
-      if (job.promise) pending.push(Promise.race([job.promise, new Promise((resolve) => setTimeout(resolve, 5_000))]));
-    }
-  }
-  if (includeDetachedHerdr) {
-    for (const job of jobStore.list()) {
-      if (job.backend === "herdr" && !isTerminalStatus(job.status) && !jobs.has(job.id)) pending.push(cancelHerdrJob(job.id, reason));
-    }
+    cancelInProcess(job, reason);
+    if (job.promise) pending.push(Promise.race([job.promise, new Promise((resolve) => setTimeout(resolve, 5_000))]));
   }
   await Promise.allSettled(pending);
 }
 
-async function reconcileHerdrJobs(jobId?: string): Promise<void> {
-  const client = new HerdrClient();
-  const candidates = jobStore.list().filter((job) => job.backend === "herdr" && !isTerminalStatus(job.status) && job.herdr && (!jobId || job.id === jobId));
-  await Promise.all(candidates.map(async (job) => {
-    if (await client.getAgent(job.herdr!.agentName)) return;
-    jobStore.update(job.id, (current) => ({
-      ...current,
-      status: "failed",
-      error: "Herdr child is no longer running and did not produce a terminal result.",
-      endedAt: new Date().toISOString(),
-    }));
-  }));
-}
-
 export function formatJobSummary(job: AgentJobSnapshot): string {
-  const backend = job.backend === "herdr" && job.herdr ? `herdr:${job.herdr.agentName}` : job.backend;
-  const header = `[${job.id}] ${job.agent} ${job.status} (${backend})`;
+  const header = `[${job.id}] ${job.agent} ${job.status} (${job.backend})`;
   if (job.status === "completed") {
     const worktree = job.worktree ? `\nWorktree: ${job.worktree.path}${job.worktree.appliedAt ? " (applied)" : ""}` : "";
     return `${header}\n${job.result?.summary ?? "(no output)"}${worktree}`;
   }
+  if (job.status === "incomplete") return `${header}\nPartial result retained:\n${job.result?.summary ?? job.error ?? "stopped"}`;
   if (job.status === "failed" || job.status === "cancelled") return `${header}\n${job.error ?? job.result?.errorMessage ?? "stopped"}`;
-  const location = job.herdr ? `\nHerdr tab ${job.herdr.tabId}, pane ${job.herdr.paneId}` : "";
+  const location = job.sessionFile ? `\nSession: ${job.sessionFile}` : "";
   const activity = job.activity ? `\nProgress: ${job.activity.summary}` : "";
   const waiting = job.permissionRequests?.length ? `\nWaiting for permission: ${job.permissionRequests.map((request) => request.description).join("; ")}` : "";
   return `${header}\nTask: ${job.task}${location}${activity}${waiting}`;
@@ -153,8 +118,8 @@ function formatJobs(values: AgentJobSnapshot[]): string {
   if (!values.length) return "No subagent jobs.";
   return values.map((job) => {
     const elapsed = job.endedAt ? `${job.startedAt} → ${job.endedAt}` : `started ${job.startedAt}`;
-    const herdr = job.herdr ? ` herdr=${job.herdr.agentName} tab=${job.herdr.tabId} pane=${job.herdr.paneId}` : "";
-    return `- ${job.id} ${job.status} ${job.agent} (${job.source}, ${job.backend}) ${elapsed}${herdr}\n  ${job.task}`;
+    const session = job.sessionFile ? ` session=${job.sessionFile}` : "";
+    return `- ${job.id} ${job.status} ${job.agent} (${job.source}, ${job.backend}) ${elapsed}${session}\n  ${job.task}`;
   }).join("\n");
 }
 
@@ -177,11 +142,12 @@ function resolveAction(params: AgentToolParams): AgentAction {
   return params.agent || params.task ? "run" : "list";
 }
 
-function makeJob(agent: AgentDefinition, task: string, cwd: string, background: boolean, backend: "in-process" | "herdr", owner: AgentJobSnapshot["owner"], parentToolCallId: string): RuntimeJob {
+function makeJob(agent: AgentDefinition, task: string, cwd: string, background: boolean, owner: AgentJobSnapshot["owner"], parentToolCallId: string): RuntimeJob {
   const startedAt = new Date().toISOString();
   return {
     id: `agent-${randomUUID().replace(/-/g, "").slice(0, 8)}`,
-    agent: agent.name, source: agent.source, task, cwd, status: "queued", background, backend, startedAt, attempt: 1,
+    agent: agent.name, source: agent.source, task, cwd, status: "queued", background, backend: "session", startedAt, attempt: 1,
+    metrics: { launchStartedAt: startedAt, lastEventAt: startedAt, lastEvent: "queued" },
     model: agent.model, thinking: agent.thinking, owner, parentToolCallId, controller: new AbortController(),
     activity: { kind: "starting", summary: "Queued for launch", updatedAt: startedAt },
   };
@@ -195,7 +161,7 @@ export function createAgentTool() {
   return {
     name: "Agent",
     label: "Agent",
-    description: "Run specialized Pi subagents. Inside Herdr, each child is an observable interactive Pi terminal with persistent structured results; outside Herdr, an isolated in-process backend is used.",
+    description: "Run specialized Pi subagents as isolated, persistent Pi sessions. Open a child session from the /agents overview when you need its full transcript.",
     promptSnippet: "Run an isolated child Pi subagent (agent/search/oracle/librarian/reviewer/painter) for self-contained work",
     promptGuidelines: [
       "Use Agent when a task can be delegated to an isolated subagent and summarized back to the parent.",
@@ -203,7 +169,7 @@ export function createAgentTool() {
       "Do not ask read-only children to run mutation-producing validation, install dependencies, or modify state. Ask them to inspect evidence and return exact commands for the parent to run.",
       "Subagents run in the background by default. Pass background=false only when the next parent action strictly depends on the result.",
       "When a background subagent completes, integrate its result into the response. Once all subagents relevant to the user's request are terminal, produce the complete updated final answer in that same turn. Do not merely acknowledge the findings or refer to an earlier draft or report; reproduce the final self-contained deliverable.",
-      "Completed Herdr subagents remain inspectable until explicitly closed or cleaned up; use /agents or Agent focus/close actions to manage them.",
+      "Subagent sessions remain inspectable from /agents. Open a selected session only when you need its full transcript.",
       "Do not ask subagents to spawn other agents unless a user explicitly requests a workflow that requires it.",
     ],
     parameters: AgentToolSchema,
@@ -215,20 +181,19 @@ export function createAgentTool() {
       const updateStatus = () => { const running = getRunningJobCount(); ctx.ui.setStatus("subagents", running ? `agents:${running}` : undefined); };
 
       if (action === "list") {
-        await reconcileHerdrJobs();
         updateStatus();
         const details = listAgents(discovery, includeHidden);
         return { content: [textContent(`Available agents:\n${formatAgentList(discovery.agents, includeHidden)}\n\nJobs:\n${formatJobs(details.jobs ?? [])}`)], details };
       }
 
       if (action === "cleanup") {
-        const cleaned = await cleanupHerdrJobs();
-        for (const jobId of cleaned.removed) jobs.delete(jobId);
+        const removed = jobStore.prune(JOB_HISTORY_LIMIT);
+        for (const jobId of removed) jobs.delete(jobId);
         pruneJobs(); updateStatus();
-        return { content: [textContent(`Cleaned Herdr subagents: closed ${cleaned.closed.length}, removed ${cleaned.removed.length}.`)], details: { action, jobs: [] } };
+        return { content: [textContent(`Cleaned ${removed.length} terminal subagent job(s).`)], details: { action, jobs: [] } };
       }
 
-      if (["result", "cancel", "focus", "close", "message", "approve", "deny", "apply", "retain", "discard"].includes(action)) {
+      if (["result", "cancel", "approve", "deny", "apply", "retain", "discard"].includes(action)) {
         if (!params.jobId) return { content: [textContent(`jobId is required for action=${action}.`)], details: { action, jobs: [] } };
         let snapshot: AgentJobSnapshot | undefined;
         const existing = getJobSnapshots().find((job) => job.id === params.jobId);
@@ -237,18 +202,10 @@ export function createAgentTool() {
           return { content: [textContent(`Job ${params.jobId} belongs to another Pi session and cannot be controlled here.`)], details: { action, jobs: [] }, isError: true };
         }
         if (action === "result") {
-          await reconcileHerdrJobs(params.jobId);
           snapshot = getJobSnapshots().find((job) => job.id === params.jobId);
           if (snapshot && isTerminalStatus(snapshot.status)) snapshot = jobStore.consumeCompletionNotifications(snapshot.id) ?? snapshot;
         }
         if (action === "cancel") { snapshot = await cancelJob(params.jobId); if (snapshot) ensureTerminalNotification(jobStore, snapshot.id); }
-        if (action === "focus") snapshot = await focusHerdrJob(params.jobId);
-        if (action === "close") snapshot = await closeHerdrJob(params.jobId);
-        if (action === "message") {
-          if (!params.message) return { content: [textContent("message is required for action=message.")], details: { action, jobs: [] } };
-          if (!existing || !isTerminalStatus(existing.status)) return { content: [textContent(`Job ${params.jobId} must be terminal before it can be resumed.`)], details: { action, jobs: existing ? [existing] : [] }, isError: true };
-          snapshot = await messageHerdrJob(params.jobId, params.message);
-        }
         if (action === "approve" || action === "deny") {
           const current = jobStore.read(params.jobId);
           if (!current?.permissionRequests?.length || current.status !== "waiting") return { content: [textContent(`Job ${params.jobId} is not waiting for a permission decision.`)], details: { action, jobs: current ? [current] : [] }, isError: true };
@@ -270,12 +227,8 @@ export function createAgentTool() {
       const background = params.background ?? agent.background !== false;
       if (background && agent.background === false) return { content: [textContent(`Agent ${agent.name} does not allow background execution.`)], details: { action, jobs: [] } };
 
-      if (process.env.HERDR_ENV === "1" && !shouldUseHerdr()) {
-        return { content: [textContent("Herdr subagent launch is unavailable: HERDR_ENV=1 but HERDR_SOCKET_PATH or HERDR_WORKSPACE_ID is missing. Refusing invisible fallback.")], details: { action, jobs: [] }, isError: true };
-      }
-      const backend = shouldUseHerdr() ? "herdr" : "in-process";
       const owner = { sessionId: ctx.sessionManager.getSessionId(), sessionFile: ctx.sessionManager.getSessionFile() ?? undefined };
-      const job = makeJob(agent, params.task, params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd, background, backend, owner, toolCallId);
+      const job = makeJob(agent, params.task, params.cwd ? path.resolve(ctx.cwd, params.cwd) : ctx.cwd, background, owner, toolCallId);
       jobs.set(job.id, job);
       let capacity;
       try { capacity = await globalAgentCapacity.acquire(job.controller.signal); }
@@ -305,41 +258,14 @@ export function createAgentTool() {
         return { content: [textContent(message)], details: { action, jobs: [] }, isError: true };
       }
 
-      if (backend === "herdr") {
-        try { await launchHerdrJob(job, agent, ctx); }
-        catch {
-          releaseCapacity();
-          const failed = jobStore.read(job.id) ?? snapshotJob(job);
-          updateStatus();
-          return { content: [textContent(formatJobSummary(failed))], details: { action, jobs: [failed] }, isError: true };
-        }
-        updateStatus();
-        if (background) {
-          const started = jobStore.read(job.id)!;
-          void waitForHerdrJob(job.id, job.controller.signal, undefined)
-            .catch(() => undefined)
-            .finally(releaseCapacity);
-          return {
-            content: [textContent(`Started background Herdr subagent ${started.herdr?.agentName} as job ${job.id} in tab ${started.herdr?.tabId}, pane ${started.herdr?.paneId}. Use Agent action=result with jobId=${job.id} to retrieve it.`)],
-            details: { action, jobs: [started] },
-          };
-        }
-        const parentAbort = () => job.controller.abort("Parent Agent tool call was aborted.");
-        if (signal?.aborted) parentAbort(); else signal?.addEventListener("abort", parentAbort, { once: true });
-        try {
-          const final = await waitForHerdrJob(job.id, job.controller.signal, (snapshot) => emitJobUpdate(snapshot, onUpdate));
-          Object.assign(job, final); pruneJobs(); updateStatus();
-          return { content: [textContent(formatJobSummary(final))], details: { action, jobs: [final] } };
-        } finally { signal?.removeEventListener("abort", parentAbort); releaseCapacity(); }
-      }
-
       updateStatus();
       const parentAbort = () => job.controller.abort("Parent Agent tool call was aborted.");
       if (!background && signal) { if (signal.aborted) parentAbort(); else signal.addEventListener("abort", parentAbort, { once: true }); }
-      else if (background) job.warnings = [...(job.warnings ?? []), "Outside Herdr, the SDK fallback is process-local and cannot survive parent Pi exit."];
-      const promise = runInProcessJob(job, agent, ctx, background ? undefined : (snapshot) => emitJobUpdate(snapshot, onUpdate))
+      else if (background) job.warnings = [...(job.warnings ?? []), "The child has a persistent Pi session, but execution remains attached to the parent Pi process."];
+      const promise = runSessionJob(job, agent, ctx, background ? undefined : (snapshot) => emitJobUpdate(snapshot, onUpdate))
         .catch((error) => {
           job.status = job.controller.signal.aborted ? "cancelled" : "failed";
+          job.failureKind = job.controller.signal.aborted ? "cancelled" : "launch_failed";
           job.error = error instanceof Error ? error.message : String(error);
           job.endedAt = new Date().toISOString();
           return snapshotJob(job);
@@ -348,7 +274,7 @@ export function createAgentTool() {
       job.promise = promise;
       if (background) {
         void promise;
-        return { content: [textContent(`Started background in-process subagent job ${job.id} (${agent.name}). Use Agent action=result with jobId=${job.id} to retrieve it.`)], details: { action, jobs: [snapshotJob(job)] } };
+        return { content: [textContent(`Started background subagent session ${job.id} (${agent.name}). Use Agent action=result with jobId=${job.id}, or open /agents and press o to inspect the session.`)], details: { action, jobs: [snapshotJob(job)] } };
       }
       const final = await promise;
       return { content: [textContent(formatJobSummary(final))], details: { action, jobs: [final] } };
@@ -371,9 +297,9 @@ export function createAgentTool() {
       }
       const job = details.jobs?.[0];
       if (!job) return new Text("Agent: no job", 0, 0);
-      const icon = job.status === "completed" ? theme.fg("success", "✓") : job.status === "failed" ? theme.fg("error", "✗") : job.status === "cancelled" ? theme.fg("warning", "◼") : theme.fg("warning", "⏳");
+      const icon = job.status === "completed" ? theme.fg("success", "✓") : job.status === "incomplete" ? theme.fg("warning", "◐") : job.status === "failed" ? theme.fg("error", "✗") : job.status === "cancelled" ? theme.fg("warning", "◼") : theme.fg("warning", "⏳");
       let text = `${icon} ${theme.fg("toolTitle", job.agent)} ${theme.fg("accent", job.status)} ${theme.fg("muted", `${job.id} ${job.backend}`)}`;
-      if (job.herdr) text += theme.fg("dim", ` ${job.herdr.agentName} ${job.herdr.tabId}/${job.herdr.paneId}`);
+      if (job.sessionFile) text += theme.fg("dim", ` ${job.sessionFile}`);
       if (job.result?.usage?.turns) text += theme.fg("dim", ` ${job.result.usage.turns} turns`);
       if (job.result?.summary && (expanded || isTerminalStatus(job.status))) text += `\n${job.result.summary}`;
       else if (job.error) text += `\n${theme.fg("error", job.error)}`;

@@ -25,6 +25,8 @@ export function loadWorkflow(runId: string): WorkflowDetails | undefined {
       if (agent.error === "undefined") agent.error = undefined;
       if (agent.phase === "undefined") agent.phase = undefined;
       if (agent.model === "undefined") agent.model = undefined;
+      if (agent.sessionFile === "undefined") agent.sessionFile = undefined;
+      if (agent.sessionId === "undefined") agent.sessionId = undefined;
     }
     return details;
   } catch { return undefined; }
@@ -45,8 +47,9 @@ export function reconcileOrphanedWorkflows(): WorkflowDetails[] {
   for (const details of listWorkflows()) {
     if (details.status !== "running" || !details.owner || details.owner.pid === process.pid || processExists(details.owner.pid)) continue;
     const finishedAt = Date.now();
-    details.status = "failed";
-    details.error = "Workflow owner process exited before the run reached a terminal state.";
+    details.status = details.agents.some((agent) => agent.preview || agent.transcript.length || agent.usage.turns) ? "incomplete" : "failed";
+    details.failureKind = "runtime_lost";
+    details.error = "Workflow owner process exited before the run reached a terminal state. Partial child output and saved sessions were retained.";
     details.finishedAt = finishedAt;
     for (const agent of details.agents) if (agent.state === "queued" || agent.state === "running") {
       agent.state = "cancelled";

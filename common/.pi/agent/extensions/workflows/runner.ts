@@ -20,6 +20,8 @@ export interface WorkflowAgentOutcome {
   usage: WorkflowUsage;
   model?: string;
   transcript: TranscriptEntry[];
+  sessionFile?: string;
+  sessionId?: string;
 }
 function text(message: any): string {
   return Array.isArray(message?.content) ? message.content.filter((part: any) => part?.type === "text").map((part: any) => part.text).join("\n") : typeof message?.content === "string" ? message.content : "";
@@ -79,7 +81,7 @@ export async function runWorkflowAgent(options: {
   const modelRuntime = await createChildModelRuntime(options.ctx.modelRegistry);
   const { session } = await createAgentSession({
     cwd: options.cwd, model, modelRuntime, resourceLoader: loader, settingsManager: settings,
-    sessionManager: SessionManager.inMemory(options.cwd), thinkingLevel: (typeof options.effort === "string" ? options.effort : definition.thinking) as any,
+    sessionManager: SessionManager.create(options.cwd), thinkingLevel: (typeof options.effort === "string" ? options.effort : definition.thinking) as any,
     tools: getActiveToolNames(definition, Boolean(options.schema)), excludeTools: [...new Set([...getDisallowedToolNames(definition), "Agent", "workflow", "ask_user"])],
     ...(options.schema ? { customTools: [createStructuredOutputTool(options.schema, (value) => { structured = value; })] } : {}),
   });
@@ -108,11 +110,12 @@ export async function runWorkflowAgent(options: {
     await Promise.race([session.prompt(options.prompt), stalled]);
     const output = [...session.messages].reverse().find((message) => message.role === "assistant" && text(message).trim());
     if (options.schema && structured === undefined) throw new Error("Workflow child did not produce required structured output.");
-    if (maxTurnAbort) throw new Error(`Workflow child ${definition.name} stopped after reaching maxTurns=${definition.maxTurns}.`);
+    if (maxTurnAbort) throw new Error(`Workflow child ${definition.name} stopped after reaching maxTurns=${definition.maxTurns}. Partial output and the saved session are available.`);
     if (stopReason === "error" || errorMessage) throw new Error(errorMessage ?? "Workflow child failed.");
-    return { ok: true, output: output ? text(output).slice(0, 64 * 1024) : "", structured, usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages) };
+    return { ok: true, output: output ? text(output).slice(0, 64 * 1024) : "", structured, usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages), sessionFile: session.sessionFile, sessionId: session.sessionId };
   } catch (error) {
-    return { ok: false, output: "", structured, error: options.signal.aborted ? "Workflow child was cancelled." : error instanceof Error ? error.message : String(error), usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages) };
+    const output = [...session.messages].reverse().find((message) => message.role === "assistant" && text(message).trim());
+    return { ok: false, output: output ? text(output).slice(0, 64 * 1024) : "", structured, error: options.signal.aborted ? "Workflow child was cancelled." : error instanceof Error ? error.message : String(error), usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages), sessionFile: session.sessionFile, sessionId: session.sessionId };
   } finally {
     if (firstResponseTimer) clearTimeout(firstResponseTimer);
     options.signal.removeEventListener("abort", abort); unsubscribe(); await shutdownAndDisposeChildSession(session);

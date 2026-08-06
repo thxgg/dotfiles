@@ -6,12 +6,22 @@ const pending = new Map();
 const calls = new Map();
 function send(message) { if (process.send) process.send({ token, ...message }); }
 function safe(value) { return JSON.stringify(value === undefined ? null : value); }
-function normalizeAgentArgs(prompt, options) {
-  if (typeof prompt !== "string" || !prompt.trim()) throw new Error("agent() requires a non-empty prompt string");
-  if (options === undefined) return { prompt, options: {} };
-  if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("agent() options must be an object");
-  if (Object.hasOwn(options, "agentType") || Object.hasOwn(options, "task")) throw new Error("Workflow agent types are not supported. Use agent(prompt, { label, phase, schema, model, effort }).");
-  return { prompt, options };
+function normalizeAgentArgs(first, second) {
+  if (first && typeof first === "object" && !Array.isArray(first)) {
+    if (second !== undefined) throw new Error("agent() legacy object form does not accept a second argument");
+    const prompt = typeof first.prompt === "string" ? first.prompt : first.task;
+    if (typeof prompt !== "string" || !prompt.trim()) throw new Error("agent() requires a non-empty prompt or task string");
+    const options = { ...first };
+    delete options.prompt; delete options.task; delete options.agentType;
+    if (options.name !== undefined && options.label === undefined) options.label = options.name;
+    delete options.name;
+    return { prompt, options };
+  }
+  if (typeof first !== "string" || !first.trim()) throw new Error("agent() requires a non-empty prompt string");
+  if (second === undefined) return { prompt: first, options: {} };
+  if (!second || typeof second !== "object" || Array.isArray(second)) throw new Error("agent() options must be an object");
+  if (Object.hasOwn(second, "agentType") || Object.hasOwn(second, "task")) throw new Error("Use agent(prompt, { label, phase, schema, model, effort }) or legacy agent({ task, name, ... }).");
+  return { prompt: first, options: second };
 }
 process.on("message", async (message) => {
   if (!message || typeof message !== "object") return;

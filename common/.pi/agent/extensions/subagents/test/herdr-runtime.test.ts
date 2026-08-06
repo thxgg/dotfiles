@@ -56,12 +56,13 @@ test("creates unique agent names and readable task-based tab labels", () => {
   assert.ok(makeHerdrNames("librarian", "Research current upstream implementation details", "agent-deadbeef").tabLabel.length <= 40);
 });
 
-test("exposes native lifecycle, messaging, permission, and worktree actions", () => {
+test("exposes session lifecycle, permission, and worktree actions without Herdr controls", () => {
   const tool = createAgentTool();
   const schema = tool.parameters as any;
-  for (const action of ["focus", "message", "approve", "deny", "apply", "retain", "discard"]) {
+  for (const action of ["approve", "deny", "apply", "retain", "discard"]) {
     assert.equal(schema.properties.action.enum.includes(action), true);
   }
+  for (const action of ["focus", "close", "message"]) assert.equal(schema.properties.action.enum.includes(action), false);
   assert.ok(tool.promptGuidelines.some((line) => line.includes("decision the child can change")));
   assert.ok(tool.promptGuidelines.some((line) => line.includes("Do not ask read-only children")));
 });
@@ -111,12 +112,12 @@ test("project-agent confirmation can decline before any child launches", async (
   } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("result formatting includes durable Herdr control metadata", () => {
+test("result formatting includes the persistent child session", () => {
   const job: AgentJobSnapshot = {
     id: "agent-deadbeef", agent: "search", source: "builtin", task: "inspect", cwd: "/tmp",
-    status: "running", background: true, backend: "herdr", startedAt: new Date().toISOString(),
-    herdr: { agentName: "pi-search-deadbeef", workspaceId: "w1", tabId: "w1:t2", paneId: "w1:p3", terminalId: "term_1" },
+    status: "running", background: true, backend: "session", startedAt: new Date().toISOString(),
+    sessionFile: "/tmp/child.jsonl",
   };
-  assert.match(formatJobSummary(job), /herdr:pi-search-deadbeef/);
-  assert.match(formatJobSummary(job), /w1:t2, pane w1:p3/);
+  assert.match(formatJobSummary(job), /\(session\)/);
+  assert.match(formatJobSummary(job), /Session: \/tmp\/child.jsonl/);
 });

@@ -13,7 +13,7 @@ function elapsed(job: AgentJobSnapshot): string {
   return seconds >= 60 ? `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, "0")}s` : `${seconds}s`;
 }
 export interface SubagentDashboardActions {
-  focus(jobId: string): Promise<void>;
+  open(jobId: string): Promise<void>;
   cancel(jobId: string): Promise<void>;
   approve(jobId: string): Promise<void>;
   deny(jobId: string): Promise<void>;
@@ -39,9 +39,19 @@ export class SubagentDashboard {
     if (up && this.jobs.length) this.index = (this.index - 1 + this.jobs.length) % this.jobs.length;
     else if (down && this.jobs.length) this.index = (this.index + 1) % this.jobs.length;
     else if (enter && this.jobs.length) this.detail = true;
+    else if (!this.detail && data === "o" && this.jobs[this.index]) {
+      const jobId = this.jobs[this.index]!.id;
+      this.dispose(); this.close(); void this.actions.open(jobId).catch(() => undefined); return;
+    }
     else if (this.detail && this.jobs[this.index]) {
       const jobId = this.jobs[this.index]!.id;
-      const action = data === "f" ? this.actions.focus : data === "x" ? this.actions.cancel : data === "a" ? this.actions.approve : data === "d" ? this.actions.deny : data === "A" ? this.actions.apply : data === "R" ? this.actions.retain : data === "D" ? this.actions.discard : undefined;
+      if (data === "o") {
+        this.dispose();
+        this.close();
+        void this.actions.open(jobId).catch(() => undefined);
+        return;
+      }
+      const action = data === "x" ? this.actions.cancel : data === "a" ? this.actions.approve : data === "d" ? this.actions.deny : data === "A" ? this.actions.apply : data === "R" ? this.actions.retain : data === "D" ? this.actions.discard : undefined;
       if (action) void action.call(this.actions, jobId).then(() => { this.notice = `Action applied to ${jobId}`; this.refresh(); this.tui.requestRender(); }).catch((error) => { this.notice = error instanceof Error ? error.message : String(error); this.tui.requestRender(); });
     }
     if (esc) { if (this.detail) this.detail = false; else { this.dispose(); this.close(); return; } }
@@ -52,17 +62,19 @@ export class SubagentDashboard {
     if (!this.jobs.length) lines.push(this.theme.fg("dim", "No subagent jobs."));
     else if (this.detail) {
       const job = this.jobs[this.index]!;
-      lines.push(`${this.theme.bold(job.agent)} ${this.theme.fg("muted", job.id)}`, this.theme.fg("dim", `${job.status} · ${job.backend} · ${elapsed(job)}`), "", `Task: ${job.task}`, "", job.permissionRequests?.length ? this.theme.fg("warning", `Needs permission: ${job.permissionRequests.map((request) => request.description).join("; ")}`) : job.result?.summary ?? job.error ?? job.activity?.summary ?? "No output yet.", "", this.theme.fg("dim", job.herdr ? `Herdr: ${job.herdr.agentName} (${job.herdr.tabId}/${job.herdr.paneId})` : "In-process child"), job.worktree ? this.theme.fg("dim", `Worktree: ${job.worktree.path}${job.worktree.appliedAt ? " · applied" : job.worktree.retained ? " · retained" : job.worktree.discardedAt ? " · discarded" : " · pending"}`) : "");
+      const metrics = job.metrics;
+      const timing = metrics ? [metrics.sessionStartedAt ? `launch ${Math.max(0, Date.parse(metrics.sessionStartedAt) - Date.parse(metrics.launchStartedAt ?? job.startedAt))}ms` : undefined, metrics.firstResponseAt && metrics.sessionStartedAt ? `first response ${Date.parse(metrics.firstResponseAt) - Date.parse(metrics.sessionStartedAt)}ms` : undefined, metrics.firstToolAt && metrics.sessionStartedAt ? `first tool ${Date.parse(metrics.firstToolAt) - Date.parse(metrics.sessionStartedAt)}ms` : undefined, metrics.lastEvent ? `last ${metrics.lastEvent}` : undefined].filter(Boolean).join(" · ") : "";
+      lines.push(`${this.theme.bold(job.agent)} ${this.theme.fg("muted", job.id)}`, this.theme.fg("dim", `${job.status} · ${job.backend} · ${elapsed(job)}${job.failureKind ? ` · ${job.failureKind}` : ""}`), "", `Task: ${job.task}`, "", job.permissionRequests?.length ? this.theme.fg("warning", `Needs permission: ${job.permissionRequests.map((request) => request.description).join("; ")}`) : job.result?.summary ?? job.error ?? job.activity?.summary ?? "No output yet.", "", this.theme.fg("dim", job.sessionFile ? `Session: ${job.sessionFile}` : "Session is starting"), timing ? this.theme.fg("dim", `Metrics: ${timing}`) : "", job.worktree ? this.theme.fg("dim", `Worktree: ${job.worktree.path}${job.worktree.appliedAt ? " · applied" : job.worktree.retained ? " · retained" : job.worktree.discardedAt ? " · discarded" : " · pending"}`) : "");
     } else {
       let last: string | undefined;
       for (const [index, job] of this.jobs.entries()) {
         const heading = group(job); if (heading !== last) { if (last) lines.push(""); lines.push(this.theme.bold(this.theme.fg(heading === "Needs input" ? "warning" : heading === "Completed" ? "muted" : "accent", heading))); last = heading; }
-        const marker = index === this.index ? this.theme.fg("accent", "❯") : " "; const color = job.status === "completed" ? "success" : job.status === "failed" ? "error" : job.status === "waiting" ? "warning" : "accent";
+        const marker = index === this.index ? this.theme.fg("accent", "❯") : " "; const color = job.status === "completed" ? "success" : job.status === "failed" ? "error" : job.status === "incomplete" || job.status === "waiting" ? "warning" : "accent";
         lines.push(`${marker} ${this.theme.fg(color, "■")} ${this.theme.fg(index === this.index ? "accent" : "text", job.agent)} ${this.theme.fg("dim", `${job.id} · ${job.activity?.summary ?? job.status} · ${elapsed(job)}`)}`);
       }
     }
     if (this.notice) lines.push("", this.theme.fg("accent", this.notice));
-    lines.push("", this.theme.fg("dim", this.detail ? "f focus · x cancel · a/d allow/deny · A/R/D apply/retain/discard · esc list" : "↑↓ select · enter inspect · esc close"));
+    lines.push("", this.theme.fg("dim", this.detail ? "o open session · x cancel · a/d allow/deny · A/R/D apply/retain/discard · esc list" : "↑↓ select · enter inspect · o open session · esc close"));
     return lines.filter((line) => line !== undefined).map((line) => truncateToWidth(line, width, "…"));
   }
 }

@@ -4,11 +4,11 @@ import { registerRepoCacheTool } from "./repo-cache.ts";
 import { abortRunningJobs, cancelJob, createAgentTool, getJobSnapshots, getRunningJobCount } from "./runtime.ts";
 import { jobStore } from "./job-store.ts";
 import { applyAgentWorktree, discardAgentWorktree, retainAgentWorktree } from "./worktree.ts";
-import { cleanupHerdrJobs, closeHerdrJob, focusHerdrJob } from "./herdr-runtime.ts";
 import { registerAgentNotificationRenderer, startNotificationPump } from "./notifications.ts";
 import { showSubagentDashboard } from "./dashboard.ts";
+import { openSessionPane } from "./session-pane.ts";
 
-function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" | "cancel" | "focus" | "close" | "cleanup"; id?: string; scope: AgentScope; includeHidden: boolean } {
+function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" | "cancel" | "open" | "cleanup"; id?: string; scope: AgentScope; includeHidden: boolean } {
   const parts = args.trim().split(/\s+/).filter(Boolean);
   const action = (parts[0] ?? "list").toLowerCase();
   const scopeArg = parts.find((part) => part.startsWith("scope="))?.slice("scope=".length) as AgentScope | undefined;
@@ -18,8 +18,7 @@ function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" 
   if (action === "jobs") return { action: "jobs", scope, includeHidden };
   if (action === "result") return { action: "result", id: parts[1], scope, includeHidden };
   if (action === "cancel") return { action: "cancel", id: parts[1], scope, includeHidden };
-  if (action === "focus") return { action: "focus", id: parts[1], scope, includeHidden };
-  if (action === "close") return { action: "close", id: parts[1], scope, includeHidden };
+  if (action === "open") return { action: "open", id: parts[1], scope, includeHidden };
   if (action === "cleanup") return { action: "cleanup", scope, includeHidden };
   return { action: "list", scope, includeHidden };
 }
@@ -43,10 +42,7 @@ function formatJobDetails(id?: string): string {
   return selected
     .map((job) => {
       const lines = [`${job.id} ${job.status} ${job.agent} (${job.source}, ${job.backend})`, `Task: ${job.task}`];
-      if (job.herdr) {
-        lines.push(`Herdr: ${job.herdr.agentName} tab=${job.herdr.tabId} pane=${job.herdr.paneId}`);
-        lines.push(`Control: /agents focus ${job.id} | /agents close ${job.id}`);
-      }
+      if (job.sessionFile) lines.push(`Session: ${job.sessionFile}`, `Open: /agents open ${job.id}`);
       if (job.result?.summary) lines.push(`Summary:\n${job.result.summary}`);
       if (job.error) lines.push(`Error: ${job.error}`);
       return lines.join("\n");
@@ -63,7 +59,7 @@ export default function subagentsExtension(pi: ExtensionAPI): void {
   pi.registerCommand("agents", {
     description: "List Pi subagents and inspect or control subagent jobs",
     getArgumentCompletions: (prefix: string) => {
-      const options = ["list", "jobs", "result", "cancel", "focus", "close", "cleanup", "list --hidden", "list scope=all"];
+      const options = ["list", "jobs", "result", "cancel", "open", "cleanup", "list --hidden", "list scope=all"];
       const normalized = prefix.trim().toLowerCase();
       const filtered = options
         .filter((option) => option.startsWith(normalized))
@@ -73,7 +69,11 @@ export default function subagentsExtension(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       if (!args.trim() && ctx.mode === "tui") {
         await showSubagentDashboard(ctx, getJobSnapshots, {
-          async focus(jobId) { if (!(await focusHerdrJob(jobId))) throw new Error(`Cannot focus ${jobId}.`); },
+          async open(jobId) {
+            const job = getJobSnapshots().find((value) => value.id === jobId);
+            if (!job?.sessionFile) throw new Error(`Session for ${jobId} is not available yet.`);
+            await openSessionPane({ sessionFile: job.sessionFile, cwd: job.cwd, label: job.id });
+          },
           async cancel(jobId) { if (!(await cancelJob(jobId))) throw new Error(`Cannot cancel ${jobId}.`); },
           async approve(jobId) { decidePermission(jobId, "allow"); },
           async deny(jobId) { decidePermission(jobId, "deny"); },
@@ -108,21 +108,21 @@ export default function subagentsExtension(pi: ExtensionAPI): void {
         return;
       }
       if (parsed.action === "cleanup") {
-        const cleaned = await cleanupHerdrJobs();
-        ctx.ui.notify(`Cleaned Herdr subagents: closed ${cleaned.closed.length}, removed ${cleaned.removed.length}.`, "info");
+        const removed = jobStore.prune();
+        ctx.ui.notify(`Cleaned ${removed.length} terminal subagent job(s).`, "info");
         return;
       }
-      if (parsed.action === "focus" || parsed.action === "close") {
+      if (parsed.action === "open") {
         if (!parsed.id) {
-          ctx.ui.notify(`Usage: /agents ${parsed.action} <jobId>`, "warning");
+          ctx.ui.notify("Usage: /agents open <jobId>", "warning");
           return;
         }
-        const job = parsed.action === "focus" ? await focusHerdrJob(parsed.id) : await closeHerdrJob(parsed.id);
-        if (!job) {
-          ctx.ui.notify(`No Herdr subagent job found: ${parsed.id}`, "warning");
+        const job = getJobSnapshots().find((value) => value.id === parsed.id);
+        if (!job?.sessionFile) {
+          ctx.ui.notify(`Session for ${parsed.id} is not available yet.`, "warning");
           return;
         }
-        ctx.ui.notify(formatJobDetails(parsed.id), "info");
+        await openSessionPane({ sessionFile: job.sessionFile, cwd: job.cwd, label: job.id });
         return;
       }
 
@@ -145,15 +145,7 @@ export default function subagentsExtension(pi: ExtensionAPI): void {
     if (event.reason !== "quit") return;
     const running = getJobSnapshots().filter((job) => job.status === "running" || job.status === "queued" || job.status === "waiting");
     if (!running.length) return;
-    const detachable = running.filter((job) => job.backend === "herdr" && job.background);
-    const sessionScoped = running.filter((job) => !detachable.includes(job));
-    let keepRunning = detachable.length > 0;
-    if (ctx.hasUI && detachable.length > 0) {
-      keepRunning = await ctx.ui.confirm(
-        "Background agents are still running",
-        `${detachable.length} Herdr agent(s) can keep running after Pi exits. Keep them running?\n\nChoose Cancel to stop every active agent.`,
-      );
-    }
-    if (!keepRunning || sessionScoped.length > 0) await abortRunningJobs(keepRunning ? "Parent Pi exited; session-scoped child stopped." : "Parent Pi exited; user stopped active agents.", !keepRunning);
+    if (ctx.hasUI) await ctx.ui.notify(`${running.length} active subagent session(s) will stop because the parent Pi process is exiting. Their session transcripts remain saved.`, "warning");
+    await abortRunningJobs("Parent Pi exited; child execution stopped. The persistent session remains available for inspection.");
   });
 }

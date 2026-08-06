@@ -32,12 +32,38 @@ const SAFE_PREFIX_PATTERNS = [
   /^\s*curl\s+(-[fsSLI]*\s+)*https?:\/\//i, /^\s*wget\s+(-[qSO-]*\s+)*https?:\/\//i,
 ];
 
-export function isReadOnlyCommand(command: string): boolean {
-  const trimmed = command.trim();
-  if (!trimmed || DESTRUCTIVE_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
-  const withoutAssignments = trimmed
-    .replace(/^(?:export\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)\s+)*(?:\r?\n\s*)?/i, "");
+function splitShellCommands(command: string): string[] | undefined {
+  const parts: string[] = [];
+  let quote: "'" | '"' | undefined; let escaped = false; let current = "";
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]!; const next = command[index + 1];
+    if (escaped) { current += char; escaped = false; continue; }
+    if (char === "\\" && quote !== "'") { current += char; escaped = true; continue; }
+    if (quote) { current += char; if (char === quote) quote = undefined; continue; }
+    if (char === "'" || char === '"') { quote = char; current += char; continue; }
+    if (char === "`" || (char === "$" && next === "(")) return undefined;
+    if (char === ";" || char === "\n" || (char === "&" && next === "&") || (char === "|" && next === "|")) {
+      if ((char === "&" || char === "|") && next) index++;
+      if (current.trim()) parts.push(current.trim()); current = ""; continue;
+    }
+    if (char === "|") return undefined;
+    current += char;
+  }
+  if (quote || escaped) return undefined;
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function isReadOnlySegment(segment: string): boolean {
+  if (DESTRUCTIVE_PATTERNS.some((pattern) => pattern.test(segment))) return false;
+  const withoutAssignments = segment.replace(/^(?:export\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S+)(?:\s+|$))*/i, "").trim();
+  if (!withoutAssignments) return /^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*=/.test(segment);
   return SAFE_PREFIX_PATTERNS.some((pattern) => pattern.test(withoutAssignments));
+}
+
+export function isReadOnlyCommand(command: string): boolean {
+  const parts = splitShellCommands(command.trim());
+  return Boolean(parts?.length) && parts!.every(isReadOnlySegment);
 }
 
 export interface PermissionBridge {

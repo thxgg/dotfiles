@@ -1,7 +1,8 @@
 import type { AgentDefinition, ThinkingLevel } from "./agents.ts";
 
-export type AgentJobStatus = "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
-export type AgentBackend = "in-process" | "herdr";
+export type AgentJobStatus = "queued" | "running" | "waiting" | "completed" | "incomplete" | "failed" | "cancelled";
+export type AgentBackend = "session" | "in-process" | "herdr";
+export type AgentFailureKind = "launch_failed" | "runtime_lost" | "task_failed" | "cancelled";
 export type NotificationState = "pending" | "delivering" | "delivered" | "consumed";
 
 export interface UsageStats {
@@ -53,6 +54,7 @@ export interface AgentJobResult {
   errorMessage?: string;
 }
 
+/** Legacy persisted metadata. New jobs never use Herdr. */
 export interface HerdrJobMetadata {
   agentName: string;
   workspaceId: string;
@@ -89,6 +91,17 @@ export interface AgentJobOwner {
   sessionFile?: string;
 }
 
+export interface AgentLifecycleMetrics {
+  launchStartedAt?: string;
+  sessionStartedAt?: string;
+  firstResponseAt?: string;
+  firstToolAt?: string;
+  lastEventAt?: string;
+  lastEvent?: string;
+  exitCode?: number;
+  exitSignal?: string;
+}
+
 export interface AgentJobSnapshot {
   id: string;
   agent: string;
@@ -106,12 +119,15 @@ export interface AgentJobSnapshot {
   thinking?: ThinkingLevel;
   result?: AgentJobResult;
   error?: string;
+  failureKind?: AgentFailureKind;
   warnings?: string[];
+  metrics?: AgentLifecycleMetrics;
   activity?: AgentActivity;
   permissionRequests?: AgentPermissionRequest[];
   notifications?: AgentNotification[];
   owner?: AgentJobOwner;
   parentToolCallId?: string;
+  /** Legacy persisted metadata. */
   herdr?: HerdrJobMetadata;
   worktree?: AgentWorktreeMetadata;
   sessionFile?: string;
@@ -146,5 +162,5 @@ export function snapshotJob(job: RuntimeJob): AgentJobSnapshot {
 }
 
 export function isTerminalStatus(status: AgentJobStatus): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled";
+  return status === "completed" || status === "incomplete" || status === "failed" || status === "cancelled";
 }

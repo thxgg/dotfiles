@@ -4,7 +4,6 @@ import { Text } from "@earendil-works/pi-tui";
 import { jobStore, type JobStore } from "./job-store.ts";
 import type { AgentJobSnapshot, AgentNotification } from "./job-types.ts";
 import { isTerminalStatus } from "./job-types.ts";
-import { HerdrClient } from "./herdr-client.ts";
 
 const POLL_MS = 500;
 const RESULT_LIMIT = 12 * 1024;
@@ -101,7 +100,7 @@ export function registerAgentNotificationRenderer(pi: ExtensionAPI): void {
   });
 }
 
-export function startNotificationPump(pi: ExtensionAPI, ctx: ExtensionContext, store: JobStore = jobStore, herdr = new HerdrClient()): () => void {
+export function startNotificationPump(pi: ExtensionAPI, ctx: ExtensionContext, store: JobStore = jobStore): () => void {
   const sessionId = ctx.sessionManager.getSessionId();
   const owner = `${sessionId}:${process.pid}:${randomUUID()}`;
   let stopped = false;
@@ -111,14 +110,6 @@ export function startNotificationPump(pi: ExtensionAPI, ctx: ExtensionContext, s
     if (stopped || running) return;
     running = true;
     try {
-      for (const job of store.list()) {
-        if (!belongsToSession(job, sessionId) || job.backend !== "herdr" || isTerminalStatus(job.status) || !job.herdr) continue;
-        try {
-          if (await herdr.getAgent(job.herdr.agentName)) continue;
-          const failed = store.update(job.id, (current) => ({ ...current, status: "failed", error: "Herdr child disappeared before producing a terminal result.", endedAt: new Date().toISOString() }));
-          if (failed && failed.background && !failed.notifications?.some((item) => item.kind === "completion")) store.addNotification(failed.id, completionNotification(failed));
-        } catch { /* transient Herdr failures must not falsely kill jobs */ }
-      }
       for (const candidate of claimableNotifications(store, sessionId)) {
         const claimed = store.claimNotification(candidate.job.id, candidate.notification.id, owner);
         const notification = claimed?.notifications?.find((item) => item.id === candidate.notification.id);

@@ -40,7 +40,18 @@ function sanitize(value: unknown): WorkflowMeta {
   }
   return output;
 }
-export function prepareWorkflowScript(source: string): { source: string; meta: WorkflowMeta } {
+export interface WorkflowDiagnostic { message: string; offset: number; }
+
+export function diagnoseWorkflowScript(source: string): WorkflowDiagnostic[] {
+  const diagnostics: WorkflowDiagnostic[] = [];
+  const legacy = /\bagent\s*\(\s*\{[\s\S]*?\b(?:task|prompt)\s*:/g;
+  for (const match of source.matchAll(legacy)) diagnostics.push({ message: "Legacy agent({...}) syntax is accepted and normalized. Prefer agent(prompt, { label, phase, schema, model, effort }).", offset: match.index ?? 0 });
+  const named = /\bagent\s*\(\s*(['"`])(?:agent|search|reviewer|oracle|librarian|painter)\1\s*,\s*\{[\s\S]*?\btask\s*:/g;
+  for (const match of source.matchAll(named)) diagnostics.push({ message: "This call looks like agent(name, { task }). Use agent(task, { label: name }).", offset: match.index ?? 0 });
+  return diagnostics;
+}
+
+export function prepareWorkflowScript(source: string): { source: string; meta: WorkflowMeta; diagnostics: WorkflowDiagnostic[] } {
   const program = parse(source, { ecmaVersion: "latest", sourceType: "module", allowReturnOutsideFunction: true }) as Program;
   let meta: WorkflowMeta = { phases: [] };
   let range: { start: number; end: number } | undefined;
@@ -54,9 +65,10 @@ export function prepareWorkflowScript(source: string): { source: string; meta: W
     meta = sanitize(literal(variable.init));
     range = { start: statement.start, end: statement.end };
   }
-  if (!range) return { source, meta };
+  const diagnostics = diagnoseWorkflowScript(source);
+  if (!range) return { source, meta, diagnostics };
   const removed = source.slice(range.start, range.end);
   const replacement = `;${removed.slice(1).replace(/[^\n\r]/g, " ")}`;
-  return { source: source.slice(0, range.start) + replacement + source.slice(range.end), meta };
+  return { source: source.slice(0, range.start) + replacement + source.slice(range.end), meta, diagnostics };
 }
 export function extractMeta(source: string): WorkflowMeta { try { return prepareWorkflowScript(source).meta; } catch { return { phases: [] }; } }

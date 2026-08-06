@@ -17,6 +17,8 @@ export interface WorkflowAgentRecord {
   phase?: string;
   state: "queued" | "running" | "done" | "error" | "cancelled";
   model?: string;
+  sessionFile?: string;
+  sessionId?: string;
   startedAt: number;
   finishedAt?: number;
   error?: string;
@@ -24,6 +26,8 @@ export interface WorkflowAgentRecord {
   usage: WorkflowUsage;
   transcript: TranscriptEntry[];
 }
+export type WorkflowFailureKind = "launch_failed" | "runtime_lost" | "task_failed" | "cancelled";
+
 export interface WorkflowDetails {
   runId: string;
   sessionId: string;
@@ -31,7 +35,8 @@ export interface WorkflowDetails {
   name?: string;
   description?: string;
   background: boolean;
-  status: "running" | "paused" | "completed" | "failed" | "cancelled";
+  status: "running" | "paused" | "completed" | "incomplete" | "failed" | "cancelled";
+  failureKind?: WorkflowFailureKind;
   startedAt: number;
   finishedAt?: number;
   phases: Array<{ title: string; detail?: string }>;

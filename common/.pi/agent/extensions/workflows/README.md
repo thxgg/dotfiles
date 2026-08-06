@@ -27,7 +27,7 @@ return { reviews, verified }
 
 Available globals: `args`, `phase(title[, callback])`, `agent(prompt, { label?, phase?, schema?, model?, effort? })`, and `parallel(items, { concurrency })`. Parallel items may be agent promises or zero-argument functions; use functions when requesting a lower `concurrency` limit. Workflow children always use the dedicated ephemeral `workflow-worker`; named standalone subagent types are intentionally unavailable. Children default to `openai-codex/gpt-5.6-sol`; the only model override is `anthropic/claude-fable-5` (shorthands: `gpt-5.6-sol` and `fable-5`).
 
-Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must inspect `ok`. Workflow children are in-process and dashboard-backed by default, avoiding one Herdr tab per child.
+Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must inspect `ok`. The legacy `agent({ task, name, ... })` form is accepted and normalized. Each workflow child uses a persistent Pi session. No child creates a Herdr tab or pane. Press `o` on a selected child in `/workflows` to open its full session in a new Herdr pane. If that exact session is already open, Pi focuses the existing pane. Exiting Pi closes an on-demand child-session pane.
 
 ## Safety and limits
 

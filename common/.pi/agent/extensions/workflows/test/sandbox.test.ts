@@ -58,15 +58,21 @@ test("sandbox supports phase callbacks with workflow-worker options", async () =
   assert.equal(result, "reviewed");
 });
 
-test("sandbox rejects named workflow agent types", async () => {
+test("sandbox normalizes legacy workflow agent object syntax", async () => {
+  const calls: Array<{ prompt: string; label: unknown }> = [];
+  const result = await runWorkflowSandbox({
+    source: `return await agent({ name: 'standards-review', task: 'Inspect changes' })`, args: undefined, cwd: process.cwd(), signal: new AbortController().signal,
+    onPhase() {}, onAgent: async (prompt, options) => { calls.push({ prompt, label: options.label }); return { ok: true, output: "done" }; },
+  });
+  assert.deepEqual(calls, [{ prompt: "Inspect changes", label: "standards-review" }]);
+  assert.equal(JSON.stringify(result), JSON.stringify({ ok: true, output: "done" }));
+});
+
+test("sandbox explains ambiguous named workflow syntax", async () => {
   await assert.rejects(runWorkflowSandbox({
     source: `return await agent('reviewer', { task: 'Inspect changes' })`, args: undefined, cwd: process.cwd(), signal: new AbortController().signal,
     onPhase() {}, onAgent: async () => ({ ok: true, output: "" }),
-  }), /Workflow agent types are not supported/);
-  await assert.rejects(runWorkflowSandbox({
-    source: `return await agent('Inspect changes', { agentType: 'reviewer' })`, args: undefined, cwd: process.cwd(), signal: new AbortController().signal,
-    onPhase() {}, onAgent: async () => ({ ok: true, output: "" }),
-  }), /Workflow agent types are not supported/);
+  }), /Use agent\(prompt/);
 });
 
 test("sandbox rejects workflows that return with unawaited agents", async () => {

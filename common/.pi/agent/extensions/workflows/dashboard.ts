@@ -8,6 +8,7 @@ type View = "runs" | "detail" | "transcript";
 type DetailFocus = "phases" | "agents";
 interface PhaseGroup { title: string; agents: WorkflowAgentRecord[]; }
 export interface WorkflowDashboardActions {
+  open(runId: string, agentIndex: number): Promise<void>;
   cancel(runId: string): Promise<void>;
   restart(runId: string): Promise<void>;
   saveReport(runId: string): Promise<string>;
@@ -74,6 +75,10 @@ export class WorkflowDashboard {
       else if (left && this.focus === "agents") this.focus = "phases";
       else if (left && this.focus === "phases") this.view = "runs";
       else if (enter && this.focus === "agents" && this.currentAgent()) { this.view = "transcript"; this.transcriptOffset = 0; }
+      else if (data === "o" && this.focus === "agents" && this.currentAgent() && this.current()) {
+        const runId = this.current()!.runId; const agentIndex = this.currentAgent()!.index;
+        this.dispose(); this.close(); void this.actions.open(runId, agentIndex).catch(() => undefined); return;
+      }
       else if (data === "b") { this.view = "runs"; this.focus = "phases"; }
       else if (esc) { this.dispose(); this.close(); return; }
       else if (this.current() && ["x", "r", "s"].includes(data)) {
@@ -99,7 +104,7 @@ export class WorkflowDashboard {
     lines.push(border("╰" + "─".repeat(inner) + "╯")); return lines;
   }
   private renderRuns(width: number, height: number): string[] {
-    const rows = this.runs.map((run, index) => { const done = run.agents.filter((agent) => agent.state === "done").length; const failed = run.agents.filter((agent) => agent.state === "error").length; const marker = index === this.runIndex ? this.theme.fg("accent", "❯") : " "; const color = run.status === "completed" ? "success" : run.status === "running" ? "warning" : "error"; return this.split(`${marker} ${this.theme.fg(color, "■")} ${this.theme.fg(index === this.runIndex ? "accent" : "text", run.name ?? run.runId)}`, this.theme.fg("dim", `${done}/${run.agents.length}${failed ? ` · ${failed} failed` : ""} · ${formatElapsed(run.startedAt, run.finishedAt)} · ${run.status}`), Math.max(1, width - 2)); });
+    const rows = this.runs.map((run, index) => { const done = run.agents.filter((agent) => agent.state === "done").length; const failed = run.agents.filter((agent) => agent.state === "error").length; const marker = index === this.runIndex ? this.theme.fg("accent", "❯") : " "; const color = run.status === "completed" ? "success" : run.status === "running" || run.status === "incomplete" ? "warning" : "error"; return this.split(`${marker} ${this.theme.fg(color, "■")} ${this.theme.fg(index === this.runIndex ? "accent" : "text", run.name ?? run.runId)}`, this.theme.fg("dim", `${done}/${run.agents.length}${failed ? ` · ${failed} failed` : ""} · ${formatElapsed(run.startedAt, run.finishedAt)} · ${run.status}`), Math.max(1, width - 2)); });
     return [this.split(this.theme.bold(this.theme.fg("accent", " Workflows")), this.theme.fg("dim", `${this.runs.length} runs `), width), ...this.panel("Runs", rows, width, height - 2), this.theme.fg("dim", " ↑↓ select · enter inspect · esc close")];
   }
   private renderDetail(width: number, height: number): string[] {
@@ -112,7 +117,7 @@ export class WorkflowDashboard {
     const agentRows = agents.map((agent, index) => { const marker = this.focus === "agents" && index === this.agentIndex ? this.theme.fg("accent", "❯") : " "; const color = agent.state === "done" ? "success" : agent.state === "running" || agent.state === "queued" ? "warning" : "error"; const right = [agent.model, formatElapsed(agent.startedAt, agent.finishedAt), agent.state].filter(Boolean).join(" · "); return this.split(`${marker} ${this.theme.fg(color, "■")} ${this.theme.fg(index === this.agentIndex ? "accent" : "text", agent.label)}`, this.theme.fg("dim", right), rightWidth - 2); });
     const left = this.panel("Phases", phaseRows, leftWidth, panelHeight); const right = this.panel(`${phaseValues[this.phaseIndex]?.title ?? "Agents"} · ${agents.length} agents`, agentRows, rightWidth, panelHeight);
     const body = left.map((line, index) => line + " " + (right[index] ?? ""));
-    return [header, this.theme.fg("dim", description), ...body, this.theme.fg("dim", ` ${this.focus === "phases" ? "↑↓ phase · ← all workflows · →/enter agents" : "↑↓ agent · ← phases · enter transcript"} · x cancel · r restart · s save report · b all workflows · esc close${this.notice ? ` · ${this.notice}` : ""}`)];
+    return [header, this.theme.fg("dim", description), ...body, this.theme.fg("dim", ` ${this.focus === "phases" ? "↑↓ phase · ← all workflows · →/enter agents" : "↑↓ agent · ← phases · enter transcript · o open session"} · x cancel · r restart · s save report · b all workflows · esc close${this.notice ? ` · ${this.notice}` : ""}`)];
   }
   private renderTranscript(width: number, height: number): string[] {
     const run = this.current()!; const agent = this.currentAgent()!; const body: string[] = [];

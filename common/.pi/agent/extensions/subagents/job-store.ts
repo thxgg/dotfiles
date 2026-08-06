@@ -36,9 +36,11 @@ function validateState(value: unknown): StoredJobState | undefined {
   if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) return undefined;
   if (typeof value.id !== "string" || !isValidJobId(value.id)) return undefined;
   if (typeof value.agent !== "string" || typeof value.task !== "string" || typeof value.cwd !== "string") return undefined;
-  if (!( ["queued", "running", "waiting", "completed", "failed", "cancelled"] as unknown[]).includes(value.status)) return undefined;
-  if (value.backend !== "in-process" && value.backend !== "herdr") return undefined;
-  return { ...(value as unknown as StoredJobState), version: 2, attempt: typeof value.attempt === "number" ? value.attempt : 1 };
+  if (!( ["queued", "running", "waiting", "completed", "incomplete", "failed", "cancelled"] as unknown[]).includes(value.status)) return undefined;
+  if (value.backend !== "session" && value.backend !== "in-process" && value.backend !== "herdr") return undefined;
+  const migrated: StoredJobState = { ...(value as unknown as StoredJobState), version: 2, attempt: typeof value.attempt === "number" ? value.attempt : 1 };
+  if (migrated.backend === "herdr" && !(migrated as unknown as { herdr?: unknown }).herdr) migrated.backend = "session";
+  return migrated;
 }
 
 function writePrivateAtomic(filePath: string, value: unknown): void {
