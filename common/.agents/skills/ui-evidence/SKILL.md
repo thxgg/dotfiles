@@ -1,6 +1,7 @@
 ---
 name: ui-evidence
 description: Capture before/after screenshots or WebM recordings for UI-visible changes using agent-browser. Use when working on web UI changes, visual regressions, or interaction flows that need recorded evidence.
+disable-model-invocation: true
 ---
 
 # UI Evidence
