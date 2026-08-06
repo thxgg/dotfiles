@@ -59,6 +59,22 @@ function createSettingsManager(cwd: string, agent: AgentDefinition): SettingsMan
   return settings;
 }
 
+export function createChildResourceLoader(job: RuntimeJob, agent: AgentDefinition, settingsManager: SettingsManager): DefaultResourceLoader {
+  return new DefaultResourceLoader({
+    cwd: job.cwd,
+    agentDir: getAgentDir(),
+    settingsManager,
+    // Do not recursively load the parent's extension stack. A nested subagent
+    // extension shares this module's process-global job map, so its child
+    // session_shutdown handler can cancel every sibling job in the parent.
+    // The permission guard below is the only extension a delegated session
+    // needs. Provider registrations are copied through modelRuntime.
+    noExtensions: true,
+    appendSystemPromptOverride: (base) => [...base, composeAgentPrompt(agent), ...(agent.outputSchema ? [STRUCTURED_OUTPUT_INSTRUCTION] : [])],
+    extensionFactories: [createPermissionGuard(agent, { jobId: job.id, store: jobStore })],
+  });
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -126,13 +142,7 @@ export async function runSessionJob(
   emit();
 
   const settingsManager = createSettingsManager(job.cwd, agent);
-  const loader = new DefaultResourceLoader({
-    cwd: job.cwd,
-    agentDir: getAgentDir(),
-    settingsManager,
-    appendSystemPromptOverride: (base) => [...base, composeAgentPrompt(agent), ...(agent.outputSchema ? [STRUCTURED_OUTPUT_INSTRUCTION] : [])],
-    extensionFactories: [createPermissionGuard(agent, { jobId: job.id, store: jobStore })],
-  });
+  const loader = createChildResourceLoader(job, agent, settingsManager);
   await loader.reload();
 
   const modelRuntime = await createChildModelRuntime(ctx.modelRegistry);

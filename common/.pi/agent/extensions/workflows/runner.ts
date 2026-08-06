@@ -72,6 +72,9 @@ export async function runWorkflowAgent(options: {
   const settings = SettingsManager.create(options.cwd, getAgentDir(), { projectTrusted: options.projectTrusted });
   const loader = new DefaultResourceLoader({
     cwd: options.cwd, agentDir: getAgentDir(), settingsManager: settings,
+    // A child must not register another workflow/subagent lifecycle stack in
+    // this process. Nested shutdown handlers can abort sibling child sessions.
+    noExtensions: true,
     appendSystemPromptOverride: (base) => [...base, definition.systemPrompt, ...(options.schema ? [STRUCTURED_OUTPUT_INSTRUCTION] : [])],
     extensionFactories: [createPermissionGuard(definition)],
   });
