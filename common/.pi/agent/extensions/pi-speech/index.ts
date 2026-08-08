@@ -347,7 +347,6 @@ const showHelp = (ctx: ExtensionContext | ExtensionCommandContext) => notify(ctx
   "/speech replay — replay the latest response",
   "/speech stop — stop playback",
   "/speech cache clear — clear saved rewrites",
-  "Shortcuts: Ctrl+Shift+S speaks; Ctrl+Shift+X stops",
 ].join("\n"));
 
 const selectProvider = async (ctx: ExtensionCommandContext) => {
@@ -519,16 +518,6 @@ export default async function (pi: ExtensionAPI) {
       setStatus(ctx);
       showStatus(ctx);
     },
-  });
-
-  pi.registerShortcut("ctrl+shift+s", {
-    description: "Speak the latest assistant response",
-    handler: async (ctx) => speakLatest(ctx),
-  });
-
-  pi.registerShortcut("ctrl+shift+x", {
-    description: "Stop speech playback",
-    handler: async (ctx) => stopSpeech(ctx),
   });
 
   pi.on("session_start", (_event, ctx) => {
