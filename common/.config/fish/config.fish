@@ -1,3 +1,7 @@
+# The following lines were added by Docker Desktop to add commands to your PATH.
+export PATH="$PATH:/Users/thxgg/.docker/bin"
+# End of Docker Desktop section.
+
 # Bootstrap common package-manager paths early so login shells can find tmux,
 # zoxide, and other Homebrew-installed tools before the rest of the config runs.
 for __dotfiles_bootstrap_path in /opt/homebrew/bin /opt/homebrew/sbin /usr/local/bin /usr/local/sbin
