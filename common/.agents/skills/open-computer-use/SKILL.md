@@ -1,6 +1,7 @@
 ---
 name: open-computer-use
 description: Platform-neutral guidance for using Open Computer Use, the open-source Computer Use MCP server and CLI for macOS, Linux, and Windows. Use when an agent needs to install, verify, troubleshoot, configure, or operate Open Computer Use through its native CLI, stdio MCP server, or direct Computer Use tool calls.
+disable-model-invocation: true
 ---
 
 # Open Computer Use
