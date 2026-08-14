@@ -1,5 +1,12 @@
 # Global Agent Instructions
 
+## Response Language
+
+Use ASD-STE100 Simplified Technical English, Issue 9, for all messages to the user.
+Do not change code, commands, file paths, identifiers, logs, error messages, quotations, or user-supplied text.
+If an STE rule conflicts with technical accuracy, keep the technical information accurate.
+Use short sentences, active voice, and one term for each concept.
+
 ## Context Discipline
 
 Treat context as scarce. Load a skill only when the user explicitly requests it or the task clearly matches its description.
