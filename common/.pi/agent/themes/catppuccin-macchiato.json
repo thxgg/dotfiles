@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/badlogic/pi-mono/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
+  "$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
   "name": "catppuccin-macchiato",
   "vars": {
     "rosewater": "#f4dbd6",
@@ -31,7 +31,7 @@
     "toolErrorBg": "#3a2a31"
   },
   "colors": {
-    "accent": "blue",
+    "accent": "lavender",
     "border": "surface0",
     "borderAccent": "surface1",
     "borderMuted": "surface2",
@@ -43,6 +43,9 @@
     "text": "text",
     "thinkingText": "overlay2",
     "selectedBg": "surface1",
+    "scrollbarThumb": "lavender",
+    "searchMatchBg": "yellow",
+    "searchMatchText": "base",
     "userMessageBg": "surface0",
     "userMessageText": "text",
     "customMessageBg": "crust",
@@ -51,7 +54,7 @@
     "toolPendingBg": "base",
     "toolSuccessBg": "mantle",
     "toolErrorBg": "toolErrorBg",
-    "toolTitle": "blue",
+    "toolTitle": "lavender",
     "toolOutput": "subtext1",
     "mdHeading": "mauve",
     "mdLink": "blue",
@@ -62,7 +65,7 @@
     "mdQuote": "yellow",
     "mdQuoteBorder": "yellow",
     "mdHr": "subtext0",
-    "mdListBullet": "blue",
+    "mdListBullet": "lavender",
     "toolDiffAdded": "green",
     "toolDiffRemoved": "red",
     "toolDiffContext": "overlay2",

@@ -212,7 +212,10 @@ async function resolveCodexAuth(ctx: ExtensionContext): Promise<ResolvedCodexAut
 	for (const model of candidates) {
 		const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 		if (auth.ok && auth.apiKey?.trim()) {
-			return { token: auth.apiKey, headers: auth.headers, model };
+			const headers = auth.headers
+				? Object.fromEntries(Object.entries(auth.headers).filter((entry): entry is [string, string] => entry[1] !== null))
+				: undefined;
+			return { token: auth.apiKey, headers, model };
 		}
 		lastError = auth.ok ? `No OAuth token returned for ${model.provider}/${model.id}.` : auth.error;
 	}
