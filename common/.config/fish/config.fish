@@ -2,6 +2,12 @@
 export PATH="$PATH:/Users/thxgg/.docker/bin"
 # End of Docker Desktop section.
 
+# Recreate the Ghostty temp directory if a cleanup tool removes it.
+if set -q TMPDIR; and not test -d "$TMPDIR"
+    command mkdir -p -m 700 -- "$TMPDIR"
+end
+
+
 # Bootstrap common package-manager paths early so login shells can find tmux,
 # zoxide, and other Homebrew-installed tools before the rest of the config runs.
 for __dotfiles_bootstrap_path in /opt/homebrew/bin /opt/homebrew/sbin /usr/local/bin /usr/local/sbin
