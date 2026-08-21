@@ -72,8 +72,8 @@ You can optionally provide a pre-registered client:
 - `url` - The MCP server URL (required)
 - `auth` - Set to `"oauth"` to force OAuth, `false` to disable, or omit to auto-detect
 - `oauth.grantType` - `"authorization_code"` (default, browser flow) or `"client_credentials"` (non-interactive)
-- `oauth.clientId` - Pre-registered client ID (optional, SDK tries dynamic registration if not provided)
-- `oauth.clientSecret` - Client secret for confidential clients (optional)
+- `oauth.clientId` - Pre-registered client ID (optional, SDK tries dynamic registration if not provided); supports `${VAR}` and `$env:VAR` interpolation
+- `oauth.clientSecret` - Client secret for confidential clients (optional); supports `${VAR}` and `$env:VAR` interpolation
 - `oauth.scope` - Requested OAuth scopes (optional)
 - `oauth.redirectUri` - Exact browser callback URI to advertise and bind, such as `http://localhost:3118/callback` (optional)
 - `oauth.clientName` - Client display name used for dynamic registration (optional, defaults to `Pi Coding Agent`)

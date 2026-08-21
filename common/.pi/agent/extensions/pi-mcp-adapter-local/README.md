@@ -129,8 +129,8 @@ In the configuration examples below, `30000` is illustrative only. If `requestTi
 | `headers` | HTTP headers; supports `${VAR}` and `$env:VAR` interpolation |
 | `auth` | `"bearer"` or `"oauth"` |
 | `oauth.grantType` | `"authorization_code"` (default) or `"client_credentials"` for non-interactive machine auth |
-| `oauth.clientId` | Pre-registered OAuth client ID; dynamic registration is used when omitted |
-| `oauth.clientSecret` | OAuth client secret for confidential clients |
+| `oauth.clientId` | Pre-registered OAuth client ID; supports `${VAR}` and `$env:VAR` interpolation; dynamic registration is used when omitted |
+| `oauth.clientSecret` | OAuth client secret for confidential clients; supports `${VAR}` and `$env:VAR` interpolation |
 | `oauth.scope` | Requested OAuth scopes |
 | `oauth.redirectUri` | Exact localhost redirect URI for browser OAuth, including port and path, for providers that pre-register callbacks |
 | `oauth.clientName` | Client display name advertised during dynamic registration |

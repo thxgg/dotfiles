@@ -501,6 +501,45 @@ describe("mcp-auth-flow explicit auth", () => {
     expect(mocks.sdkAuth).toHaveBeenCalledTimes(1);
   });
 
+  it("interpolates pre-registered OAuth client credentials from the environment", async () => {
+    process.env.MCP_TEST_CLIENT_ID = "environment-client";
+    process.env.MCP_TEST_CLIENT_SECRET = "environment-secret";
+    try {
+      mocks.sdkAuth.mockImplementationOnce(async (provider) => {
+        expect(await provider.clientInformation()).toEqual({
+          client_id: "environment-client",
+          client_secret: "environment-secret",
+        });
+        await provider.redirectToAuthorization(new URL("https://auth.example.com/authorize"));
+        return "REDIRECT";
+      });
+      const { startAuth } = await import("../mcp-auth-flow.ts");
+
+      await startAuth("environment-client", "https://api.example.com/mcp", {
+        url: "https://api.example.com/mcp",
+        auth: "oauth",
+        oauth: {
+          clientId: "${MCP_TEST_CLIENT_ID}",
+          clientSecret: "$env:MCP_TEST_CLIENT_SECRET",
+        },
+      });
+    } finally {
+      delete process.env.MCP_TEST_CLIENT_ID;
+      delete process.env.MCP_TEST_CLIENT_SECRET;
+    }
+  });
+
+  it("fails closed when an OAuth credential environment variable is missing", async () => {
+    delete process.env.MCP_TEST_MISSING_SECRET;
+    const { startAuth } = await import("../mcp-auth-flow.ts");
+
+    await expect(startAuth("missing-secret", "https://api.example.com/mcp", {
+      url: "https://api.example.com/mcp",
+      auth: "oauth",
+      oauth: { clientSecret: "${MCP_TEST_MISSING_SECRET}" },
+    })).rejects.toThrow("Missing environment variable in OAuth clientSecret: MCP_TEST_MISSING_SECRET");
+  });
+
   it("preserves pre-registered OAuth client behavior", async () => {
     mocks.sdkAuth.mockImplementationOnce(async (provider) => {
       expect(await provider.clientInformation()).toEqual({ client_id: "registered-client", client_secret: undefined });

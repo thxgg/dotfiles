@@ -76,6 +76,14 @@ function getMissingEnvVars(value: string): string[] {
   return [...missing];
 }
 
+export function interpolateRequiredEnvVars(value: string, label: string): string {
+  const missing = getMissingEnvVars(value);
+  if (missing.length > 0) {
+    throw new Error(`Missing environment variable${missing.length === 1 ? "" : "s"} in ${label}: ${missing.join(", ")}`);
+  }
+  return interpolateEnvVars(value);
+}
+
 export function interpolateEnvRecord(values: Record<string, string> | undefined): Record<string, string> | undefined {
   if (!values) return undefined;
 
@@ -89,12 +97,7 @@ export function interpolateEnvRecord(values: Record<string, string> | undefined)
 export function resolveServerUrl(definition: Pick<ServerEntry, "url">): string | undefined {
   if (definition.url === undefined) return undefined;
 
-  const missing = getMissingEnvVars(definition.url);
-  if (missing.length > 0) {
-    throw new Error(`Missing environment variable${missing.length === 1 ? "" : "s"} in MCP server URL: ${missing.join(", ")}`);
-  }
-
-  const resolved = interpolateEnvVars(definition.url);
+  const resolved = interpolateRequiredEnvVars(definition.url, "MCP server URL");
   try {
     new URL(resolved);
   } catch (error) {

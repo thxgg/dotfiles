@@ -35,7 +35,7 @@ import {
   type StoredTokens,
 } from "./mcp-auth.ts"
 import type { ServerEntry } from "./types.ts"
-import { interpolateEnvRecord } from "./utils.ts"
+import { interpolateEnvRecord, interpolateRequiredEnvVars } from "./utils.ts"
 
 /** Auth status for a server */
 export type AuthStatus = "authenticated" | "expired" | "not_authenticated"
@@ -99,8 +99,18 @@ export function extractOAuthConfig(definition: ServerEntry): McpOAuthConfig {
 
   const config: McpOAuthConfig = {}
   if (definition.oauth?.grantType !== undefined) config.grantType = definition.oauth.grantType
-  if (definition.oauth?.clientId !== undefined) config.clientId = definition.oauth.clientId
-  if (definition.oauth?.clientSecret !== undefined) config.clientSecret = definition.oauth.clientSecret
+  if (definition.oauth?.clientId !== undefined) {
+    if (typeof definition.oauth.clientId !== "string") {
+      throw new Error("OAuth clientId must be a string")
+    }
+    config.clientId = interpolateRequiredEnvVars(definition.oauth.clientId, "OAuth clientId")
+  }
+  if (definition.oauth?.clientSecret !== undefined) {
+    if (typeof definition.oauth.clientSecret !== "string") {
+      throw new Error("OAuth clientSecret must be a string")
+    }
+    config.clientSecret = interpolateRequiredEnvVars(definition.oauth.clientSecret, "OAuth clientSecret")
+  }
   if (definition.oauth?.scope !== undefined) config.scope = definition.oauth.scope
   if (definition.oauth?.redirectUri !== undefined) {
     if (typeof definition.oauth.redirectUri !== "string") {

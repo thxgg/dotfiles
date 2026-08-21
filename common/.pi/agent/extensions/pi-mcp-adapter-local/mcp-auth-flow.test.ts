@@ -257,6 +257,39 @@ describe("mcp-auth-flow", () => {
       )
     })
 
+    it("should interpolate OAuth client credentials from the environment", () => {
+      process.env.MCP_TEST_CLIENT_ID = "environment-client"
+      process.env.MCP_TEST_CLIENT_SECRET = "environment-secret"
+      try {
+        const config = extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: {
+            clientId: "${MCP_TEST_CLIENT_ID}",
+            clientSecret: "$env:MCP_TEST_CLIENT_SECRET",
+          },
+        })
+
+        assert.strictEqual(config.clientId, "environment-client")
+        assert.strictEqual(config.clientSecret, "environment-secret")
+      } finally {
+        delete process.env.MCP_TEST_CLIENT_ID
+        delete process.env.MCP_TEST_CLIENT_SECRET
+      }
+    })
+
+    it("should reject missing OAuth credential environment variables", () => {
+      delete process.env.MCP_TEST_MISSING_SECRET
+      assert.throws(
+        () => extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { clientSecret: "${MCP_TEST_MISSING_SECRET}" },
+        }),
+        /Missing environment variable in OAuth clientSecret: MCP_TEST_MISSING_SECRET/
+      )
+    })
+
     it("should trim OAuth redirectUri and client metadata values", () => {
       const config = extractOAuthConfig({
         url: "https://api.example.com/mcp",
