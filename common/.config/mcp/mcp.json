@@ -1,9 +1,3 @@
 {
-  "mcpServers": {
-    "open-computer-use": {
-      "command": "open-computer-use",
-      "args": ["mcp"],
-      "lifecycle": "lazy"
-    }
-  }
+  "mcpServers": {}
 }
