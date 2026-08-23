@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+output_path="$(cat /tmp/last_recording_path 2>/dev/null || true)"
+if [[ -z "$output_path" || ! -f "$output_path" ]]; then
+    notify-send "Recording unavailable" "The recorded file was not found." \
+        -i dialog-error \
+        -a "Screen Recorder"
+    exit 1
+fi
+
+case "${1:-}" in
+    directory)
+        nautilus --select "$output_path"
+        ;;
+    play)
+        xdg-open "$output_path"
+        ;;
+    *)
+        echo "Usage: $0 {directory|play}" >&2
+        exit 2
+        ;;
+esac

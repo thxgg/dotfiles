@@ -1,1 +1,13 @@
-{}
+{
+  "custom/recording": {
+    "icon": "●",
+    "label": "{duration}",
+    "tooltip": "Screen recording in progress — click to stop",
+    "execute": "$HOME/.local/bin/hyprpanel-recording-status",
+    "interval": 1000,
+    "hideOnEmpty": true,
+    "actions": {
+      "onLeftClick": "$HOME/.local/bin/hyprpanel-screen-record stop"
+    }
+  }
+}

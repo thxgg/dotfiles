@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+recorder_pid="$(pgrep -o -x wf-recorder || true)"
+if [[ -z "$recorder_pid" ]]; then
+    exit 0
+fi
+
+elapsed="$(ps -o etimes= -p "$recorder_pid" | tr -d '[:space:]')"
+if [[ ! "$elapsed" =~ ^[0-9]+$ ]]; then
+    exit 0
+fi
+
+hours=$((elapsed / 3600))
+minutes=$(((elapsed % 3600) / 60))
+seconds=$((elapsed % 60))
+
+if ((hours > 0)); then
+    printf '{"duration":"%02d:%02d:%02d"}\n' "$hours" "$minutes" "$seconds"
+else
+    printf '{"duration":"%02d:%02d"}\n' "$minutes" "$seconds"
+fi

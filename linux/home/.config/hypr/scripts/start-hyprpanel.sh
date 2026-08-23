@@ -104,6 +104,22 @@ replacements = {
         'hyprlandService9.message(`dispatch hl.dsp.focus({ workspace = ${targetWorkspaceNumber} })`);',
     'hyprlandService12.dispatch("workspace", wsId.toString());':
         'hyprlandService12.message(`dispatch hl.dsp.focus({ workspace = ${wsId} })`);',
+    '''/* @__PURE__ */ jsxs(LeftColumn, { isVisible: true, children: [
+            /* @__PURE__ */ jsx2(RightShortcut1, {}),
+            /* @__PURE__ */ jsx2(SettingsButton, {})
+          ] }),
+          /* @__PURE__ */ jsxs(RightColumn, { children: [
+            /* @__PURE__ */ jsx2(RightShortcut3, {}),
+            /* @__PURE__ */ jsx2(RecordingButton, {})
+          ] })''':
+        '''/* @__PURE__ */ jsxs(LeftColumn, { isVisible: true, children: [
+            /* @__PURE__ */ jsx2(RightShortcut1, {}),
+            /* @__PURE__ */ jsx2(RecordingButton, {})
+          ] }),
+          /* @__PURE__ */ jsxs(RightColumn, { children: [
+            /* @__PURE__ */ jsx2(RightShortcut3, {}),
+            /* @__PURE__ */ jsx2(SettingsButton, {})
+          ] })''',
 }
 
 for old, new in replacements.items():
@@ -111,6 +127,12 @@ for old, new in replacements.items():
     if count != 1:
         raise SystemExit(f"Expected one HyprPanel workspace dispatcher, found {count}: {old}")
     source = source.replace(old, new)
+
+recorder_command = '${SRC_DIR}/scripts/screen_record.sh'
+count = source.count(recorder_command)
+if count != 4:
+    raise SystemExit(f"Expected four HyprPanel recorder commands, found {count}")
+source = source.replace(recorder_command, '$HOME/.local/bin/hyprpanel-screen-record')
 
 runtime_path.write_text(source)
 PY

@@ -389,6 +389,7 @@
         "media"
       ],
       "right": [
+        "custom/recording",
         "systray",
         "volume",
         "network",

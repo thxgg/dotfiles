@@ -1,3 +1,13 @@
+.cmodule-recording {
+  color: #FFFFFF;
+  background: #090909;
+}
+
+.bar-button-icon.cmodule-recording {
+  color: #FF453A;
+  padding-right: 0.2em;
+}
+
 /* OLED / monochrome overrides
  * HyprPanel still ships a number of Catppuccin-based generic menu styles.
  * Override them here so the shared menu primitives match the local monochrome theme.
