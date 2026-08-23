@@ -46,20 +46,26 @@ fi
 
 for arg in "$@"; do
   case "$arg" in
-    --theme)
+    --theme|--use-theme|--no-themes|-p|--print|--mode|--export|--list-models|-h|--help|-v|--version)
       theme_exec_real pi "$@"
       ;;
   esac
 done
 
-mode="$(theme_current_mode)"
-case "$mode" in
-  light) source_theme="$HOME/.pi/agent/themes/catppuccin-latte.json" ;;
-  *) source_theme="$HOME/.pi/agent/themes/catppuccin-mocha.json" ;;
+case "${1:-}" in
+  auth|install|remove|uninstall|update|list|config)
+    theme_exec_real pi "$@"
+    ;;
 esac
 
-if [[ ! -f "$source_theme" ]]; then
+mode="$(theme_current_mode)"
+case "$mode" in
+  light) theme_name="catppuccin-latte" ;;
+  *) theme_name="catppuccin-mocha" ;;
+esac
+
+if [[ ! -f "$HOME/.pi/agent/themes/$theme_name.json" ]]; then
   theme_exec_real pi "$@"
 fi
 
-theme_exec_real pi --theme "$source_theme" "$@"
+theme_exec_real pi --use-theme "$theme_name" "$@"

@@ -24,13 +24,6 @@ if not contains -- no-query-term $fish_features
     set -Ua fish_features no-query-term
 end
 
-# Pi's terminal image detection can see the outer Ghostty environment even when
-# the UI is running through tmux. Disable inline terminal graphics inside tmux;
-# generated images are still saved and linked, while bare Ghostty can render.
-if set -q TMUX
-    set -gx PI_TUI_DISABLE_IMAGES 1
-end
-
 function __dotfiles_prepend_path --argument-names dir
     if test -n "$dir"; and not contains -- $dir $PATH
         set -gx PATH $dir $PATH
@@ -107,6 +100,13 @@ set -e __dotfiles_fnm_var
 if test -f "$HOME/.vite-plus/env.fish"
     source "$HOME/.vite-plus/env.fish"
 end
+
+# Keep dotfile wrappers ahead of package-manager shims added above.
+if set -l __dotfiles_local_bin_index (contains -i -- "$HOME/.local/bin" $PATH)
+    set -e PATH[$__dotfiles_local_bin_index]
+end
+set -gx PATH "$HOME/.local/bin" $PATH
+set -e __dotfiles_local_bin_index
 
 if status is-interactive
     set -g __dotfiles_prompt_newline_after_first 0
