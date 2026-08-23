@@ -18,6 +18,7 @@ hyprsome-git
 udiskie
 flameshot
 nautilus
+catppuccin-gtk-theme-mocha
 kvantum
 kvantum-qt5
 kvantum-theme-catppuccin-git

@@ -90,9 +90,9 @@ setup_kvantum_runtime_theme() {
   runtime_theme_dir="$data_home/themes/catppuccin-current/Kvantum"
 
   if [[ "$mode" == light ]]; then
-    source_theme="catppuccin-latte-lavender"
+    source_theme="catppuccin-latte-sapphire"
   else
-    source_theme="catppuccin-mocha-lavender"
+    source_theme="catppuccin-mocha-sapphire"
   fi
 
   source_dir=""
@@ -135,13 +135,13 @@ select_gtk_theme() {
 
   if [[ "$mode" == dark ]]; then
     candidates=(
-      catppuccin-mocha-lavender-standard+default
+      catppuccin-mocha-sapphire-standard+default
       catppuccin-mocha-blue-standard+default
       Adwaita-dark
     )
   else
     candidates=(
-      catppuccin-latte-lavender-standard+default
+      catppuccin-latte-sapphire-standard+default
       Adwaita
     )
   fi
