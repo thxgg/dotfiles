@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Linear
+GenericName=Issue Tracker
+Comment=Use Linear in a dedicated web app window
+Exec=/usr/bin/google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1 --class=Linear --app=https://linear.app/
+Icon=linear-pwa
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=Linear
+Categories=Office;ProjectManagement;
+Keywords=Linear;Issues;Projects;Tasks;

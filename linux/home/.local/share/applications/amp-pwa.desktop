@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Amp
+Comment=Use Amp in a dedicated web app window
+Exec=/usr/bin/google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1 --class=Amp --app=https://ampcode.com/start
+Icon=amp-pwa
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=Amp
+Categories=Development;
+Keywords=AI;Agent;Code;

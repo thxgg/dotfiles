@@ -211,6 +211,12 @@ hl.window_rule({
 })
 
 hl.window_rule({
+    name = "tile-managed-pwas",
+    match = { class = "^(Amp|Linear|MicrosoftTeams)$" },
+    tile = true,
+})
+
+hl.window_rule({
     name = "float-bitwarden-popouts",
     match = { class = ".*nngceckbapebfimnlniiiahkandclblb.*" },
     float = true,

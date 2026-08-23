@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Microsoft Teams
+GenericName=Collaboration App
+Comment=Use Microsoft Teams in a dedicated web app window
+Exec=/usr/bin/google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1 --class=MicrosoftTeams "--app=https://teams.microsoft.com/?clientType=pwa"
+Icon=teams-pwa
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=MicrosoftTeams
+Categories=Network;InstantMessaging;VideoConference;
+Keywords=Teams;Chat;Meetings;Microsoft;
