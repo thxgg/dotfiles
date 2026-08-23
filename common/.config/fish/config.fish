@@ -51,6 +51,7 @@ end
 
 set -gx VISUAL nvim
 set -gx EDITOR nvim
+alias vim nvim
 
 set -g fish_greeting
 
