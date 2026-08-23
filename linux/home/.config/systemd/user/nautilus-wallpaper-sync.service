@@ -1,0 +1,13 @@
+[Unit]
+Description=Apply Nautilus wallpaper selections in Hyprland
+PartOf=hyprland-session.target
+After=hyprland-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/nautilus-wallpaper-sync
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=hyprland-session.target

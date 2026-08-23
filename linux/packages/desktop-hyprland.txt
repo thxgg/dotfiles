@@ -10,6 +10,7 @@ rofi
 grim
 nwg-displays
 xdg-desktop-portal-hyprland
+xdg-desktop-portal-gnome
 xwaylandvideobridge
 wl-clip-persist
 brightnessctl

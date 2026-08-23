@@ -255,11 +255,18 @@ apply_wallpaper() {
   wallpaper="$config_home/background-$mode.png"
   target="$config_home/background"
 
+  # A wallpaper selected through Nautilus overrides the theme default.
+  if [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/theme/wallpaper" ]]; then
+    wallpaper="$(<"${XDG_STATE_HOME:-$HOME/.local/state}/theme/wallpaper")"
+  fi
+
   if [[ ! -f "$wallpaper" ]]; then
     return 0
   fi
 
-  ln -sfn "$wallpaper" "$target"
+  if [[ "$wallpaper" != "$target" ]]; then
+    ln -sfn "$wallpaper" "$target"
+  fi
 
   if command -v swww >/dev/null 2>&1; then
     client=swww
