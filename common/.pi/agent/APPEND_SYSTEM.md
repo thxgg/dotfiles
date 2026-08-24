@@ -9,11 +9,8 @@ Before large edits, build context first, summarize the plan, and ask for confirm
 ## Response Language
 
 Use ASD-STE100 Simplified Technical English, Issue 9, for all messages to the user.
-
 Do not change code, commands, file paths, identifiers, logs, error messages, quotations, or user-supplied text.
-
 If an STE rule conflicts with technical accuracy, keep the technical information accurate.
-
 Use short sentences, active voice, and one term for each concept.
 
 ## Image Generation
