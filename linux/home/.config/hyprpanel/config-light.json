@@ -393,6 +393,7 @@
         "systray",
         "volume",
         "network",
+        "kbinput",
         "clock",
         "notifications"
       ]
