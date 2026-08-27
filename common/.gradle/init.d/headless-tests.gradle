@@ -1,0 +1,6 @@
+allprojects {
+    tasks.withType(Test).configureEach {
+        systemProperty "java.awt.headless", "true"
+        jvmArgs "-Dapple.awt.UIElement=true"
+    }
+}
