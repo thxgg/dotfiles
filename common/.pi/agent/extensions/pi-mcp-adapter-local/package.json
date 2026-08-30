@@ -111,9 +111,9 @@
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "0.82.0",
-    "@earendil-works/pi-coding-agent": "0.82.0",
-    "@earendil-works/pi-tui": "0.82.0",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@earendil-works/pi-tui": "0.84.4",
     "@types/bun": "^1.0.0",
     "@types/node": "^20.0.0",
     "@types/open": "^6.2.1",
