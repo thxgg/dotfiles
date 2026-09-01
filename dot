@@ -100,7 +100,7 @@ ${BOLD}USAGE:${RESET}
 
 ${BOLD}COMMANDS:${RESET}
     init              Run full machine setup via ./setup.sh
-    update            Pull latest repo changes, update packages, Neovim, stow, pi, Herdr, and pi extensions
+    update            Pull latest changes and update OS/global JS packages, Neovim, pi, and Herdr
     stow              Apply links via ./safe-stow.sh
     unstow            Remove links via ./unstow.sh
     doctor            Validate symlinks and setup health via ./doctor.sh
@@ -260,6 +260,41 @@ update_packages() {
 	esac
 
 	success "OS packages updated"
+}
+
+update_global_js_packages() {
+	header "Updating global JavaScript packages"
+
+	local updated=0
+	local -a failed_managers=()
+	if command_exists npm; then
+		info "Updating npm global packages"
+		npm update --global || failed_managers+=(npm)
+		updated=1
+	fi
+
+	if command_exists pnpm; then
+		info "Updating pnpm global packages"
+		pnpm update --global --latest || failed_managers+=(pnpm)
+		updated=1
+	fi
+
+	if command_exists vp; then
+		info "Updating Vite+ global packages"
+		vp update --global --latest || failed_managers+=(vp)
+		updated=1
+	fi
+
+	if [[ $updated -eq 0 ]]; then
+		warn "No supported JavaScript package manager found; skipping global package update"
+		return
+	fi
+	if [[ ${#failed_managers[@]} -gt 0 ]]; then
+		error "Failed to update global packages with: ${failed_managers[*]}"
+		return 1
+	fi
+
+	success "Global JavaScript packages updated"
 }
 
 update_pi() {
@@ -531,7 +566,7 @@ Usage: ${SCRIPT_NAME} update [options]
 
 Options:
   -v, --verbose    Stream full output from every update tool
-  --skip-packages  Skip Homebrew/yay updates
+  --skip-packages  Skip OS and global JavaScript package updates
   --skip-stow      Skip re-applying stow links
   --skip-pi        Skip pi and extension updates
   --skip-herdr     Skip Herdr update
@@ -558,6 +593,10 @@ EOF
 		if ! run_update_step packages "OS packages" update_packages; then
 			failed_steps+=(packages)
 			warn "Package update failed; continuing with remaining update steps"
+		fi
+		if ! run_update_step global-js "Global JavaScript packages" update_global_js_packages; then
+			failed_steps+=(global-js-packages)
+			warn "Global JavaScript package update failed; continuing with remaining update steps"
 		fi
 	fi
 
@@ -813,7 +852,7 @@ cmd_completions() {
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, packages, Neovim, stow links, pi, Herdr, and pi extensions"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, OS/global JS packages, Neovim, pi, and Herdr"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -830,7 +869,7 @@ complete -c dot -l version -d "Show version"
 complete -c dot -s h -l help -d "Show help"
 
 complete -c dot -n "__fish_seen_subcommand_from update" -s v -l verbose -d "Stream full update output"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip package updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip OS and global JS package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip Herdr self-update"
