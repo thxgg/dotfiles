@@ -30,3 +30,4 @@ OS-specific payload lives in `macos/home/` and `linux/home/`.
 - macOS-only targets like `~/Library/...` belong in `macos/home/`, not `common/`.
 - Child-link deployment keeps `~/.config` as a real directory; each direct child is symlinked from active roots.
 - Empty directories are not meaningful stow artifacts; manage concrete files/symlinks instead.
+- `common/.pi/agent/models.json` temporarily overrides the `claude-fable-5-1` user agent because Pi `0.84.4` reports Claude Code `2.1.75`. Remove this override after upstream Pi reports Claude Code `2.1.251` or newer.
