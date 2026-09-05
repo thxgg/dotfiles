@@ -45,10 +45,14 @@ test("SearchWeb returns provider results with query metadata", async () => {
 	const provider = new FakeSearchProvider(ok([exampleResult]));
 	const service = new SearchWeb({ provider, settings: testSearchSettings });
 
-	const result = await service.search({ query: query.value, maxResults: 8, depth: "auto" });
+	const result = await service.search({ query: query.value, maxResults: 8, depth: "auto", livecrawl: "preferred", contextMaxCharacters: 3000 });
 
 	assert.equal(result._tag, "ok");
 	assert.equal(result.value.provider, "exa");
 	assert.equal(result.value.query, "example");
 	assert.equal(result.value.results.length, 1);
+	assert.equal(result.value.livecrawl, "preferred");
+	assert.equal(result.value.contextMaxCharacters, 3000);
+	assert.equal(provider.requests[0]?.livecrawl, "preferred");
+	assert.equal(provider.requests[0]?.contextMaxCharacters, 3000);
 });

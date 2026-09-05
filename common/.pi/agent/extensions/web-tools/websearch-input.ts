@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "./result.ts";
 import {
 	SEARCH_DEPTHS,
+	SEARCH_CONTEXT_MAX_CHARACTERS,
 	SEARCH_MAX_RESULTS,
 	SEARCH_TIMEOUT_SECONDS,
 	clampInteger,
@@ -10,6 +11,7 @@ import {
 	parseSearchQuery,
 	type ParseSearchQueryError,
 	type SearchDepth,
+	type SearchLivecrawl,
 	type SearchQuery,
 	type WebToolsSettings,
 } from "./types.ts";
@@ -18,6 +20,8 @@ export interface RawWebSearchToolParams {
 	readonly query: string;
 	readonly maxResults?: number;
 	readonly depth?: SearchDepth;
+	readonly livecrawl?: SearchLivecrawl;
+	readonly contextMaxCharacters?: number;
 }
 
 export interface WebSearchToolInput {
@@ -25,6 +29,8 @@ export interface WebSearchToolInput {
 	readonly maxResults: number;
 	readonly depth: SearchDepth;
 	readonly timeoutSeconds: number;
+	readonly livecrawl: SearchLivecrawl;
+	readonly contextMaxCharacters: number;
 }
 
 /** Parse raw Pi websearch params into service-facing input. */
@@ -37,7 +43,7 @@ export function parseWebSearchToolParams(
 	}
 
 	for (const key of Object.keys(raw)) {
-		if (key !== "query" && key !== "maxResults" && key !== "depth") {
+		if (key !== "query" && key !== "maxResults" && key !== "depth" && key !== "livecrawl" && key !== "contextMaxCharacters") {
 			return err({ _tag: "UnknownToolField", field: key });
 		}
 	}
@@ -78,13 +84,25 @@ export function parseWebSearchToolParams(
 		depth = depthValue;
 	}
 
+	const livecrawl = raw["livecrawl"] === undefined ? "fallback" : raw["livecrawl"];
+	if (livecrawl !== "fallback" && livecrawl !== "preferred") {
+		return err({ _tag: "InvalidToolField", field: "livecrawl", message: "Expected one of: fallback, preferred" });
+	}
+	const contextValue = raw["contextMaxCharacters"];
+	if (contextValue !== undefined && (typeof contextValue !== "number" || !Number.isFinite(contextValue))) {
+		return err({ _tag: "InvalidToolField", field: "contextMaxCharacters", message: "Expected a finite number" });
+	}
+	const contextMaxCharacters = clampInteger(contextValue ?? SEARCH_CONTEXT_MAX_CHARACTERS.default, {
+		...SEARCH_CONTEXT_MAX_CHARACTERS, fallback: SEARCH_CONTEXT_MAX_CHARACTERS.default,
+	});
+
 	const timeoutSeconds = clampInteger(settings.timeoutSeconds, {
 		min: SEARCH_TIMEOUT_SECONDS.min,
 		max: SEARCH_TIMEOUT_SECONDS.max,
 		fallback: SEARCH_TIMEOUT_SECONDS.default,
 	});
 
-	return ok({ query: query.value, maxResults, depth, timeoutSeconds });
+	return ok({ query: query.value, maxResults, depth, livecrawl, contextMaxCharacters, timeoutSeconds });
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -48,13 +48,16 @@ test("ExaSearchProvider sends fast when deep is requested", async () => {
 	assert.equal(query._tag, "ok");
 
 	const provider = new ExaSearchProvider(endpoint.value, http);
-	const result = await provider.search({ query: query.value, maxResults: 5, depth: "deep" });
+	const result = await provider.search({ query: query.value, maxResults: 5, depth: "deep", livecrawl: "preferred", contextMaxCharacters: 20000 });
 
 	assert.equal(result._tag, "ok");
 	assert.equal(result.value.length, 1);
 	const requestBody = http.requests[0]?.body;
 	assert.ok(isEncodedExaRequest(requestBody));
 	assert.equal(requestBody.params.arguments.type, "fast");
+	assert.deepEqual(JSON.parse(JSON.stringify(requestBody)).params.arguments, {
+		query: "example", type: "fast", numResults: 5, livecrawl: "preferred", contextMaxCharacters: 20000,
+	});
 });
 
 test("ExaSearchProvider returns safe provider errors", async () => {
@@ -73,7 +76,7 @@ test("ExaSearchProvider returns safe provider errors", async () => {
 	assert.equal(query._tag, "ok");
 
 	const provider = new ExaSearchProvider(endpoint.value, http);
-	const result = await provider.search({ query: query.value, maxResults: 5, depth: "fast" });
+	const result = await provider.search({ query: query.value, maxResults: 5, depth: "fast", livecrawl: "fallback", contextMaxCharacters: 2000 });
 
 	assert.deepEqual(result, {
 		_tag: "err",

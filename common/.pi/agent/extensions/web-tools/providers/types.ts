@@ -1,8 +1,10 @@
 import type { Result } from "../result.ts";
-import type { NormalizedSearchResult, SearchDepth, SearchProviderName, SearchQuery } from "../types.ts";
+import type { SearchLivecrawl, NormalizedSearchResult, SearchDepth, SearchProviderName, SearchQuery } from "../types.ts";
 export type { NormalizedSearchResult } from "../types.ts";
 
 export interface SearchProviderRequest {
+	readonly livecrawl: SearchLivecrawl;
+	readonly contextMaxCharacters: number;
 	readonly query: SearchQuery;
 	readonly maxResults: number;
 	readonly depth: SearchDepth;

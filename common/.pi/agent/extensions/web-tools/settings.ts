@@ -9,6 +9,9 @@ import {
 
 export const WEB_FETCH_FORMATS = ["markdown", "text", "html"] as const satisfies readonly WebFetchFormat[];
 export const SEARCH_DEPTHS = ["auto", "fast", "deep"] as const satisfies readonly SearchDepth[];
+export const SEARCH_LIVECRAWL = ["fallback", "preferred"] as const;
+export const SEARCH_CONTEXT_MAX_CHARACTERS = { default: 2000, min: 1000, max: 20000 } as const;
+
 export const SEARCH_PROVIDERS = ["exa"] as const satisfies readonly SearchProviderName[];
 
 export const FETCH_TIMEOUT_SECONDS = {

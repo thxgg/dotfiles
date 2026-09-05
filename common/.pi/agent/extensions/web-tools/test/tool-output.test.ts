@@ -34,6 +34,8 @@ test("projectSearchWebResultToPiToolResult truncates and records full output pat
 		{
 			query: query.value,
 			depth: "auto",
+			livecrawl: "fallback",
+			contextMaxCharacters: 2000,
 			maxResults: 8,
 			provider: "exa",
 			results: Array.from({ length: 200 }, (_, index) => ({

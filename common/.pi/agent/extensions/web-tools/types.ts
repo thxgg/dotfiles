@@ -11,6 +11,7 @@ export type SearchQuery = string & { readonly __brand: "SearchQuery" };
 
 export type WebFetchFormat = "markdown" | "text" | "html";
 export type SearchDepth = "auto" | "fast" | "deep";
+export type SearchLivecrawl = "fallback" | "preferred";
 export type SearchProviderName = "exa";
 export type ContentKind = "html" | "text" | "raster-image" | "svg" | "binary";
 
@@ -73,6 +74,8 @@ export interface NormalizedSearchResult {
 }
 
 export interface WebSearchDetails {
+	readonly livecrawl: SearchLivecrawl;
+	readonly contextMaxCharacters: number;
 	readonly query: string;
 	readonly depth: SearchDepth;
 	readonly maxResults: number;

@@ -1,14 +1,18 @@
 import { err, ok, type Result } from "./result.ts";
-import type { SearchDepth, SearchProviderName, SearchQuery, WebToolsSettings } from "./types.ts";
+import type { SearchLivecrawl, SearchDepth, SearchProviderName, SearchQuery, WebToolsSettings } from "./types.ts";
 import type { NormalizedSearchResult, SearchProvider, SearchProviderError } from "./providers/types.ts";
 
 export interface SearchWebInput {
+	readonly livecrawl: SearchLivecrawl;
+	readonly contextMaxCharacters: number;
 	readonly query: SearchQuery;
 	readonly maxResults: number;
 	readonly depth: SearchDepth;
 }
 
 export interface SearchWebResult {
+	readonly livecrawl: SearchLivecrawl;
+	readonly contextMaxCharacters: number;
 	readonly query: SearchQuery;
 	readonly depth: SearchDepth;
 	readonly maxResults: number;
@@ -43,6 +47,8 @@ export class SearchWeb {
 		return ok({
 			query: input.query,
 			depth: input.depth,
+			livecrawl: input.livecrawl,
+			contextMaxCharacters: input.contextMaxCharacters,
 			maxResults: input.maxResults,
 			provider: this.dependencies.provider.name,
 			results: providerResult.value,

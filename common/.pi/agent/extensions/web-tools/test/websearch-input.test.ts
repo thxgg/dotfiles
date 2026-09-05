@@ -22,6 +22,8 @@ test("parseWebSearchToolParams trims query and applies defaults", () => {
 	assert.equal(result.value.maxResults, 8);
 	assert.equal(result.value.depth, "auto");
 	assert.equal(result.value.timeoutSeconds, 25);
+	assert.equal(result.value.livecrawl, "fallback");
+	assert.equal(result.value.contextMaxCharacters, 2000);
 });
 
 test("parseWebSearchToolParams accepts deep and clamps maxResults", () => {
@@ -58,6 +60,25 @@ test("parseWebSearchToolParams rejects invalid boundary input", () => {
 		_tag: "err",
 		error: { _tag: "UnknownToolField", field: "timeout" },
 	});
+});
+
+test("websearch bounds optional crawl controls", () => {
+	for (const [value, expected] of [[-1, 1000], [1000, 1000], [2500.6, 2501], [20000, 20000], [99999, 20000]]) {
+		const result = parseWebSearchToolParams({ query: "example", livecrawl: "preferred", contextMaxCharacters: value }, testSearchSettings);
+		assert.equal(result._tag, "ok");
+		assert.equal(result.value.livecrawl, "preferred");
+		assert.equal(result.value.contextMaxCharacters, expected);
+	}
+	for (const value of [null, "2000", true, {}, NaN, Infinity, -Infinity]) {
+		const result = parseWebSearchToolParams({ query: "example", contextMaxCharacters: value }, testSearchSettings);
+		assert.equal(result._tag, "err");
+		assert.deepEqual(result.error, { _tag: "InvalidToolField", field: "contextMaxCharacters", message: "Expected a finite number" });
+	}
+	for (const value of [null, "unknown", "PREFERRED", 1, true, {}]) {
+		const result = parseWebSearchToolParams({ query: "example", livecrawl: value }, testSearchSettings);
+		assert.equal(result._tag, "err");
+		assert.equal(result.error._tag, "InvalidToolField");
+	}
 });
 
 function mustParsePublicHttpUrl(input: string) {

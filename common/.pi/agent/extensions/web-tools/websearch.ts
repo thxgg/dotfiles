@@ -6,7 +6,7 @@ import { FetchHttpTextClient, ExaSearchProvider } from "./providers/exa.ts";
 import type { SearchProvider } from "./providers/types.ts";
 import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
-import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
+import { getWebToolsSettings, SEARCH_DEPTHS, SEARCH_LIVECRAWL, type ToolInputParseError } from "./settings.ts";
 import {
 	TempFileToolOutputStore,
 	formatSearchResults,
@@ -38,13 +38,19 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 	return {
 		name: "websearch",
 		label: "Web Search",
-		description: "Search the public web for current information and candidate URLs to inspect with webfetch.",
+		description: "Search the public web through Exa for current information and candidate URLs to inspect with webfetch. Optional livecrawl and contextMaxCharacters control retrieval.",
 		promptSnippet: "Search the public web for current information and relevant URLs",
 		promptGuidelines: [
 			"Use websearch when the user needs current public-web information or when the right URL is not yet known.",
 			"After picking a promising result, use webfetch on that URL for deeper inspection.",
 		],
 		parameters: Type.Object({
+			livecrawl: Type.Optional(StringEnum([...SEARCH_LIVECRAWL], {
+				description: "Live crawl mode: fallback (default) or preferred.",
+			})),
+			contextMaxCharacters: Type.Optional(Type.Number({
+				description: "Context character limit. Rounded and clamped to 1000..20000. Default: 2000.",
+			})),
 			query: Type.String({ description: "Search query." }),
 			maxResults: Type.Optional(
 				Type.Number({
@@ -77,6 +83,8 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 				details: {
 					query: parsed.value.query,
 					depth: parsed.value.depth,
+					livecrawl: parsed.value.livecrawl,
+					contextMaxCharacters: parsed.value.contextMaxCharacters,
 					maxResults: parsed.value.maxResults,
 					provider: actualComposition.settings.search.provider,
 					resultCount: 0,
@@ -90,6 +98,8 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 						query: parsed.value.query,
 						maxResults: parsed.value.maxResults,
 						depth: parsed.value.depth,
+						livecrawl: parsed.value.livecrawl,
+						contextMaxCharacters: parsed.value.contextMaxCharacters,
 					},
 					{ signal: composed.signal },
 				);

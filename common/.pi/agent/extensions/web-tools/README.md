@@ -45,6 +45,8 @@ Parameters:
 - `query` — required
 - `maxResults` — optional, clamped to `1..20`
 - `depth` — optional: `auto`, `fast`, `deep` (`deep` is accepted as a compatibility alias and mapped to `fast`)
+- `livecrawl` — optional: `fallback` (default), `preferred`
+- `contextMaxCharacters` — optional finite number, rounded and clamped to `1000..20000`; default `2000`
 
 Current defaults:
 
@@ -60,9 +62,9 @@ Behavior notes:
 - uses the configured Exa MCP-compatible endpoint
 - Exa currently supports provider depths `auto` and `fast`; tool input `deep` is downgraded to `fast`
 - search responses are limited to `1 MB`
-- provider requests currently send:
-  - `livecrawl: "fallback"`
-  - `contextMaxCharacters: 2000`
+- provider requests send the parsed `livecrawl` and `contextMaxCharacters` values
+- invalid enums, non-number values, and non-finite numbers are rejected at the tool boundary
+- result details include both controls
 
 ## Configuration
 
@@ -94,8 +96,8 @@ But in the current implementation, these are hardcoded defaults in `settings.ts`
 That means:
 
 - `webfetch.format` and `webfetch.timeout` can be overridden per call
-- `websearch.maxResults` and `websearch.depth` can be overridden per call
-- the underlying defaults are not currently exposed through Pi settings, extension settings, or env vars
+- `websearch.maxResults`, `websearch.depth`, `websearch.livecrawl`, and `websearch.contextMaxCharacters` can be overridden per call
+- fetch and search defaults are not exposed through Pi settings, extension settings, or env vars
 
 To change the defaults, edit:
 

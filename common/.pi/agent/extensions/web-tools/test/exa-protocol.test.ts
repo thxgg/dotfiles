@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseExaMcpResponse, parseSseDataLines } from "../providers/exa-protocol.ts";
+import { encodeExaSearchRequest, parseExaMcpResponse, parseSseDataLines } from "../providers/exa-protocol.ts";
+import { parseSearchQuery } from "../types.ts";
+
+test("Exa serialization bounds context and never sends non-finite values", () => {
+	const query = parseSearchQuery("example");
+	assert.equal(query._tag, "ok");
+	for (const [value, expected] of [[NaN, 2000], [Infinity, 2000], [-Infinity, 2000], [0, 1000], [2500.6, 2501], [99999, 20000]]) {
+		const encoded = encodeExaSearchRequest({ query: query.value, depth: "deep", maxResults: 8, livecrawl: "fallback", contextMaxCharacters: value! });
+		const args = JSON.parse(JSON.stringify(encoded)).params.arguments;
+		assert.equal(args.contextMaxCharacters, expected);
+		assert.equal(args.livecrawl, "fallback");
+		assert.equal(args.type, "fast");
+	}
+});
 
 const PROVIDER_TEXT = [
 	"Title: Example Domain",

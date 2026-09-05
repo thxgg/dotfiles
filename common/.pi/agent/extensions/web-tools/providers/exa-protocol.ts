@@ -1,8 +1,7 @@
 import { err, ok, type Result } from "../result.ts";
-import type { SearchDepth } from "../types.ts";
+import { clampInteger, SEARCH_CONTEXT_MAX_CHARACTERS } from "../settings.ts";
+import type { SearchDepth, SearchLivecrawl } from "../types.ts";
 import type { SearchProviderRequest } from "./types.ts";
-
-const DEFAULT_CONTEXT_MAX_CHARACTERS = 2_000;
 
 export type ExaDepth = "auto" | "fast";
 
@@ -16,7 +15,7 @@ export interface ExaMcpRequestDto {
 			readonly query: string;
 			readonly type: ExaDepth;
 			readonly numResults: number;
-			readonly livecrawl: "fallback";
+			readonly livecrawl: SearchLivecrawl;
 			readonly contextMaxCharacters: number;
 		};
 	};
@@ -48,8 +47,10 @@ export function encodeExaSearchRequest(input: SearchProviderRequest): ExaMcpRequ
 				query: input.query,
 				type: normalizeExaDepth(input.depth),
 				numResults: input.maxResults,
-				livecrawl: "fallback",
-				contextMaxCharacters: DEFAULT_CONTEXT_MAX_CHARACTERS,
+				livecrawl: input.livecrawl === "preferred" ? "preferred" : "fallback",
+				contextMaxCharacters: clampInteger(input.contextMaxCharacters, {
+					...SEARCH_CONTEXT_MAX_CHARACTERS, fallback: SEARCH_CONTEXT_MAX_CHARACTERS.default,
+				}),
 			},
 		},
 	};
