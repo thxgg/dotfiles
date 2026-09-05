@@ -13,6 +13,9 @@ const OPENAI_API = "openai-responses";
 const UPSTREAM_MODEL = "gpt-5.6-sol";
 const ONE_MILLION_MODEL = "gpt-5.6-sol-1m";
 const FAST_MODEL = "gpt-5.6-sol-fast";
+const ASTRA_MODEL = "gpt-6-astra";
+const ASTRA_FAST_MODEL = "gpt-6-astra-fast";
+type Alias = typeof ONE_MILLION_MODEL | typeof FAST_MODEL | typeof ASTRA_FAST_MODEL;
 const FAST_SERVICE_TIER = "priority";
 const UPSTREAM_COST = {
   input: 5,
@@ -35,14 +38,18 @@ function isOneMillionSol(model: PiModel | undefined): boolean {
   return model?.provider === OPENAI_PROVIDER && model.id === ONE_MILLION_MODEL;
 }
 
-function isFastSol(model: PiModel | undefined): boolean {
-  return model?.provider === PROVIDER && model.id === FAST_MODEL;
+function selectedAlias(model: PiModel | undefined): Alias | undefined {
+  if (isOneMillionSol(model)) return ONE_MILLION_MODEL;
+  if (model?.provider === PROVIDER && (model.id === FAST_MODEL || model.id === ASTRA_FAST_MODEL)) return model.id;
+  return undefined;
 }
 
-function selectedAlias(model: PiModel | undefined): string | undefined {
-  if (isOneMillionSol(model)) return ONE_MILLION_MODEL;
-  if (isFastSol(model)) return FAST_MODEL;
-  return undefined;
+function isFastAlias(alias: Alias | undefined): boolean {
+  return alias === FAST_MODEL || alias === ASTRA_FAST_MODEL;
+}
+
+function upstreamModelId(alias: Alias): string {
+  return alias === ASTRA_FAST_MODEL ? ASTRA_MODEL : UPSTREAM_MODEL;
 }
 
 function asRecord(value: unknown): JsonRecord | undefined {
@@ -56,35 +63,38 @@ function toUpstreamModel(model: Model<any>): Model<any> {
 
   return {
     ...model,
-    id: UPSTREAM_MODEL,
-    cost: alias === FAST_MODEL ? UPSTREAM_COST : OPENAI_COST,
+    id: upstreamModelId(alias),
+    cost: alias === ASTRA_FAST_MODEL ? model.cost : alias === FAST_MODEL ? UPSTREAM_COST : OPENAI_COST,
   };
 }
 
-function rewriteAliasPayload(payload: unknown, alias: string | undefined): unknown {
+function rewriteAliasPayload(payload: unknown, alias: Alias | undefined): unknown {
   const body = asRecord(payload);
   if (!body || !alias) return payload;
 
   return {
     ...body,
-    model: UPSTREAM_MODEL,
-    ...(alias === FAST_MODEL ? { service_tier: FAST_SERVICE_TIER } : {}),
+    model: upstreamModelId(alias),
+    ...(isFastAlias(alias) ? { service_tier: FAST_SERVICE_TIER } : {}),
   };
 }
 
 type CodexOptions = StreamOptions & {
   serviceTier?: string;
+  reasoningEffort?: SimpleStreamOptions["reasoning"];
 };
 
 function createCodexOptions(model: Model<any>, options?: SimpleStreamOptions): CodexOptions {
   const alias = selectedAlias(model);
   const codexOptions = options as CodexOptions | undefined;
-  const serviceTier = alias === FAST_MODEL ? FAST_SERVICE_TIER : codexOptions?.serviceTier;
+  const serviceTier = isFastAlias(alias) ? FAST_SERVICE_TIER : codexOptions?.serviceTier;
   const originalOnPayload = options?.onPayload;
 
   return {
     ...codexOptions,
     serviceTier,
+    // The raw stream API uses reasoningEffort, not SimpleStreamOptions.reasoning.
+    reasoningEffort: options?.reasoning,
     async onPayload(payload, requestModel) {
       let current = rewriteAliasPayload(payload, alias);
       const next = await originalOnPayload?.(current, requestModel);
@@ -176,7 +186,7 @@ export default async function (pi: ExtensionAPI) {
     if (!alias) return;
 
     const message = asRecord(event.message);
-    if (message?.role === "assistant" && message.provider === ctx.model?.provider && message.model === UPSTREAM_MODEL) {
+    if (message?.role === "assistant" && message.provider === ctx.model?.provider && message.model === upstreamModelId(alias)) {
       message.model = alias;
     }
   });
@@ -186,7 +196,7 @@ export default async function (pi: ExtensionAPI) {
 
     if (!warnedThresholdCompaction) {
       ctx.ui.notify(
-        `Skipping threshold auto-compaction for ${PROVIDER}/${ONE_MILLION_MODEL}; preserving the full 1M context until provider overflow or manual /compact.`,
+        `Skipping threshold auto-compaction for ${OPENAI_PROVIDER}/${ONE_MILLION_MODEL}; preserving the full 1M context until provider overflow or manual /compact.`,
         "info",
       );
       warnedThresholdCompaction = true;
@@ -198,7 +208,9 @@ export default async function (pi: ExtensionAPI) {
   pi.on("before_provider_request", (event, ctx) => {
     const payloadModel = asRecord(event.payload)?.model;
     const payloadAlias =
-      payloadModel === ONE_MILLION_MODEL || payloadModel === FAST_MODEL ? payloadModel : selectedAlias(ctx.model);
+      (ctx.model && typeof payloadModel === "string"
+        ? selectedAlias({ ...ctx.model, id: payloadModel })
+        : undefined) ?? selectedAlias(ctx.model);
     return rewriteAliasPayload(event.payload, payloadAlias);
   });
 }
