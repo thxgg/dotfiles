@@ -21,7 +21,7 @@ export default async function (pi) {
       registerProvider: (id, config) => providers.set(id, config),
       on: (event, handler) => hooks.set(event, handler),
     });
-    assert.deepEqual([...providers.keys()], ["openai-codex", "openai"]);
+    assert.deepEqual([...providers.keys()], ["openai-codex"]);
     const config = JSON.parse(readFileSync(new URL("../common/.pi/agent/models.json", import.meta.url), "utf8"));
     const models = Object.entries(config.providers).flatMap(([provider, config]) =>
       (config.models ?? []).map((model) => ({ ...model, provider })),
@@ -37,7 +37,6 @@ export default async function (pi) {
       ["gpt-6-astra-fast", "gpt-6-astra", "priority"],
       ["gpt-6-astra", "gpt-6-astra", undefined],
       ["gpt-5.6-sol-fast", "gpt-5.6-sol", "priority"],
-      ["gpt-5.6-sol-1m", "gpt-5.6-sol", undefined],
     ]) {
       const model = id === "gpt-6-astra" ? { ...astra, id } : models.find((model) => model.id === id);
       assert.ok(model);
@@ -111,17 +110,9 @@ export default async function (pi) {
     assert.equal(otherMessage.model, "gpt-5.6-sol");
     checks++;
 
-    const notifications = [];
-    const compact = hooks.get("session_before_compact");
-    for (const model of models) {
-      const ctx = { model, ui: { notify: (text) => notifications.push(text) } };
-      for (const reason of ["manual", "overflow", "threshold"]) {
-        const result = compact({ reason }, ctx);
-        assert.deepEqual(result, model.id === "gpt-5.6-sol-1m" && reason === "threshold" ? { cancel: true } : undefined);
-        checks++;
-      }
-    }
-    assert.equal(notifications.length, 1);
+    assert.equal(models.some((model) => model.id === "gpt-5.6-sol-1m"), false);
+    assert.equal(hooks.has("session_before_compact"), false);
+    checks += 2;
     console.log(`PASS: ${checks} alias checks (offline; includes compaction's direct streamSimple path)`);
     pi.registerCommand("test-model-aliases", { description: "Run offline alias checks", handler: async () => {} });
   } catch (error) {

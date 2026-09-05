@@ -51,6 +51,12 @@ test("composed prompts expose capability and completion boundaries", () => {
   assert.match(prompt, /Return partial findings rather than investigating until forced termination/);
 });
 
+test("librarian inherits the session model and compaction settings", () => {
+  const librarian = getAgentByName(discoverAgents(process.cwd(), "builtin").agents, "librarian")!;
+  assert.equal(librarian.model, undefined);
+  assert.equal(librarian.compaction, undefined);
+});
+
 test("librarian instructions sequence source and official docs before web search", () => {
   const librarian = getAgentByName(discoverAgents(process.cwd(), "builtin").agents, "librarian")!;
   assert.ok(librarian.systemPrompt.indexOf("Call repo_cache") < librarian.systemPrompt.indexOf("Consult known official documentation URLs"));

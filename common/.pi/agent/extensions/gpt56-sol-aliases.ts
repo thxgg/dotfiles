@@ -8,14 +8,11 @@ type CodexProvider = NonNullable<ReturnType<typeof getApiProvider>>;
 
 const PROVIDER = "openai-codex";
 const CODEX_API = "openai-codex-responses";
-const OPENAI_PROVIDER = "openai";
-const OPENAI_API = "openai-responses";
 const UPSTREAM_MODEL = "gpt-5.6-sol";
-const ONE_MILLION_MODEL = "gpt-5.6-sol-1m";
 const FAST_MODEL = "gpt-5.6-sol-fast";
 const ASTRA_MODEL = "gpt-6-astra";
 const ASTRA_FAST_MODEL = "gpt-6-astra-fast";
-type Alias = typeof ONE_MILLION_MODEL | typeof FAST_MODEL | typeof ASTRA_FAST_MODEL;
+type Alias = typeof FAST_MODEL | typeof ASTRA_FAST_MODEL;
 const FAST_SERVICE_TIER = "priority";
 const UPSTREAM_COST = {
   input: 5,
@@ -23,23 +20,10 @@ const UPSTREAM_COST = {
   cacheRead: 0.5,
   cacheWrite: 0,
 };
-const OPENAI_COST = {
-  input: 5,
-  output: 30,
-  cacheRead: 0.5,
-  cacheWrite: 6.25,
-};
 const PROVIDER_PROBE_JWT =
   "e30.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF9waV9leHRlbnNpb25fcHJvYmUifX0.sig";
 
-let warnedThresholdCompaction = false;
-
-function isOneMillionSol(model: PiModel | undefined): boolean {
-  return model?.provider === OPENAI_PROVIDER && model.id === ONE_MILLION_MODEL;
-}
-
 function selectedAlias(model: PiModel | undefined): Alias | undefined {
-  if (isOneMillionSol(model)) return ONE_MILLION_MODEL;
   if (model?.provider === PROVIDER && (model.id === FAST_MODEL || model.id === ASTRA_FAST_MODEL)) return model.id;
   return undefined;
 }
@@ -64,7 +48,7 @@ function toUpstreamModel(model: Model<any>): Model<any> {
   return {
     ...model,
     id: upstreamModelId(alias),
-    cost: alias === ASTRA_FAST_MODEL ? model.cost : alias === FAST_MODEL ? UPSTREAM_COST : OPENAI_COST,
+    cost: alias === ASTRA_FAST_MODEL ? model.cost : UPSTREAM_COST,
   };
 }
 
@@ -119,21 +103,6 @@ function probeModel(): Model<"openai-codex-responses"> {
   };
 }
 
-function openaiProbeModel(): Model<"openai-responses"> {
-  return {
-    id: UPSTREAM_MODEL,
-    name: "GPT-5.6 Sol",
-    api: OPENAI_API,
-    provider: OPENAI_PROVIDER,
-    baseUrl: "https://api.openai.com/v1",
-    reasoning: true,
-    input: ["text"],
-    cost: OPENAI_COST,
-    contextWindow: 272000,
-    maxTokens: 128000,
-  };
-}
-
 async function drain(stream: AssistantMessageEventStream): Promise<void> {
   for await (const _event of stream) {
     // Drain the probe stream so lazy provider registration finishes.
@@ -161,7 +130,6 @@ async function loadApiProvider(api: string, model: Model<any>, apiKey: string): 
 
 export default async function (pi: ExtensionAPI) {
   const codexProvider = await loadApiProvider(CODEX_API, probeModel(), PROVIDER_PROBE_JWT);
-  const openaiProvider = await loadApiProvider(OPENAI_API, openaiProbeModel(), "sk-pi-extension-probe");
 
   // Compaction invokes the provider's streamSimple directly and does not carry
   // Pi's before_provider_request hook, so normalize aliases at this boundary.
@@ -169,16 +137,6 @@ export default async function (pi: ExtensionAPI) {
     api: CODEX_API,
     streamSimple: (model, context, options) =>
       codexProvider.stream(toUpstreamModel(model), context, createCodexOptions(model, options)),
-  });
-
-  pi.registerProvider(OPENAI_PROVIDER, {
-    api: OPENAI_API,
-    streamSimple: (model, context, options) =>
-      openaiProvider.stream(toUpstreamModel(model), context, createCodexOptions(model, options)),
-  });
-
-  pi.on("model_select", () => {
-    warnedThresholdCompaction = false;
   });
 
   pi.on("message_end", (event, ctx) => {
@@ -189,20 +147,6 @@ export default async function (pi: ExtensionAPI) {
     if (message?.role === "assistant" && message.provider === ctx.model?.provider && message.model === upstreamModelId(alias)) {
       message.model = alias;
     }
-  });
-
-  pi.on("session_before_compact", (event, ctx) => {
-    if (!isOneMillionSol(ctx.model) || event.reason !== "threshold") return;
-
-    if (!warnedThresholdCompaction) {
-      ctx.ui.notify(
-        `Skipping threshold auto-compaction for ${OPENAI_PROVIDER}/${ONE_MILLION_MODEL}; preserving the full 1M context until provider overflow or manual /compact.`,
-        "info",
-      );
-      warnedThresholdCompaction = true;
-    }
-
-    return { cancel: true };
   });
 
   pi.on("before_provider_request", (event, ctx) => {

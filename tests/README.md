@@ -8,13 +8,13 @@ pi --no-extensions -e ./tests/pi-model-aliases.test.js --no-skills --no-prompt-t
 
 The tests load the extension through Pi. They use the real provider serializers with a local `fetch` replacement. They do not send model requests or use real credentials. They check:
 
-- Astra Fast, Sol Fast, and Sol 1M model rewriting.
+- Astra Fast and Sol Fast model rewriting.
 - Priority processing for fast aliases only.
 - Normal Astra requests without priority processing.
 - Reasoning-level translation, including Astra Max.
 - Payload callbacks and alias restoration in completed messages.
 - The direct `streamSimple` path used for compaction.
-- Sol 1M compaction cancellation without changing Astra compaction.
+- Removal of the Sol 1M model and its compaction exception.
 
 Do not use `--list-models` to run these tests. Pi can hide extension-load errors and exit successfully in that mode.
 
@@ -28,7 +28,7 @@ After `/reload`, select:
 /model openai-codex/gpt-6-astra-fast
 ```
 
-The alias sends `model: "gpt-6-astra"` and `service_tier: "priority"`. Reasoning effort remains a separate setting. The model uses a conservative 272,000-token context window and normal auto-compaction. It does not inherit the Sol 1M compaction exception.
+The alias sends `model: "gpt-6-astra"` and `service_tier: "priority"`. Reasoning effort remains a separate setting. The model uses a conservative 272,000-token context window and normal auto-compaction. The extension does not disable threshold auto-compaction.
 
 The rates in `models.json` are standard token rates, not ChatGPT credit accounting. Pi applies its own service-tier cost multiplier. Its displayed cost is an estimate; use OpenAI's usage records for actual charges. [Codex fast mode](https://developers.openai.com/codex/speed/) lists Astra at 2.5 times Standard credit consumption where available.
 
