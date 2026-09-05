@@ -1,6 +1,4 @@
 import {
-	DEFAULT_MAX_BYTES,
-	DEFAULT_MAX_LINES,
 	formatSize,
 	truncateHead,
 	type TruncationResult,
@@ -8,21 +6,31 @@ import {
 import type { FetchPageResult } from "./fetch-page.ts";
 import { err, ok, type Result } from "./result.ts";
 import type { SearchWebResult } from "./search-web.ts";
-import { writeTempTextFile } from "./temp.ts";
+import { OutputFiles, type OutputFileOptions } from "./temp.ts";
+import { getOutputSettings, type OutputSettings } from "./output-settings.ts";
 import type { SearchLivecrawl, SearchDepth, SearchProviderName, WebFetchFormat } from "./types.ts";
 import type { NormalizedSearchResult } from "./providers/types.ts";
 
 export interface ToolOutputStore {
+	readonly settings?: OutputSettings;
 	writeTextFile(prefix: string, fileName: string, content: string): Promise<Result<string, ToolOutputStoreError>>;
 }
 
 export type ToolOutputStoreError = { readonly _tag: "TempFileWriteFailed"; readonly cause: unknown };
 
 export class TempFileToolOutputStore implements ToolOutputStore {
+	private readonly files: OutputFiles;
+	readonly settings: OutputSettings;
+
+	constructor(options: OutputFileOptions = {}) {
+		this.files = new OutputFiles(options);
+		this.settings = this.files.settings;
+	}
+
 	/** Write full tool output to a temporary text file. */
 	async writeTextFile(prefix: string, fileName: string, content: string): Promise<Result<string, ToolOutputStoreError>> {
 		try {
-			return ok(await writeTempTextFile(prefix, fileName, content));
+			return ok(await this.files.write(prefix, fileName, content));
 		} catch (cause: unknown) {
 			return err({ _tag: "TempFileWriteFailed", cause });
 		}
@@ -186,10 +194,8 @@ async function projectTextOutput(
 	output: string,
 	options: { readonly store: ToolOutputStore; readonly tempPrefix: string; readonly fileName: string },
 ): Promise<Result<ProjectedTextOutput, ToolOutputStoreError>> {
-	const truncation = truncateHead(output, {
-		maxBytes: DEFAULT_MAX_BYTES,
-		maxLines: DEFAULT_MAX_LINES,
-	});
+	const settings = getOutputSettings({}, options.store.settings);
+	const truncation = truncateHead(output, settings);
 
 	if (!truncation.truncated) {
 		return ok({ text: truncation.content, truncated: false, truncation });
@@ -206,7 +212,8 @@ async function projectTextOutput(
 	text += `\n\n[Output truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines`;
 	text += ` (${formatSize(truncation.outputBytes)} of ${formatSize(truncation.totalBytes)}).`;
 	text += ` ${omittedLines} lines (${formatSize(omittedBytes)}) omitted.`;
-	text += ` Full output saved to: ${fullOutputPath.value}]`;
+	text += ` Full output saved to: ${fullOutputPath.value}`;
+	text += options.store.settings ? ` (eligible for cleanup after ${settings.retentionDays} days).]` : "]";
 
 	return ok({ text, truncated: true, fullOutputPath: fullOutputPath.value, truncation });
 }

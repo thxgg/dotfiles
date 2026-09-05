@@ -98,10 +98,31 @@ That means:
 - `webfetch.format` and `webfetch.timeout` can be overridden per call
 - `websearch.maxResults`, `websearch.depth`, `websearch.livecrawl`, and `websearch.contextMaxCharacters` can be overridden per call
 - fetch and search defaults are not exposed through Pi settings, extension settings, or env vars
+- only output retention and truncation have environment settings, as described below
 
 To change the defaults, edit:
 
 - `common/.pi/agent/extensions/web-tools/settings.ts`
+
+## Output retention and truncation
+
+Text output uses Pi's head truncation. Defaults are 50 KiB or 2000 lines, whichever comes first. Full output is saved before a truncated result is returned. Result details keep `fullOutputPath`.
+
+Set these environment variables before running Pi:
+
+| Variable | Range | Default |
+| --- | --- | --- |
+| `PI_WEB_TOOLS_OUTPUT_RETENTION_DAYS` | `1..365` days | `7` |
+| `PI_WEB_TOOLS_OUTPUT_MAX_BYTES` | `1024..51200` bytes | `51200` |
+| `PI_WEB_TOOLS_OUTPUT_MAX_LINES` | `1..2000` lines | `2000` |
+
+Values must be whole numbers within the range. Invalid values use the default. Limits apply to the content preview; the truncation notice is added after it.
+
+Files are stored in a web-tools-owned directory, `pi-web-tools-output-<uid>`, under the OS temporary directory. The directory must have mode `0700`. Files have mode `0600`. An existing unsafe directory is rejected, not changed. The truncated-output notice states when the file becomes eligible for cleanup. It does not guarantee a deletion time. OS temporary-file cleanup can remove files earlier.
+
+Cleanup runs before each new spill file. It checks at most 128 directory entries per write. It only removes recognized web-tools files whose filename timestamp and modification time are both older than the retention period. Files exactly at the boundary remain. Cleanup skips symlinks, hardlinks, subdirectories, unrelated names, and recent files. It does not scan other directories or remove legacy spill files from generic temporary locations. Cleanup errors do not prevent output preservation. There is no background timer. Eligible files can remain until a later write; bounded scans do not guarantee removal of every eligible file.
+
+Tests and callers can inject `directory`, `now`, `env`, and bounded output settings through `TempFileToolOutputStore` or `OutputFiles`. The legacy `truncateTextOutput` helper accepts these under `storeOptions`. Output filenames use the `pi-webfetch-` or `pi-websearch-` prefix and `output.txt` suffix. Tests use isolated temporary directories and explicit clocks.
 
 ## Source of truth
 

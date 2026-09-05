@@ -43,7 +43,7 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 		name: "webfetch",
 		label: "Web Fetch",
 		description:
-			"Fetch a single URL and return readable markdown, text, raw HTML/source, or an inline raster image.",
+			"Fetch a single URL and return readable markdown, text, raw HTML/source, or a signature-detected PNG, JPEG, GIF, or WebP image. Text output is limited to 50 KiB/2000 lines by default, with configurable lower limits. Full output is saved when truncated.",
 		promptSnippet: "Fetch one public URL as markdown, text, html, or an inline raster image",
 		promptGuidelines: [
 			"Use webfetch when the user provides a URL or after websearch identifies a page to inspect.",

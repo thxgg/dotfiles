@@ -38,7 +38,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 	return {
 		name: "websearch",
 		label: "Web Search",
-		description: "Search the public web through Exa for current information and candidate URLs to inspect with webfetch. Optional livecrawl and contextMaxCharacters control retrieval.",
+		description: "Search the public web through Exa for current information and candidate URLs to inspect with webfetch. Optional livecrawl and contextMaxCharacters control retrieval. Output is limited to 50 KiB/2000 lines by default, with configurable lower limits. Full output is saved when truncated.",
 		promptSnippet: "Search the public web for current information and relevant URLs",
 		promptGuidelines: [
 			"Use websearch when the user needs current public-web information or when the right URL is not yet known.",
