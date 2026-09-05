@@ -71,6 +71,7 @@ if test "$__dotfiles_uname" = Darwin; and test -d /opt/homebrew/opt/rustup/bin
 end
 
 __dotfiles_prepend_path "$PNPM_HOME"
+__dotfiles_prepend_path "$PNPM_HOME/bin"
 __dotfiles_prepend_path "$BUN_INSTALL/bin"
 __dotfiles_prepend_path "$HOME/thxgg/.opencode/bin"
 
