@@ -12,6 +12,8 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
+Pi `0.85.0` imports `@earendil-works/pi-server` through its SDK but does not declare that dependency. This workspace pins it explicitly so SDK imports and extension tests work. Remove this workaround when Pi declares the dependency or no longer imports it.
+
 ## Validate extensions
 
 ```bash
