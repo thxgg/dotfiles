@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   httpTransports: [] as HttpTransportMock[],
 }));
 
-vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
+vi.mock("@modelcontextprotocol/client", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Client: vi.fn().mockImplementation((info: unknown, options: unknown) => {
     const client: any = {
       info,
@@ -31,29 +32,16 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
     mocks.clients.push(client);
     return client;
   }),
-}));
-
-vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
-  StdioClientTransport: vi.fn(),
-}));
-
-vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
   StreamableHTTPClientTransport: vi.fn().mockImplementation((url: URL, options: TransportOptions) => {
     const transport = { url, options, close: vi.fn(async () => undefined) };
     mocks.httpTransports.push(transport);
     return transport;
   }),
-  StreamableHTTPError: class StreamableHTTPError extends Error {
-    code: number;
-    constructor(code: number, message: string) {
-      super(`Streamable HTTP error: ${message}`);
-      this.code = code;
-    }
-  },
+  SSEClientTransport: vi.fn(),
 }));
 
-vi.mock("@modelcontextprotocol/sdk/client/sse.js", () => ({
-  SSEClientTransport: vi.fn(),
+vi.mock("@modelcontextprotocol/client/stdio", () => ({
+  StdioClientTransport: vi.fn(),
 }));
 
 vi.mock("../npx-resolver.ts", () => ({
@@ -66,10 +54,7 @@ describe("McpServerManager.reconnect", () => {
     mocks.httpTransports.length = 0;
   });
 
-  // For an HTTP server, connect() creates a probe client+transport and then
-  // a real one; the real client (used as connection.client) is always
-  // mocks.clients[0] for a given connect() call because createClient() runs
-  // before the probe is created inside createHttpTransport().
+  // Each HTTP connection uses one client and one Streamable HTTP transport.
   const def = { url: "https://example.test/mcp" };
 
   it("is single-flight: concurrent reconnects for the same server share one underlying reconnect", async () => {
@@ -86,9 +71,8 @@ describe("McpServerManager.reconnect", () => {
     ]);
 
     expect(c1).toBe(c2);
-    // Exactly one new connection was established (probe client + real
-    // client == 2), not two (which would be 4).
-    expect(mocks.clients.length).toBe(2);
+    // Exactly one new connection was established, not one per caller.
+    expect(mocks.clients.length).toBe(1);
     expect(manager.getConnection("remote")).toBe(c1);
   });
 
@@ -132,8 +116,9 @@ describe("McpServerManager.reconnect", () => {
 
     const second = manager.reconnect("remote", def, stale);
     releaseClose();
-    const fresh = await second;
+    await expect(second).rejects.toBe(reason);
 
+    const fresh = await manager.reconnect("remote", def, stale);
     expect(fresh).not.toBe(stale);
     expect(manager.getConnection("remote")).toBe(fresh);
   });

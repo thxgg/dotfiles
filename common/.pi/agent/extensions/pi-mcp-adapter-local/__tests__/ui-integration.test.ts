@@ -1,6 +1,6 @@
 /**
  * Integration tests for MCP UI flow
- *
+ * 
  * These tests exercise the full flow from tool call with UI resource
  * through browser communication back to agent message retrieval.
  */
@@ -147,6 +147,7 @@ function createIntegrationManager(): McpServerManager {
     ["save_file", { result: { saved: true, path: "/tmp/file.txt" } }],
     ["slow_operation", { result: { completed: true }, delay: 100 }],
   ]);
+  const toolDefinitions = [...tools.keys()].map((name) => ({ name }));
 
   return {
     getConnection: vi.fn().mockReturnValue({
@@ -161,6 +162,7 @@ function createIntegrationManager(): McpServerManager {
           return { content: [{ type: "text", text: JSON.stringify(tool.result) }] };
         }),
       },
+      tools: toolDefinitions,
     }),
     touch: vi.fn(),
     incrementInFlight: vi.fn(),
@@ -200,7 +202,7 @@ describe("MCP UI Integration", () => {
       // 1. Agent calls tool with UI
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("never"); // No consent prompts
-
+      
       const resource: UiResourceContent = {
         uri: "ui://test/app",
         html: "<h1>Test App</h1>",
@@ -247,7 +249,7 @@ describe("MCP UI Integration", () => {
     it("handles multiple messages in conversation", async () => {
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("never");
-
+      
       const resource: UiResourceContent = {
         uri: "ui://test/chat",
         html: "<div id='chat'></div>",
@@ -288,7 +290,7 @@ describe("MCP UI Integration", () => {
     it("handles consent flow for tool calls", async () => {
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("once-per-server");
-
+      
       const resource: UiResourceContent = {
         uri: "ui://test/app",
         html: "<h1>App</h1>",
@@ -322,7 +324,7 @@ describe("MCP UI Integration", () => {
     it("tracks in-flight requests correctly", async () => {
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("never");
-
+      
       const resource: UiResourceContent = {
         uri: "ui://test/app",
         html: "<h1>App</h1>",
@@ -388,7 +390,7 @@ describe("MCP UI Integration", () => {
       const onComplete = vi.fn();
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("never");
-
+      
       handle = await startUiServer({
         serverName: "test-server",
         toolName: "test_tool",
@@ -416,7 +418,7 @@ describe("MCP UI Integration", () => {
     it("maintains heartbeat to prevent timeout", async () => {
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("never");
-
+      
       handle = await startUiServer({
         serverName: "test-server",
         toolName: "test_tool",
@@ -453,11 +455,12 @@ describe("MCP UI Integration", () => {
           client: {
             callTool: vi.fn().mockRejectedValue(new Error("MCP server error")),
           },
+          tools: [{ name: "failing_tool" }],
         }),
       } as unknown as McpServerManager;
 
       const consentManager = new ConsentManager("never");
-
+      
       handle = await startUiServer({
         serverName: "error-server",
         toolName: "error_tool",
@@ -489,7 +492,7 @@ describe("MCP UI Integration", () => {
       } as unknown as McpServerManager;
 
       const consentManager = new ConsentManager("never");
-
+      
       handle = await startUiServer({
         serverName: "disconnected-server",
         toolName: "test_tool",
@@ -516,7 +519,7 @@ describe("MCP UI Integration", () => {
     it("allows switching display modes", async () => {
       const manager = createIntegrationManager();
       const consentManager = new ConsentManager("never");
-
+      
       handle = await startUiServer({
         serverName: "test-server",
         toolName: "test_tool",

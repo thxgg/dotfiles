@@ -16,17 +16,17 @@ process.env.MCP_OAUTH_DIR = TEST_DIR
 import {
   authenticate,
   startAuth,
-  completeAuth,
   getAuthStatus,
+  getValidToken,
   removeAuth,
   supportsOAuth,
   extractOAuthConfig,
   initializeOAuth,
   shutdownOAuth,
-  type AuthStatus,
+  waitForAuthorizationResponse,
 } from "./mcp-auth-flow.ts"
 import { isCallbackServerRunning } from "./mcp-callback-server.ts"
-import { updateTokens, clearAllCredentials } from "./mcp-auth.ts"
+import { updateTokens, updateClientInfo, getAuthForUrl, clearAllCredentials } from "./mcp-auth.ts"
 import type { ServerEntry } from "./types.ts"
 
 describe("mcp-auth-flow", () => {
@@ -139,6 +139,45 @@ describe("mcp-auth-flow", () => {
     })
   })
 
+  describe("getValidToken", () => {
+    it("should not attempt refresh or wipe credentials when stored client info is a config-pre-registered stub", async () => {
+      const serverName = "stub-refresh-test"
+      const serverUrl = "https://stub-refresh.example.com/mcp"
+
+      // Expired tokens with a refresh token: normally getValidToken would
+      // attempt an SDK refresh.
+      await updateTokens(serverName, {
+        accessToken: "expired-token",
+        refreshToken: "refresh-token",
+        expiresAt: Date.now() / 1000 - 3600,
+      }, serverUrl)
+
+      // Secretless SEP-2352 issuer stub written for a config-pre-registered
+      // client. getValidToken builds its provider with an empty config, so
+      // this stub must not be served as client information; otherwise a
+      // refresh goes out without a client secret, the AS returns
+      // invalid_client, and the SDK invalidates stored credentials.
+      await updateClientInfo(serverName, {
+        clientId: "config-client",
+        issuer: "https://auth.example.com",
+        configPreRegistered: true,
+      }, serverUrl)
+
+      const result = await getValidToken(serverName, serverUrl)
+
+      // Bails via the "no client info" guard before any network refresh.
+      assert.strictEqual(result, null)
+
+      // Stored credentials must remain intact - nothing was invalidated.
+      const entry = await getAuthForUrl(serverName, serverUrl)
+      assert.strictEqual(entry?.tokens?.accessToken, "expired-token")
+      assert.strictEqual(entry?.tokens?.refreshToken, "refresh-token")
+      assert.strictEqual(entry?.clientInfo?.clientId, "config-client")
+
+      clearAllCredentials(serverName)
+    })
+  })
+
   describe("initializeOAuth / shutdownOAuth", () => {
     it("should not start callback server on initialize", async () => {
       await shutdownOAuth()
@@ -150,6 +189,115 @@ describe("mcp-auth-flow", () => {
       await initializeOAuth()
       await shutdownOAuth()
       assert.strictEqual(isCallbackServerRunning(), false)
+    })
+  })
+
+  describe("waitForAuthorizationResponse", () => {
+    it("should accept a pasted callback URL and validate its state", async () => {
+      let promptSignal: AbortSignal | undefined
+      const result = await waitForAuthorizationResponse(
+        new Promise(() => {}),
+        "https://auth.example.com/authorize",
+        "expected-state",
+        async (_authorizationUrl, signal) => {
+          promptSignal = signal
+          return "http://localhost:3118/callback?code=manual-code&state=expected-state"
+        },
+      )
+
+      assert.deepStrictEqual(result, {
+        input: { code: "manual-code" },
+        source: "manual",
+      })
+      assert.strictEqual(promptSignal?.aborted, true)
+    })
+
+    it("should dismiss manual input when the localhost callback wins", async () => {
+      let promptSignal: AbortSignal | undefined
+      const result = await waitForAuthorizationResponse(
+        Promise.resolve({ code: "callback-code" }),
+        "https://auth.example.com/authorize",
+        "expected-state",
+        async (_authorizationUrl, signal) => {
+          promptSignal = signal
+          await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }))
+          return undefined
+        },
+      )
+
+      assert.deepStrictEqual(result, {
+        input: { code: "callback-code" },
+        source: "callback",
+      })
+      assert.strictEqual(promptSignal?.aborted, true)
+    })
+
+    it("should reject a pasted callback URL with the wrong state", async () => {
+      await assert.rejects(
+        waitForAuthorizationResponse(
+          new Promise(() => {}),
+          "https://auth.example.com/authorize",
+          "expected-state",
+          async () => "http://localhost:3118/callback?code=manual-code&state=wrong-state",
+        ),
+        /OAuth state mismatch/,
+      )
+    })
+
+    it("should reject a pasted callback URL without state", async () => {
+      await assert.rejects(
+        waitForAuthorizationResponse(
+          new Promise(() => {}),
+          "https://auth.example.com/authorize",
+          "expected-state",
+          async () => "http://localhost:3118/callback?code=manual-code",
+        ),
+        /OAuth state missing/,
+      )
+    })
+
+    it("should reject a raw authorization code from manual input", async () => {
+      await assert.rejects(
+        waitForAuthorizationResponse(
+          new Promise(() => {}),
+          "https://auth.example.com/authorize",
+          "expected-state",
+          async () => "manual-code",
+        ),
+        /Paste the full OAuth callback URL/,
+      )
+    })
+
+    it("should abort manual input when the OAuth operation is cancelled", async () => {
+      const controller = new AbortController()
+      const reason = new Error("request cancelled")
+      let promptSignal: AbortSignal | undefined
+      const response = waitForAuthorizationResponse(
+        new Promise(() => {}),
+        "https://auth.example.com/authorize",
+        "expected-state",
+        async (_authorizationUrl, signal) => {
+          promptSignal = signal
+          return new Promise(() => {})
+        },
+        controller.signal,
+      )
+
+      controller.abort(reason)
+      await assert.rejects(response, (error) => error === reason)
+      assert.strictEqual(promptSignal?.aborted, true)
+    })
+
+    it("should treat dismissing manual input as cancellation", async () => {
+      await assert.rejects(
+        waitForAuthorizationResponse(
+          new Promise(() => {}),
+          "https://auth.example.com/authorize",
+          "expected-state",
+          async () => undefined,
+        ),
+        /OAuth authentication cancelled/,
+      )
     })
   })
 
@@ -172,14 +320,25 @@ describe("mcp-auth-flow", () => {
       )
     })
 
-    it("should reject non-local OAuth redirectUri values", async () => {
+    it("should reject insecure non-local OAuth redirectUri values", async () => {
       await assert.rejects(
         async () => await startAuth("remote-redirect", "https://api.example.com/mcp", {
           url: "https://api.example.com/mcp",
           auth: "oauth",
-          oauth: { redirectUri: "https://example.com:3118/callback" },
+          oauth: { redirectUri: "http://example.com:3118/callback" },
         }),
-        /localhost or loopback/
+        /https:\/\/ URI or an http:\/\/ localhost or loopback URI/
+      )
+    })
+
+    it("should reject non-local OAuth redirectUri values with invalid ports", async () => {
+      await assert.rejects(
+        async () => await startAuth("bad-remote-port", "https://api.example.com/mcp", {
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { redirectUri: "https://example.com:0/callback" },
+        }),
+        /positive numeric port/
       )
     })
 
@@ -191,6 +350,17 @@ describe("mcp-auth-flow", () => {
           oauth: { redirectUri: "http://localhost/callback" },
         }),
         /explicit numeric port/
+      )
+    })
+
+    it("should reject a dynamic port placeholder outside the loopback URI port", async () => {
+      await assert.rejects(
+        async () => await startAuth("bad-dynamic-redirect", "https://api.example.com/mcp", {
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { redirectUri: "http://127.0.0.1/callback/{port}" },
+        }),
+        /\{port\} placeholder must be the loopback URI port/
       )
     })
 
@@ -257,36 +427,106 @@ describe("mcp-auth-flow", () => {
       )
     })
 
-    it("should interpolate OAuth client credentials from the environment", () => {
-      process.env.MCP_TEST_CLIENT_ID = "environment-client"
-      process.env.MCP_TEST_CLIENT_SECRET = "environment-secret"
-      try {
-        const config = extractOAuthConfig({
-          url: "https://api.example.com/mcp",
-          auth: "oauth",
-          oauth: {
-            clientId: "${MCP_TEST_CLIENT_ID}",
-            clientSecret: "$env:MCP_TEST_CLIENT_SECRET",
-          },
-        })
+    it("should reject missing OAuth environment variables during config extraction", () => {
+      delete process.env.MCP_TEST_MISSING_CLIENT_ID
+      delete process.env.MCP_TEST_MISSING_SCOPE
 
-        assert.strictEqual(config.clientId, "environment-client")
-        assert.strictEqual(config.clientSecret, "environment-secret")
-      } finally {
-        delete process.env.MCP_TEST_CLIENT_ID
-        delete process.env.MCP_TEST_CLIENT_SECRET
-      }
-    })
-
-    it("should reject missing OAuth credential environment variables", () => {
-      delete process.env.MCP_TEST_MISSING_SECRET
       assert.throws(
         () => extractOAuthConfig({
           url: "https://api.example.com/mcp",
           auth: "oauth",
-          oauth: { clientSecret: "${MCP_TEST_MISSING_SECRET}" },
+          oauth: { clientId: "${MCP_TEST_MISSING_CLIENT_ID}" },
         }),
-        /Missing environment variable in OAuth clientSecret: MCP_TEST_MISSING_SECRET/
+        /Missing environment variable in OAuth clientId: MCP_TEST_MISSING_CLIENT_ID/
+      )
+      assert.throws(
+        () => extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { scope: "$env:MCP_TEST_MISSING_SCOPE" },
+        }),
+        /Missing environment variable in OAuth scope: MCP_TEST_MISSING_SCOPE/
+      )
+    })
+
+    it("should accept an absolute http(s) OAuth logoUri", () => {
+      const config = extractOAuthConfig({
+        url: "https://api.example.com/mcp",
+        auth: "oauth",
+        oauth: { logoUri: "https://example.com/logo.png" },
+      })
+      assert.strictEqual(config.logoUri, "https://example.com/logo.png")
+    })
+
+    it("should reject an OAuth logoUri that is not an absolute http(s) URL", () => {
+      // Consent screens fetch the logo server-side, so a local path renders
+      // nothing at all — failing here is the only place it can be explained.
+      for (const logoUri of ["./logo.png", "/Users/me/logo.png", "file:///tmp/logo.png"]) {
+        assert.throws(
+          () => extractOAuthConfig({
+            url: "https://api.example.com/mcp",
+            auth: "oauth",
+            oauth: { logoUri },
+          }),
+          /logoUri must be an absolute http\(s\) URL/
+        )
+      }
+      assert.throws(
+        () => extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { logoUri: 123 as unknown as string },
+        }),
+        /logoUri must be a string/
+      )
+    })
+
+    it("should reject malformed OAuth authorizationParams", () => {
+      assert.throws(
+        () => extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { authorizationParams: [] as unknown as Record<string, string> },
+        }),
+        /authorizationParams must be an object/
+      )
+      assert.throws(
+        () => extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { authorizationParams: { prompt: 123 as unknown as string } },
+        }),
+        /authorizationParams\.prompt must be a string/
+      )
+    })
+
+    it("should accept and trim an absolute https OAuth authServerMetadataUrl", () => {
+      const config = extractOAuthConfig({
+        url: "https://api.example.com/mcp",
+        auth: "oauth",
+        oauth: { authServerMetadataUrl: "  https://auth.example.com/.well-known/openid-configuration  " },
+      })
+      assert.strictEqual(config.authServerMetadataUrl, "https://auth.example.com/.well-known/openid-configuration")
+    })
+
+    it("should reject malformed OAuth authServerMetadataUrl values", () => {
+      for (const authServerMetadataUrl of ["", "  ", "http://auth.example.com/metadata", "not a url"]) {
+        assert.throws(
+          () => extractOAuthConfig({
+            url: "https://api.example.com/mcp",
+            auth: "oauth",
+            oauth: { authServerMetadataUrl },
+          }),
+          /authServerMetadataUrl must (not be empty|be an absolute https:\/\/ URL)/,
+        )
+      }
+      assert.throws(
+        () => extractOAuthConfig({
+          url: "https://api.example.com/mcp",
+          auth: "oauth",
+          oauth: { authServerMetadataUrl: 123 as unknown as string },
+        }),
+        /authServerMetadataUrl must be a string/,
       )
     })
 
@@ -304,6 +544,61 @@ describe("mcp-auth-flow", () => {
       assert.strictEqual(config.redirectUri, "http://localhost:3118/callback")
       assert.strictEqual(config.clientName, "Custom MCP")
       assert.strictEqual(config.clientUri, "https://example.com/custom")
+    })
+
+    it("should preserve tokens on a stale redirect URI when a refresh token exists", async () => {
+      const serverName = "redirect-mismatch-refresh-test"
+      const serverUrl = "https://redirect-mismatch-refresh.example.com/mcp"
+      // A client registered against an older ephemeral loopback port.
+      await updateClientInfo(serverName, {
+        clientId: "registered-client",
+        redirectUris: ["http://localhost:1/callback"],
+      }, serverUrl)
+      await updateTokens(serverName, {
+        accessToken: "expired-access",
+        refreshToken: "stored-refresh",
+        expiresAt: Date.now() / 1000 - 3600,
+      }, serverUrl)
+
+      // startAuth binds a fresh ephemeral port, so the stored redirect URI does
+      // not match. The flow then proceeds to discovery, which fails for this
+      // fake server — but the mismatch decision has already been made.
+      await assert.rejects(() => startAuth(serverName, serverUrl, {
+        url: serverUrl,
+        auth: "oauth",
+      }))
+
+      const entry = await getAuthForUrl(serverName, serverUrl)
+      assert.strictEqual(entry?.tokens?.refreshToken, "stored-refresh")
+      assert.strictEqual(entry?.tokens?.accessToken, "expired-access")
+      assert.strictEqual(entry?.clientInfo?.clientId, "registered-client")
+
+      clearAllCredentials(serverName)
+    })
+
+    it("should re-register the client on a stale redirect URI when no refresh token exists", async () => {
+      const serverName = "redirect-mismatch-interactive-test"
+      const serverUrl = "https://redirect-mismatch-interactive.example.com/mcp"
+      await updateClientInfo(serverName, {
+        clientId: "registered-client",
+        redirectUris: ["http://localhost:1/callback"],
+      }, serverUrl)
+      await updateTokens(serverName, {
+        accessToken: "expired-access",
+        expiresAt: Date.now() / 1000 - 3600,
+      }, serverUrl)
+
+      await assert.rejects(() => startAuth(serverName, serverUrl, {
+        url: serverUrl,
+        auth: "oauth",
+      }))
+
+      // With no refresh token the interactive leg is unavoidable, so the stale
+      // client registration is dropped to force re-registration on the new port.
+      const entry = await getAuthForUrl(serverName, serverUrl)
+      assert.strictEqual(entry?.clientInfo, undefined)
+
+      clearAllCredentials(serverName)
     })
   })
 })

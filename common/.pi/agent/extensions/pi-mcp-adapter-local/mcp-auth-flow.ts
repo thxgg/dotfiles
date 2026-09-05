@@ -1,22 +1,28 @@
 /**
  * MCP Auth Flow
- *
+ * 
  * High-level OAuth flow management using the MCP SDK's built-in auth functions.
  */
 
 import {
   auth as runSdkAuth,
   extractWWWAuthenticateParams,
+  LATEST_PROTOCOL_VERSION,
   UnauthorizedError,
-} from "@modelcontextprotocol/sdk/client/auth.js"
-import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js"
+  type AuthOptions,
+} from "@modelcontextprotocol/client"
 import open from "open"
-import { McpOAuthProvider, type McpOAuthConfig } from "./mcp-oauth-provider.ts"
+import {
+  getOAuthCallbackPort,
+  McpOAuthProvider,
+  type McpOAuthConfig,
+} from "./mcp-oauth-provider.ts"
 import {
   ensureCallbackServer,
   waitForCallback,
   cancelPendingCallback,
   stopCallbackServer,
+  stopCallbackServerIfIdle,
   releaseCallbackServer,
 } from "./mcp-callback-server.ts"
 import {
@@ -25,29 +31,50 @@ import {
   hasStoredTokens,
   clearAllCredentials,
   clearClientInfo,
-  clearTokens,
   clearCodeVerifier,
-  updateOAuthState,
   getOAuthState,
   clearOAuthState,
   getAuthBaseDir,
+  OAuthCredentialStoreError,
   type AuthStorageOptions,
   type StoredTokens,
 } from "./mcp-auth.ts"
-import type { ServerEntry } from "./types.ts"
-import { interpolateEnvRecord, interpolateRequiredEnvVars } from "./utils.ts"
+import { isServerDisabled, type ServerEntry } from "./types.ts"
+import {
+  formatTerminalError,
+  interpolateEnvRecord,
+  interpolateRequiredEnvVars,
+} from "./utils.ts"
+import { abortable, throwIfAborted } from "./abort.ts"
+import { combineAbortSignals, isAbortError } from "./runtime-owner.ts"
 
 /** Auth status for a server */
 export type AuthStatus = "authenticated" | "expired" | "not_authenticated"
 
-export interface AuthenticateOptions {
-  onAuthorizationUrl?: (authorizationUrl: string) => void | Promise<void>
-  authStorageOptions?: AuthStorageOptions
+export interface McpOAuthRuntime {
+  readonly signal: AbortSignal
 }
 
-type AuthDiscovery = {
-  resourceMetadataUrl?: URL
-  scope?: string
+export interface AuthenticateOptions {
+  onAuthorizationUrl?: (authorizationUrl: string) => void | Promise<void>
+  onAuthorizationInput?: (
+    authorizationUrl: string,
+    signal: AbortSignal,
+  ) => Promise<string | undefined>
+  authStorageOptions?: AuthStorageOptions
+  signal?: AbortSignal
+  runtime?: McpOAuthRuntime
+  skipIssuerMetadataValidation?: boolean
+}
+
+type AuthDiscovery = Pick<AuthOptions, "resourceMetadataUrl" | "scope" | "skipIssuerMetadataValidation">
+
+function applyOAuthConfig(discovery: AuthDiscovery, config: McpOAuthConfig): AuthDiscovery {
+  return {
+    ...discovery,
+    ...(config.scope !== undefined ? { scope: config.scope } : {}),
+    ...(config.skipIssuerMetadataValidation === true ? { skipIssuerMetadataValidation: true } : {}),
+  }
 }
 
 type PendingAuth = {
@@ -55,26 +82,69 @@ type PendingAuth = {
   authProvider: McpOAuthProvider
   serverUrl: string
   authorizationUrl: string
+  manualRedirect: boolean
+  manualCompletionController?: AbortController
   discovery: AuthDiscovery
   authStorageOptions: AuthStorageOptions
 }
 
-const pendingAuths = new Map<string, PendingAuth>()
-const pendingAuthStates = new Map<string, string>()
-const pendingAuthCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>()
+type RuntimeState = {
+  controller: AbortController
+  generation: number
+  pendingAuths: Map<string, PendingAuth>
+  pendingAuthStates: Map<string, string>
+  pendingAuthCleanupTimers: Map<string, ReturnType<typeof setTimeout>>
+  pendingAuthentications: Map<string, Promise<AuthStatus>>
+}
 
-// Deduplicate concurrent authenticate() calls per server.
-const pendingAuthentications = new Map<string, Promise<AuthStatus>>()
+const runtimeStates = new WeakMap<McpOAuthRuntime, RuntimeState>()
+const activeRuntimes = new Set<McpOAuthRuntime>()
+
+export function createOAuthRuntime(signal?: AbortSignal): McpOAuthRuntime {
+  const controller = new AbortController()
+  const runtime = { signal: combineAbortSignals(signal, controller.signal)! } satisfies McpOAuthRuntime
+  runtimeStates.set(runtime, {
+    controller,
+    generation: 0,
+    pendingAuths: new Map(),
+    pendingAuthStates: new Map(),
+    pendingAuthCleanupTimers: new Map(),
+    pendingAuthentications: new Map(),
+  })
+  activeRuntimes.add(runtime)
+  return runtime
+}
+
+let legacyRuntime = createOAuthRuntime()
+activeRuntimes.delete(legacyRuntime)
+
+function getRuntime(options?: AuthenticateOptions): McpOAuthRuntime {
+  if (options?.runtime) {
+    options.runtime.signal.throwIfAborted()
+    activeRuntimes.add(options.runtime)
+    return options.runtime
+  }
+  if (legacyRuntime.signal.aborted) legacyRuntime = createOAuthRuntime()
+  activeRuntimes.add(legacyRuntime)
+  return legacyRuntime
+}
+
+function getRuntimeState(runtime: McpOAuthRuntime): RuntimeState {
+  const state = runtimeStates.get(runtime)
+  if (!state) throw new Error("Unknown OAuth runtime")
+  return state
+}
 
 function getPendingAuthKey(serverName: string, options: AuthStorageOptions): string {
   return `${serverName}|${getAuthBaseDir(options)}`
 }
 
-export function hasPendingAuth(serverName: string, options?: AuthStorageOptions): boolean {
+export function hasPendingAuth(serverName: string, options?: AuthStorageOptions, runtime?: McpOAuthRuntime): boolean {
+  const state = getRuntimeState(runtime ?? legacyRuntime)
   if (options) {
-    return pendingAuths.has(getPendingAuthKey(serverName, options))
+    return state.pendingAuths.has(getPendingAuthKey(serverName, options))
   }
-  return Array.from(pendingAuths.values()).some(pendingAuth => pendingAuth.serverName === serverName)
+  return Array.from(state.pendingAuths.values()).some(pendingAuth => pendingAuth.serverName === serverName)
 }
 
 /** Timeout for manual auth completion (5 minutes) */
@@ -100,23 +170,37 @@ export function extractOAuthConfig(definition: ServerEntry): McpOAuthConfig {
   const config: McpOAuthConfig = {}
   if (definition.oauth?.grantType !== undefined) config.grantType = definition.oauth.grantType
   if (definition.oauth?.clientId !== undefined) {
-    if (typeof definition.oauth.clientId !== "string") {
-      throw new Error("OAuth clientId must be a string")
-    }
+    if (typeof definition.oauth.clientId !== "string") throw new Error("OAuth clientId must be a string")
     config.clientId = interpolateRequiredEnvVars(definition.oauth.clientId, "OAuth clientId")
   }
   if (definition.oauth?.clientSecret !== undefined) {
-    if (typeof definition.oauth.clientSecret !== "string") {
-      throw new Error("OAuth clientSecret must be a string")
-    }
-    config.clientSecret = interpolateRequiredEnvVars(definition.oauth.clientSecret, "OAuth clientSecret")
+    if (typeof definition.oauth.clientSecret !== "string") throw new Error("OAuth clientSecret must be a string")
+    // Preserve command expressions for the provider; interpolation remains eager for ordinary values.
+    config.clientSecret = definition.oauth.clientSecret.startsWith("!")
+      ? definition.oauth.clientSecret
+      : interpolateRequiredEnvVars(definition.oauth.clientSecret, "OAuth clientSecret")
   }
-  if (definition.oauth?.scope !== undefined) config.scope = definition.oauth.scope
+  if (definition.oauth?.scope !== undefined) {
+    if (typeof definition.oauth.scope !== "string") throw new Error("OAuth scope must be a string")
+    config.scope = interpolateRequiredEnvVars(definition.oauth.scope, "OAuth scope")
+  }
+  if (definition.oauth?.authorizationParams !== undefined) {
+    const params = definition.oauth.authorizationParams
+    if (!params || typeof params !== "object" || Array.isArray(params)) {
+      throw new Error("OAuth authorizationParams must be an object")
+    }
+    config.authorizationParams = {}
+    for (const [key, value] of Object.entries(params)) {
+      if (!key) throw new Error("OAuth authorizationParams keys must not be empty")
+      if (typeof value !== "string") throw new Error(`OAuth authorizationParams.${key} must be a string`)
+      config.authorizationParams[key] = interpolateRequiredEnvVars(value, `OAuth authorizationParams.${key}`)
+    }
+  }
   if (definition.oauth?.redirectUri !== undefined) {
     if (typeof definition.oauth.redirectUri !== "string") {
       throw new Error("OAuth redirectUri must be a string")
     }
-    const redirectUri = definition.oauth.redirectUri.trim()
+    const redirectUri = interpolateRequiredEnvVars(definition.oauth.redirectUri, "OAuth redirectUri").trim()
     if (!redirectUri) {
       throw new Error("OAuth redirectUri must not be empty")
     }
@@ -126,7 +210,7 @@ export function extractOAuthConfig(definition: ServerEntry): McpOAuthConfig {
     if (typeof definition.oauth.clientName !== "string") {
       throw new Error("OAuth clientName must be a string")
     }
-    const clientName = definition.oauth.clientName.trim()
+    const clientName = interpolateRequiredEnvVars(definition.oauth.clientName, "OAuth clientName").trim()
     if (!clientName) {
       throw new Error("OAuth clientName must not be empty")
     }
@@ -136,22 +220,77 @@ export function extractOAuthConfig(definition: ServerEntry): McpOAuthConfig {
     if (typeof definition.oauth.clientUri !== "string") {
       throw new Error("OAuth clientUri must be a string")
     }
-    const clientUri = definition.oauth.clientUri.trim()
+    const clientUri = interpolateRequiredEnvVars(definition.oauth.clientUri, "OAuth clientUri").trim()
     if (!clientUri) {
       throw new Error("OAuth clientUri must not be empty")
     }
     config.clientUri = clientUri
   }
+  if (definition.oauth?.logoUri !== undefined) {
+    if (typeof definition.oauth.logoUri !== "string") {
+      throw new Error("OAuth logoUri must be a string")
+    }
+    const logoUri = interpolateRequiredEnvVars(definition.oauth.logoUri, "OAuth logoUri").trim()
+    if (!logoUri) {
+      throw new Error("OAuth logoUri must not be empty")
+    }
+    // Consent screens fetch this server-side, so a local path silently renders
+    // nothing. Fail here instead, where the message can say why.
+    let parsed: URL
+    try {
+      parsed = new URL(logoUri)
+    } catch {
+      throw new Error("OAuth logoUri must be an absolute http(s) URL")
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error("OAuth logoUri must be an absolute http(s) URL")
+    }
+    config.logoUri = logoUri
+  }
+  if (definition.oauth?.authServerMetadataUrl !== undefined) {
+    if (typeof definition.oauth.authServerMetadataUrl !== "string") {
+      throw new Error("OAuth authServerMetadataUrl must be a string")
+    }
+    const authServerMetadataUrl = interpolateRequiredEnvVars(
+      definition.oauth.authServerMetadataUrl,
+      "OAuth authServerMetadataUrl",
+    ).trim()
+    if (!authServerMetadataUrl) {
+      throw new Error("OAuth authServerMetadataUrl must not be empty")
+    }
+    let parsed: URL
+    try {
+      parsed = new URL(authServerMetadataUrl)
+    } catch {
+      throw new Error("OAuth authServerMetadataUrl must be an absolute https:// URL")
+    }
+    if (parsed.protocol !== "https:") {
+      throw new Error("OAuth authServerMetadataUrl must be an absolute https:// URL")
+    }
+    config.authServerMetadataUrl = authServerMetadataUrl
+  }
+  if (definition.oauth?.skipIssuerMetadataValidation !== undefined) {
+    if (typeof definition.oauth.skipIssuerMetadataValidation !== "boolean") {
+      throw new Error("OAuth skipIssuerMetadataValidation must be a boolean")
+    }
+    config.skipIssuerMetadataValidation = definition.oauth.skipIssuerMetadataValidation
+  }
   return config
 }
 
-async function probeAuthDiscovery(serverUrl: string, definition?: ServerEntry): Promise<AuthDiscovery> {
+async function probeAuthDiscovery(serverUrl: string, definition?: ServerEntry, signal?: AbortSignal): Promise<AuthDiscovery> {
+  // Discovery must not execute config commands or send their source text.
+  const discoveryHeaders = definition?.headers
+    ? Object.fromEntries(Object.entries(definition.headers).filter(([, value]) => !value.startsWith("!") || value.startsWith("!!")))
+    : undefined
+  const headers = new Headers(interpolateEnvRecord(discoveryHeaders))
+  headers.set("content-type", "application/json")
+
   const controller = new AbortController()
+  const discoverySignal = combineAbortSignals(signal, controller.signal)
   const timer = setTimeout(() => controller.abort(), 5000)
 
   try {
-    const headers = new Headers(interpolateEnvRecord(definition?.headers))
-    headers.set("content-type", "application/json")
     headers.set("accept", "application/json, text/event-stream")
 
     const response = await fetch(new URL(serverUrl), {
@@ -167,30 +306,81 @@ async function probeAuthDiscovery(serverUrl: string, definition?: ServerEntry): 
           clientInfo: { name: "pi-mcp-adapter", version: "2.11.0" },
         },
       }),
-      signal: controller.signal,
+      ...(discoverySignal ? { signal: discoverySignal } : {}),
     })
     const { resourceMetadataUrl, scope } = extractWWWAuthenticateParams(response)
     await response.body?.cancel().catch(() => {})
     return { ...(resourceMetadataUrl ? { resourceMetadataUrl } : {}), ...(scope ? { scope } : {}) }
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throwIfAborted(signal)
     return {}
   } finally {
     clearTimeout(timer)
   }
 }
 
-function parseOAuthRedirectUri(redirectUri: string): { port: number; callbackHost: string; callbackPath: string } {
-  let url: URL
-  try {
-    url = new URL(redirectUri)
-  } catch (error) {
-    throw new Error(`Invalid OAuth redirectUri: ${redirectUri}`, { cause: error })
+/** Default timeout for each outbound HTTP request the SDK issues during OAuth. */
+const DEFAULT_OAUTH_REQUEST_TIMEOUT_MS = 30_000
+const MAX_OAUTH_REQUEST_TIMEOUT_MS = 2_147_483_647
+
+function resolveOAuthRequestTimeoutMs(): number {
+  const raw = process.env.PI_MCP_OAUTH_REQUEST_TIMEOUT_MS
+  const parsed = raw === undefined ? Number.NaN : Number(raw)
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= MAX_OAUTH_REQUEST_TIMEOUT_MS ? parsed : DEFAULT_OAUTH_REQUEST_TIMEOUT_MS
+}
+
+/**
+ * fetch bound to both the owning runtime/options signal and a per-request
+ * timeout. The MCP SDK issues discovery, dynamic client registration,
+ * token-exchange, and refresh requests through this during OAuth; without a
+ * bound timeout a stalled endpoint hangs until the OS TCP timeout (~2 minutes).
+ */
+function authFetch(signal: AbortSignal | undefined): (url: string | URL, init?: RequestInit) => Promise<Response> {
+  return (url, init) => {
+    const timeoutSignal = AbortSignal.timeout(resolveOAuthRequestTimeoutMs())
+    const combined = combineAbortSignals(signal, timeoutSignal, init?.signal ?? undefined)
+    return fetch(url, { ...init, ...(combined ? { signal: combined } : {}) })
+  }
+}
+
+type OAuthRedirectTarget =
+  | {
+    mode: "local"
+    port?: number
+    callbackHost: string
+    callbackPath: string
+    dynamicPort: boolean
+    resolveRedirectUri: (port: number) => string
+  }
+  | { mode: "manual" }
+
+function parseOAuthRedirectUri(redirectUri: string): OAuthRedirectTarget {
+  const dynamicPortPlaceholder = "{port}"
+  const placeholderCount = redirectUri.split(dynamicPortPlaceholder).length - 1
+  if (placeholderCount > 1) {
+    throw new Error("OAuth redirectUri may contain at most one {port} placeholder")
   }
 
-  const hostname = url.hostname.toLowerCase()
-  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "::1"
-  if (url.protocol !== "http:" || !isLocalhost) {
-    throw new Error("OAuth redirectUri must be an http:// localhost or loopback URI")
+  let parsedRedirectUri = redirectUri
+  const dynamicPort = placeholderCount === 1
+  if (dynamicPort) {
+    const authorityStart = redirectUri.indexOf("://") + 3
+    const pathStart = redirectUri.slice(authorityStart).search(/[/?#]/)
+    const authorityEnd = pathStart === -1 ? redirectUri.length : authorityStart + pathStart
+    const authority = redirectUri.slice(authorityStart, authorityEnd)
+    if (authorityStart < 3 || !authority.endsWith(`:${dynamicPortPlaceholder}`)) {
+      throw new Error("OAuth redirectUri {port} placeholder must be the loopback URI port")
+    }
+    // Parse with a real port, then replace the placeholder only after the OS
+    // assigns the callback listener's port.
+    parsedRedirectUri = redirectUri.replace(dynamicPortPlaceholder, "1")
+  }
+
+  let url: URL
+  try {
+    url = new URL(parsedRedirectUri)
+  } catch (error) {
+    throw new Error(`Invalid OAuth redirectUri: ${redirectUri}`, { cause: error })
   }
 
   if (url.username || url.password) {
@@ -201,17 +391,44 @@ function parseOAuthRedirectUri(redirectUri: string): { port: number; callbackHos
     throw new Error("OAuth redirectUri must not include a fragment")
   }
 
+  const hostname = url.hostname.toLowerCase()
+  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "::1"
+  if (dynamicPort && (url.protocol !== "http:" || !isLocalhost)) {
+    throw new Error("OAuth redirectUri {port} placeholder is allowed only for an http:// localhost or loopback URI")
+  }
+  if (url.port) {
+    const parsedPort = Number.parseInt(url.port, 10)
+    if (!Number.isInteger(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
+      throw new Error("OAuth redirectUri port must be a positive numeric port")
+    }
+  }
+  if (url.protocol === "https:" && !isLocalhost) {
+    return { mode: "manual" }
+  }
+  if (url.protocol !== "http:" || !isLocalhost) {
+    throw new Error("OAuth redirectUri must be an https:// URI or an http:// localhost or loopback URI")
+  }
+
   if (!url.port) {
-    throw new Error("OAuth redirectUri must include an explicit numeric port")
+    throw new Error("OAuth localhost redirectUri must include an explicit numeric port")
   }
 
   const port = Number.parseInt(url.port, 10)
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error("OAuth redirectUri must include an explicit numeric port")
+    throw new Error("OAuth localhost redirectUri must include an explicit numeric port")
   }
 
   const callbackHost = hostname === "[::1]" ? "::1" : hostname
-  return { port, callbackHost, callbackPath: url.pathname }
+  return {
+    mode: "local",
+    ...(dynamicPort ? {} : { port }),
+    callbackHost,
+    callbackPath: url.pathname,
+    dynamicPort,
+    resolveRedirectUri: assignedPort => dynamicPort
+      ? redirectUri.replace(dynamicPortPlaceholder, String(assignedPort))
+      : redirectUri,
+  }
 }
 
 /**
@@ -224,8 +441,14 @@ export async function startAuth(
   definition?: ServerEntry,
   options: AuthenticateOptions = {},
 ): Promise<{ authorizationUrl: string }> {
+  if (isServerDisabled(definition)) throw new Error(`MCP server "${serverName}" is disabled`)
+  const runtime = getRuntime(options)
+  const runtimeState = getRuntimeState(runtime)
   const config = definition ? extractOAuthConfig(definition) : {}
   const authStorageOptions = options.authStorageOptions ?? {}
+  const signal = combineAbortSignals(runtime.signal, options.signal)
+  const generation = runtimeState.generation
+  throwIfAborted(signal)
 
   if (config.grantType === "client_credentials") {
     const storedAuth = await getAuthForUrl(serverName, serverUrl, authStorageOptions)
@@ -239,33 +462,59 @@ export async function startAuth(
       onRedirect: async () => {
         throw new Error("Browser redirect is not used for client_credentials flow")
       },
-    }, authStorageOptions)
-    const discovery = await probeAuthDiscovery(serverUrl, definition)
-    const result = await runSdkAuth(authProvider, { serverUrl, ...discovery })
-    if (result !== "AUTHORIZED") {
-      throw new UnauthorizedError("Failed to authorize")
+    }, authStorageOptions, runtime.signal)
+    try {
+      const discovery = applyOAuthConfig(await probeAuthDiscovery(serverUrl, definition, signal), config)
+      throwIfAborted(signal)
+      const result = await abortable(runSdkAuth(authProvider, { serverUrl, ...discovery, fetchFn: authFetch(signal) }), signal)
+      throwIfAborted(signal)
+      if (result !== "AUTHORIZED") {
+        throw new UnauthorizedError("Failed to authorize")
+      }
+      return { authorizationUrl: "" }
+    } finally {
+      authProvider.deactivate()
     }
-    return { authorizationUrl: "" }
   }
 
-  const existingPendingAuth = pendingAuths.get(getPendingAuthKey(serverName, authStorageOptions))
+  const existingPendingAuth = runtimeState.pendingAuths.get(getPendingAuthKey(serverName, authStorageOptions))
   if (existingPendingAuth?.serverUrl === serverUrl) {
     return { authorizationUrl: existingPendingAuth.authorizationUrl }
   }
 
-  const redirectCallback = config.redirectUri !== undefined ? parseOAuthRedirectUri(config.redirectUri) : undefined
+  const redirectTarget = config.redirectUri !== undefined ? parseOAuthRedirectUri(config.redirectUri) : undefined
+  const manualRedirect = redirectTarget?.mode === "manual"
   const oauthState = generateState()
 
-  try {
-    await ensureCallbackServer({
-      strictPort: Boolean(config.clientId) || config.redirectUri !== undefined,
-      oauthState,
-      reserveState: true,
-      ...(redirectCallback ? { port: redirectCallback.port, callbackHost: redirectCallback.callbackHost, callbackPath: redirectCallback.callbackPath } : {}),
-    })
-  } catch (error) {
-    await clearOAuthState(serverName, authStorageOptions)
-    throw error
+  if (!manualRedirect) {
+    try {
+      await ensureCallbackServer({
+        strictPort: redirectTarget?.mode === "local"
+          ? !redirectTarget.dynamicPort
+          : Boolean(config.clientId),
+        oauthState,
+        reserveState: true,
+        ...(redirectTarget?.mode === "local"
+          ? {
+            ...(redirectTarget.port !== undefined ? { port: redirectTarget.port } : {}),
+            callbackHost: redirectTarget.callbackHost,
+            callbackPath: redirectTarget.callbackPath,
+          }
+          : {}),
+      })
+      throwIfAborted(signal)
+      if (redirectTarget?.mode === "local" && redirectTarget.dynamicPort) {
+        config.redirectUri = redirectTarget.resolveRedirectUri(getOAuthCallbackPort())
+      }
+    } catch (error) {
+      releaseCallbackServer(oauthState)
+      try {
+        await cleanupAndReleaseCallbackServerIfIdle(() => clearOAuthState(serverName, authStorageOptions))
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "OAuth startup cleanup failed")
+      }
+      throw error
+    }
   }
 
   let capturedUrl: URL | undefined
@@ -273,7 +522,7 @@ export async function startAuth(
     onRedirect: async (url) => {
       capturedUrl = url
     },
-  }, authStorageOptions)
+  }, authStorageOptions, runtime.signal, oauthState)
 
   try {
     const storedAuth = await getAuthForUrl(serverName, serverUrl, authStorageOptions)
@@ -284,74 +533,150 @@ export async function startAuth(
         await clearOAuthState(serverName, authStorageOptions)
       } else {
         const redirectUris = storedAuth.clientInfo.redirectUris
-        if (!Array.isArray(redirectUris) || !redirectUris.includes(authProvider.redirectUrl ?? "")) {
+        const redirectUriMatches = Array.isArray(redirectUris)
+          && redirectUris.includes(authProvider.redirectUrl ?? "")
+        if (!redirectUriMatches && !storedAuth.tokens.refreshToken) {
+          // A stale redirect URI only blocks the interactive leg; refresh does
+          // not send redirect_uri, so keep refresh-capable credentials intact.
           clearClientInfo(serverName, authStorageOptions)
-          clearTokens(serverName, authStorageOptions)
           clearCodeVerifier(serverName, authStorageOptions)
           await clearOAuthState(serverName, authStorageOptions)
         }
       }
     }
 
-    await updateOAuthState(serverName, oauthState, serverUrl, authStorageOptions)
+    throwIfAborted(signal)
 
-    const discovery = await probeAuthDiscovery(serverUrl, definition)
-    const result = await runSdkAuth(authProvider, { serverUrl, ...discovery })
+    const discovery = applyOAuthConfig(await probeAuthDiscovery(serverUrl, definition, signal), config)
+    throwIfAborted(signal)
+    const result = await abortable(runSdkAuth(authProvider, { serverUrl, ...discovery, fetchFn: authFetch(signal) }), signal)
+    throwIfAborted(signal)
     if (result === "AUTHORIZED") {
+      authProvider.deactivate()
       releaseCallbackServer(oauthState)
       await clearOAuthState(serverName, authStorageOptions)
+      await stopCallbackServerIfIdle()
       return { authorizationUrl: "" }
     }
     if (!capturedUrl) {
       throw new UnauthorizedError("OAuth authorization URL was not provided")
     }
-    await setPendingAuth(serverName, { serverName, authProvider, serverUrl, authorizationUrl: capturedUrl.toString(), discovery, authStorageOptions }, oauthState)
+    await setPendingAuth(runtime, serverName, {
+      serverName,
+      authProvider,
+      serverUrl,
+      authorizationUrl: capturedUrl.toString(),
+      manualRedirect,
+      ...(manualRedirect ? { manualCompletionController: new AbortController() } : {}),
+      discovery,
+      authStorageOptions,
+    }, oauthState, signal, generation)
     return { authorizationUrl: capturedUrl.toString() }
   } catch (error) {
-    await clearPendingAuth(serverName, oauthState, authStorageOptions)
+    authProvider.deactivate()
+    try {
+      await clearPendingAuthAndReleaseIfIdle(runtime, serverName, oauthState, authStorageOptions)
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "OAuth startup cleanup failed")
+    }
     throw error
   }
 }
 
 async function setPendingAuth(
+  runtime: McpOAuthRuntime,
   serverName: string,
   pendingAuth: PendingAuth,
   oauthState: string,
+  signal?: AbortSignal,
+  generation = getRuntimeState(runtime).generation,
 ): Promise<void> {
+  const state = getRuntimeState(runtime)
   const key = getPendingAuthKey(serverName, pendingAuth.authStorageOptions)
-  await clearPendingAuth(serverName, undefined, pendingAuth.authStorageOptions)
-  pendingAuths.set(key, pendingAuth)
-  pendingAuthStates.set(key, oauthState)
+  await clearPendingAuth(runtime, serverName, undefined, pendingAuth.authStorageOptions)
+  throwIfAborted(signal)
+  if (generation !== state.generation) throw new Error("OAuth runtime stopped")
+  state.pendingAuths.set(key, pendingAuth)
+  state.pendingAuthStates.set(key, oauthState)
   const cleanupTimer = setTimeout(() => {
-    void clearPendingAuth(serverName, oauthState, pendingAuth.authStorageOptions)
+    void clearPendingAuthAndReleaseIfIdle(
+      runtime,
+      serverName,
+      oauthState,
+      pendingAuth.authStorageOptions,
+      new Error("OAuth authorization timeout - authorization took too long"),
+    ).catch(error => {
+      console.error(`MCP Auth: Timed-out flow cleanup failed: ${formatTerminalError(error)}`)
+    })
   }, MANUAL_AUTH_TIMEOUT_MS)
   cleanupTimer.unref?.()
-  pendingAuthCleanupTimers.set(key, cleanupTimer)
+  state.pendingAuthCleanupTimers.set(key, cleanupTimer)
 }
 
-async function clearPendingAuth(serverName: string, oauthState?: string, fallbackStorageOptions: AuthStorageOptions = {}): Promise<void> {
+async function clearPendingAuth(
+  runtime: McpOAuthRuntime,
+  serverName: string,
+  oauthState?: string,
+  fallbackStorageOptions: AuthStorageOptions = {},
+  reason: Error = new Error("Authorization cancelled"),
+): Promise<void> {
+  const state = getRuntimeState(runtime)
   const key = getPendingAuthKey(serverName, fallbackStorageOptions)
-  const pendingAuth = pendingAuths.get(key)
+  const pendingAuth = state.pendingAuths.get(key)
   const authStorageOptions = pendingAuth?.authStorageOptions ?? fallbackStorageOptions
-  const pendingState = pendingAuthStates.get(key)
+  const pendingState = state.pendingAuthStates.get(key)
   if (oauthState && pendingState && pendingState !== oauthState) return
 
-  const timer = pendingAuthCleanupTimers.get(key)
+  const timer = state.pendingAuthCleanupTimers.get(key)
   if (timer) {
     clearTimeout(timer)
-    pendingAuthCleanupTimers.delete(key)
+    state.pendingAuthCleanupTimers.delete(key)
   }
 
-  pendingAuths.delete(key)
-  pendingAuthStates.delete(key)
+  pendingAuth?.manualCompletionController?.abort(reason)
+  pendingAuth?.authProvider.deactivate()
+  state.pendingAuths.delete(key)
+  state.pendingAuthStates.delete(key)
   const stateToRelease = pendingState ?? oauthState
   if (stateToRelease) {
-    releaseCallbackServer(stateToRelease)
+    cancelPendingCallback(stateToRelease)
     const storedState = await getOAuthState(serverName, authStorageOptions)
     if (storedState === stateToRelease) {
       await clearOAuthState(serverName, authStorageOptions)
     }
   }
+}
+
+async function clearPendingAuthAndReleaseIfIdle(
+  runtime: McpOAuthRuntime,
+  serverName: string,
+  oauthState: string | undefined,
+  fallbackStorageOptions: AuthStorageOptions = {},
+  reason?: Error,
+): Promise<void> {
+  await cleanupAndReleaseCallbackServerIfIdle(
+    () => clearPendingAuth(runtime, serverName, oauthState, fallbackStorageOptions, reason),
+  )
+}
+
+async function cleanupAndReleaseCallbackServerIfIdle(cleanup: () => void | Promise<void>): Promise<void> {
+  let cleanupFailure: { error: unknown } | undefined
+  try {
+    await cleanup()
+  } catch (error) {
+    cleanupFailure = { error }
+  }
+
+  try {
+    await stopCallbackServerIfIdle()
+  } catch (releaseError) {
+    if (cleanupFailure) {
+      throw new AggregateError([cleanupFailure.error, releaseError], "OAuth callback cleanup failed")
+    }
+    throw releaseError
+  }
+
+  if (cleanupFailure) throw cleanupFailure.error
 }
 
 function getSearchParamsFromInput(input: string): URLSearchParams | undefined {
@@ -373,11 +698,18 @@ function getSearchParamsFromInput(input: string): URLSearchParams | undefined {
   }
 }
 
+/** Authorization code plus the optional RFC 9207 `iss` callback parameter. */
+export interface AuthorizationCodeInput {
+  code: string
+  iss?: string
+}
+
 /**
- * Extract an OAuth authorization code from either a raw code, a query string,
- * or the full localhost redirect URL copied from the browser address bar.
+ * Extract an OAuth authorization code (and the RFC 9207 `iss` parameter, when
+ * present) from either a raw code, a query string, or the full localhost
+ * redirect URL copied from the browser address bar.
  */
-export function parseAuthorizationCodeInput(input: string, expectedState?: string): string {
+export function parseAuthorizationRedirectInput(input: string, expectedState?: string): AuthorizationCodeInput {
   const trimmed = input.trim()
   if (!trimmed) {
     throw new Error("Authorization code or redirect URL is required")
@@ -400,14 +732,85 @@ export function parseAuthorizationCodeInput(input: string, expectedState?: strin
     }
 
     const code = params.get("code")
-    if (code) return code
+    if (code) {
+      const iss = params.get("iss")
+      return { code, ...(iss !== null ? { iss } : {}) }
+    }
   }
 
   if (/^[A-Za-z0-9._~+/=-]+$/.test(trimmed)) {
-    return trimmed
+    return { code: trimmed }
   }
 
   throw new Error("Could not find an OAuth authorization code in the provided input")
+}
+
+/**
+ * Extract an OAuth authorization code from either a raw code, a query string,
+ * or the full localhost redirect URL copied from the browser address bar.
+ */
+export function parseAuthorizationCodeInput(input: string, expectedState?: string): string {
+  return parseAuthorizationRedirectInput(input, expectedState).code
+}
+
+type AuthorizationResponse = {
+  input: AuthorizationCodeInput
+  source: "callback" | "manual"
+}
+
+function waitForManualCompletionCancellation(signal: AbortSignal): Promise<AuthorizationCodeInput> {
+  return new Promise((_, reject) => {
+    const rejectFromSignal = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("Authorization cancelled"))
+    }
+    if (signal.aborted) {
+      rejectFromSignal()
+      return
+    }
+    signal.addEventListener("abort", rejectFromSignal, { once: true })
+  })
+}
+
+/**
+ * Wait for either the localhost callback or a manually pasted redirect URL.
+ * The manual input prompt is dismissed as soon as either path finishes.
+ */
+export async function waitForAuthorizationResponse(
+  callbackPromise: Promise<AuthorizationCodeInput>,
+  authorizationUrl: string,
+  expectedState: string,
+  onAuthorizationInput?: AuthenticateOptions["onAuthorizationInput"],
+  signal?: AbortSignal,
+): Promise<AuthorizationResponse> {
+  if (!onAuthorizationInput) {
+    return {
+      input: await abortable(callbackPromise, signal),
+      source: "callback",
+    }
+  }
+
+  const inputController = new AbortController()
+  try {
+    const response = await abortable(Promise.race([
+      callbackPromise.then((input) => ({ input, source: "callback" as const })),
+      onAuthorizationInput(authorizationUrl, inputController.signal).then((input) => ({
+        input,
+        source: "manual" as const,
+      })),
+    ]), signal)
+
+    if (response.source === "callback") return response
+    if (!response.input?.trim()) throw new Error("OAuth authentication cancelled")
+    if (!getSearchParamsFromInput(response.input.trim())) {
+      throw new Error("Paste the full OAuth callback URL, including its code and state parameters")
+    }
+    return {
+      input: parseAuthorizationRedirectInput(response.input, expectedState),
+      source: "manual",
+    }
+  } finally {
+    inputController.abort()
+  }
 }
 
 /**
@@ -418,11 +821,20 @@ export async function completeAuthFromInput(
   input: string,
   options: AuthenticateOptions = {},
 ): Promise<AuthStatus> {
+  const runtime = getRuntime(options)
+  const runtimeState = getRuntimeState(runtime)
   const fallbackAuthStorageOptions = options.authStorageOptions ?? {}
-  const authStorageOptions = pendingAuths.get(getPendingAuthKey(serverName, fallbackAuthStorageOptions))?.authStorageOptions ?? fallbackAuthStorageOptions
-  const oauthState = await getOAuthState(serverName, authStorageOptions)
-  const code = parseAuthorizationCodeInput(input, oauthState)
-  return completeAuth(serverName, code, options)
+  const signal = combineAbortSignals(runtime.signal, options.signal)
+  throwIfAborted(signal)
+  const key = getPendingAuthKey(serverName, fallbackAuthStorageOptions)
+  const oauthState = runtimeState.pendingAuthStates.get(key)
+  const pendingAuth = runtimeState.pendingAuths.get(key)
+  throwIfAborted(signal)
+  if (pendingAuth?.manualRedirect && !getSearchParamsFromInput(input.trim())) {
+    throw new Error("Paste the full OAuth callback URL, including its code and state parameters")
+  }
+  const parsed = parseAuthorizationRedirectInput(input, oauthState)
+  return completeAuth(serverName, parsed, options)
 }
 
 /**
@@ -430,39 +842,80 @@ export async function completeAuthFromInput(
  */
 export async function completeAuth(
   serverName: string,
-  authorizationCode: string,
+  authorizationCode: string | AuthorizationCodeInput,
   options: AuthenticateOptions = {},
 ): Promise<AuthStatus> {
+  const runtime = getRuntime(options)
+  const runtimeState = getRuntimeState(runtime)
+  const { code, iss } = typeof authorizationCode === "string"
+    ? { code: authorizationCode, iss: undefined }
+    : authorizationCode
   const fallbackAuthStorageOptions = options.authStorageOptions ?? {}
+  const signal = combineAbortSignals(runtime.signal, options.signal)
+  throwIfAborted(signal)
   const key = getPendingAuthKey(serverName, fallbackAuthStorageOptions)
-  const pendingAuth = pendingAuths.get(key)
+  const pendingAuth = runtimeState.pendingAuths.get(key)
   const authStorageOptions = pendingAuth?.authStorageOptions ?? fallbackAuthStorageOptions
   if (!pendingAuth) {
     throw new Error(`No pending OAuth flow for server: ${serverName}`)
   }
 
-  const oauthState = await getOAuthState(serverName, authStorageOptions)
+  const oauthState = runtimeState.pendingAuthStates.get(key)
+  throwIfAborted(signal)
 
+  let keepPendingForRetry = false
+  let caughtError: unknown
   try {
-    const result = await runSdkAuth(pendingAuth.authProvider, {
+    const discoveryState = await pendingAuth.authProvider.discoveryState()
+    const metadata = discoveryState?.authorizationServerMetadata
+    const expectedIssuer = metadata?.issuer ?? discoveryState?.authorizationServerUrl
+    const requiresIssuer = (metadata as { authorization_response_iss_parameter_supported?: unknown } | undefined)
+      ?.authorization_response_iss_parameter_supported === true
+    if (expectedIssuer !== undefined && iss === undefined && requiresIssuer) {
+      keepPendingForRetry = true
+      throw new Error(
+        `The authorization server for ${serverName} requires the RFC 9207 "iss" parameter. ` +
+        "Paste the full redirect URL from the browser address bar (not just the authorization code).",
+      )
+    }
+    if (expectedIssuer !== undefined && iss !== undefined && iss !== expectedIssuer) {
+      throw new Error(`The OAuth authorization response issuer does not match the discovered issuer for ${serverName}.`)
+    }
+
+    const result = await abortable(runSdkAuth(pendingAuth.authProvider, {
       serverUrl: pendingAuth.serverUrl,
-      authorizationCode,
+      authorizationCode: code,
+      ...(iss !== undefined ? { iss } : {}),
       ...pendingAuth.discovery,
-    })
+      fetchFn: authFetch(signal),
+    }), signal)
+    throwIfAborted(signal)
     if (result !== "AUTHORIZED") {
       throw new UnauthorizedError("Failed to authorize")
     }
     return "authenticated"
+  } catch (error) {
+    caughtError = error
+    throw error
   } finally {
-    await clearPendingAuth(serverName, oauthState, authStorageOptions)
+    if (!keepPendingForRetry) {
+      try {
+        await clearPendingAuthAndReleaseIfIdle(runtime, serverName, oauthState, authStorageOptions)
+      } catch (cleanupError) {
+        if (caughtError !== undefined) {
+          throw new AggregateError([caughtError, cleanupError], "OAuth completion cleanup failed")
+        }
+        throw cleanupError
+      }
+    }
   }
 }
 
 /**
  * Perform the complete OAuth authentication flow for a server.
- *
+ * 
  * @param serverName - The name of the MCP server
- * @param serverUrl - The URL of the MCP server
+ * @param serverUrl - The URL of the MCP server  
  * @param definition - The server definition (optional)
  * @returns The final auth status
  */
@@ -472,79 +925,116 @@ export async function authenticate(
   definition?: ServerEntry,
   options: AuthenticateOptions = {},
 ): Promise<AuthStatus> {
+  if (isServerDisabled(definition)) throw new Error(`MCP server "${serverName}" is disabled`)
+  const runtime = getRuntime(options)
+  const runtimeState = getRuntimeState(runtime)
   const authStorageOptions = options.authStorageOptions ?? {}
+  const signal = combineAbortSignals(runtime.signal, options.signal)
+  throwIfAborted(signal)
   const authKey = `${serverName}|${serverUrl}|${getAuthBaseDir(authStorageOptions)}`
-  const inFlight = pendingAuthentications.get(authKey)
+  const inFlight = runtimeState.pendingAuthentications.get(authKey)
   if (inFlight) {
     return inFlight
   }
 
   const operation = (async (): Promise<AuthStatus> => {
-    // Start auth flow
-    const { authorizationUrl } = await startAuth(serverName, serverUrl, definition, options)
+    const { authorizationUrl } = await startAuth(serverName, serverUrl, definition, {
+      ...options,
+      ...(signal ? { signal } : {}),
+      runtime,
+    })
 
-    // If no auth URL needed, already authenticated
     if (!authorizationUrl) {
       return "authenticated"
     }
 
-    // Get the state that was already generated and stored in startAuth()
-    const oauthState = await getOAuthState(serverName, authStorageOptions)
-    if (!oauthState) {
-      throw new Error("OAuth state not found - this should not happen")
-    }
-
-    // Register the callback BEFORE opening the browser
-    const callbackPromise = waitForCallback(oauthState)
-
+    let oauthState: string | undefined
     try {
+      // Get the state that was already generated and stored in startAuth().
+      // Keep this lookup and its abort check inside the cleanup boundary because
+      // startAuth already owns the pending flow at this point.
+      oauthState = runtimeState.pendingAuthStates.get(getPendingAuthKey(serverName, authStorageOptions))
+      throwIfAborted(signal)
+      if (!oauthState) {
+        throw new Error("OAuth state not found - this should not happen")
+      }
+
+      const pendingAuth = runtimeState.pendingAuths.get(getPendingAuthKey(serverName, authStorageOptions))
+      if (!pendingAuth) {
+        throw new Error(`No pending OAuth flow for server: ${serverName}`)
+      }
+      if (pendingAuth.manualRedirect && !options.onAuthorizationInput) {
+        throw new Error(
+          `OAuth for ${serverName} uses a remote redirect URI. Complete it with auth-start/auth-complete or /mcp-auth.`,
+        )
+      }
+
+      // Register the localhost callback before opening the browser. Remote
+      // pre-registered callbacks are completed by pasting their full URL.
+      const callbackPromise: Promise<AuthorizationCodeInput> = pendingAuth.manualRedirect
+        ? waitForManualCompletionCancellation(pendingAuth.manualCompletionController!.signal)
+        : waitForCallback(oauthState)
+      void callbackPromise.catch(() => {})
+
       // Open browser. Always surface the URL first so remote/headless users can copy it
       // even when the OS browser handoff is unavailable or invisible.
       if (options.onAuthorizationUrl) {
-        await options.onAuthorizationUrl(authorizationUrl)
+        await abortable(Promise.resolve(options.onAuthorizationUrl(authorizationUrl)), signal)
       } else {
         console.log(`MCP Auth: Open this URL to authenticate ${serverName}:\n${authorizationUrl}`)
       }
       try {
-        await open(authorizationUrl)
+        await abortable(open(authorizationUrl), signal)
       } catch (error) {
+        if (isAbortError(error, signal)) throw error
         console.warn(`MCP Auth: Failed to open browser for ${serverName}; waiting for manual callback`, { error })
       }
 
-      // Wait for callback
-      const code = await callbackPromise
-
-      // Validate state
-      const storedState = await getOAuthState(serverName, authStorageOptions)
-      if (storedState !== oauthState) {
-        await clearOAuthState(serverName, authStorageOptions)
-        throw new Error("OAuth state mismatch - potential CSRF attack")
+      const authorizationResponse = await waitForAuthorizationResponse(
+        callbackPromise,
+        authorizationUrl,
+        oauthState,
+        options.onAuthorizationInput,
+        signal,
+      )
+      if (authorizationResponse.source === "manual") {
+        cancelPendingCallback(oauthState)
       }
-      await clearOAuthState(serverName, authStorageOptions)
 
-      // Complete the auth
-      return await completeAuth(serverName, code, options)
+      // The callback server accepted only the flow-local reserved state. Manual
+      // input is checked against the same state before token exchange.
+      throwIfAborted(signal)
+
+      return await completeAuth(serverName, authorizationResponse.input, {
+        ...options,
+        ...(signal ? { signal } : {}),
+        runtime,
+      })
     } catch (error) {
-      cancelPendingCallback(oauthState)
-      await clearPendingAuth(serverName, oauthState, authStorageOptions)
+      if (oauthState) cancelPendingCallback(oauthState)
+      try {
+        await clearPendingAuthAndReleaseIfIdle(runtime, serverName, oauthState, authStorageOptions)
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "OAuth cancellation cleanup failed")
+      }
       throw error
     }
   })()
 
-  pendingAuthentications.set(authKey, operation)
+  runtimeState.pendingAuthentications.set(authKey, operation)
 
   try {
     return await operation
   } finally {
-    if (pendingAuthentications.get(authKey) === operation) {
-      pendingAuthentications.delete(authKey)
+    if (runtimeState.pendingAuthentications.get(authKey) === operation) {
+      runtimeState.pendingAuthentications.delete(authKey)
     }
   }
 }
 
 /**
  * Get a valid access token for a server, refreshing if necessary.
- *
+ * 
  * @param serverName - The name of the MCP server
  * @param serverUrl - The URL of the MCP server
  * @returns The valid tokens or null if not authenticated
@@ -554,43 +1044,57 @@ export async function getValidToken(
   serverUrl: string,
   options: AuthenticateOptions = {},
 ): Promise<StoredTokens | null> {
+  const runtime = getRuntime(options)
   const authStorageOptions = options.authStorageOptions ?? {}
-  // Check if we have valid tokens
+  const signal = combineAbortSignals(runtime.signal, options.signal)
+  throwIfAborted(signal)
   const entry = await getAuthForUrl(serverName, serverUrl, authStorageOptions)
+  throwIfAborted(signal)
   if (!entry?.tokens) {
     return null
   }
 
-  // Check expiration
   const expired = await isTokenExpired(serverName, authStorageOptions)
   if (expired === false) {
     return entry.tokens
   }
 
   if (expired === true && entry.tokens.refreshToken) {
-    // Token is expired, try to refresh
     console.log(`MCP Auth: Token expired for ${serverName}, attempting refresh`)
 
     try {
-      // Create auth provider for token refresh
       const authProvider = new McpOAuthProvider(serverName, serverUrl, {}, {
         onRedirect: async () => {},
-      }, authStorageOptions)
+      }, authStorageOptions, runtime.signal)
 
-      const clientInfo = await authProvider.clientInformation()
-      if (!clientInfo) {
-        console.log(`MCP Auth: No client info for refresh for ${serverName}`)
-        return null
-      }
+      try {
+        const clientInfo = await authProvider.clientInformation()
+        throwIfAborted(signal)
+        if (!clientInfo) {
+          console.log(`MCP Auth: No client info for refresh for ${serverName}`)
+          return null
+        }
 
-      const discovery = await probeAuthDiscovery(serverUrl)
-      const result = await runSdkAuth(authProvider, { serverUrl, ...discovery })
-      if (result !== "AUTHORIZED") {
-        return null
+        const discovery = await probeAuthDiscovery(serverUrl, undefined, signal)
+        throwIfAborted(signal)
+        const result = await abortable(runSdkAuth(authProvider, {
+          serverUrl,
+          ...discovery,
+          ...(options.skipIssuerMetadataValidation === true ? { skipIssuerMetadataValidation: true } : {}),
+          fetchFn: authFetch(signal),
+        }), signal)
+        throwIfAborted(signal)
+        if (result !== "AUTHORIZED") {
+          return null
+        }
+        const refreshed = await getAuthForUrl(serverName, serverUrl, authStorageOptions)
+        throwIfAborted(signal)
+        return refreshed?.tokens ?? null
+      } finally {
+        authProvider.deactivate()
       }
-      const refreshed = await getAuthForUrl(serverName, serverUrl, authStorageOptions)
-      return refreshed?.tokens ?? null
     } catch (error) {
+      if (isAbortError(error, signal) || error instanceof OAuthCredentialStoreError) throw error
       console.error(`MCP Auth: Token refresh failed for ${serverName}`, { error })
       return null
     }
@@ -602,11 +1106,12 @@ export async function getValidToken(
 
 /**
  * Check the authentication status for a server.
- *
+ * 
  * @param serverName - The name of the MCP server
  * @returns The current auth status
  */
 export async function getAuthStatus(serverName: string, options: AuthenticateOptions = {}): Promise<AuthStatus> {
+  getRuntime(options)
   const authStorageOptions = options.authStorageOptions ?? {}
   const hasTokens = await hasStoredTokens(serverName, authStorageOptions)
   if (!hasTokens) return "not_authenticated"
@@ -617,37 +1122,43 @@ export async function getAuthStatus(serverName: string, options: AuthenticateOpt
 
 /**
  * Remove all OAuth credentials for a server.
- *
+ * 
  * @param serverName - The name of the MCP server
  */
 export async function removeAuth(serverName: string, options: AuthenticateOptions = {}): Promise<void> {
+  const runtime = getRuntime(options)
+  const signal = combineAbortSignals(runtime.signal, options.signal)
+  throwIfAborted(signal)
   const authStorageOptions = options.authStorageOptions ?? {}
   const oauthState = await getOAuthState(serverName, authStorageOptions)
+  throwIfAborted(signal)
   if (oauthState) {
     cancelPendingCallback(oauthState)
   }
-  await clearPendingAuth(serverName, oauthState, authStorageOptions)
+  await clearPendingAuthAndReleaseIfIdle(runtime, serverName, oauthState, authStorageOptions)
+  throwIfAborted(signal)
   clearAllCredentials(serverName, authStorageOptions)
   await clearOAuthState(serverName, authStorageOptions)
+  throwIfAborted(signal)
   console.log(`MCP Auth: Removed credentials for ${serverName}`)
 }
 
 /**
  * Check if OAuth is supported for a server configuration.
  * OAuth is supported for HTTP servers unless explicitly disabled.
- *
+ * 
  * @param definition - The server definition
  * @returns True if OAuth is supported
  */
 export function supportsOAuth(definition: ServerEntry): boolean {
   // OAuth requires a URL
   if (!definition.url) return false
-
+  
   // Explicitly disabled via auth: false or oauth: false
   if (definition.auth === false) return false
   if (definition.oauth === false) return false
   if (definition.auth === "oauth") return true
-
+  
   // Configured custom headers take precedence over implicit OAuth auto-detection.
   if (definition.headers && Object.keys(definition.headers).length > 0) return false
 
@@ -659,15 +1170,37 @@ export function supportsOAuth(definition: ServerEntry): boolean {
  * Initialize the OAuth system on startup.
  * OAuth callback binding is lazy and starts from startAuth() only.
  */
-export async function initializeOAuth(): Promise<void> {}
+export async function initializeOAuth(
+  runtimeOrSignal?: McpOAuthRuntime | AbortSignal,
+): Promise<McpOAuthRuntime> {
+  if (runtimeOrSignal && "signal" in runtimeOrSignal) {
+    runtimeOrSignal.signal.throwIfAborted()
+    activeRuntimes.add(runtimeOrSignal)
+    return runtimeOrSignal
+  }
+
+  await shutdownOAuth(legacyRuntime)
+  legacyRuntime = createOAuthRuntime(runtimeOrSignal as AbortSignal | undefined)
+  return legacyRuntime
+}
 
 /**
- * Shutdown the OAuth system.
- * Stops the callback server and cancels pending auths.
+ * Shutdown one OAuth runtime. The callback server remains process-shared while
+ * another runtime has pending/reserved callback state or is still active.
  */
-export async function shutdownOAuth(): Promise<void> {
-  for (const pendingAuth of Array.from(pendingAuths.values())) {
-    await clearPendingAuth(pendingAuth.serverName, undefined, pendingAuth.authStorageOptions)
+export async function shutdownOAuth(runtime: McpOAuthRuntime = legacyRuntime): Promise<void> {
+  const state = getRuntimeState(runtime)
+  if (state.controller.signal.aborted) return
+  state.generation += 1
+  state.controller.abort(new Error("OAuth runtime stopped"))
+  for (const callbackState of Array.from(state.pendingAuthStates.values())) cancelPendingCallback(callbackState)
+  for (const pendingAuth of Array.from(state.pendingAuths.values())) {
+    await clearPendingAuth(runtime, pendingAuth.serverName, undefined, pendingAuth.authStorageOptions)
   }
-  await stopCallbackServer()
+  state.pendingAuthentications.clear()
+  activeRuntimes.delete(runtime)
+
+  if (activeRuntimes.size === 0) {
+    await stopCallbackServer()
+  }
 }

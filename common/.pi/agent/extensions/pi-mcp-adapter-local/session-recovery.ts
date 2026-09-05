@@ -20,11 +20,12 @@
 //     many things other than "your session is gone"
 //   - treat generic -32000/ConnectionClosed errors as session expiry
 //   - treat AbortError/cancellation as a session failure
-import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { ProtocolError, SdkHttpError, UnauthorizedError } from "@modelcontextprotocol/client";
 import { logger } from "./logger.ts";
 import { throwIfAborted } from "./abort.ts";
-import type { McpConfig } from "./types.ts";
+import { isServerDisabled, type McpConfig } from "./types.ts";
+import { supportsOAuth } from "./mcp-auth-flow.ts";
+import { invalidateAuthEntryCache } from "./mcp-auth.ts";
 import type { McpServerManager, ServerConnection } from "./server-manager.ts";
 
 /**
@@ -34,26 +35,25 @@ import type { McpServerManager, ServerConnection } from "./server-manager.ts";
  * gate response some servers emit before dispatching to a handler.
  *
  * `hadSessionId` must reflect the transport's session id from *before* the
- * call that produced `err` was made. The installed SDK (1.29.0) happens not
- * to clear `transport.sessionId` on a 404 response, so checking it at catch
- * time currently agrees with checking it up front — but callers should
- * capture it before the call rather than rely on that incidental behavior.
+ * call that produced `err` was made. Callers must capture it before the call
+ * rather than rely on catch-time transport state.
  */
+const CONNECTION_CLOSED_PROTOCOL_CODE = -32000;
 const SERVER_NOT_INITIALIZED_MCP_MESSAGES = new Set([
-  `MCP error ${ErrorCode.ConnectionClosed}: Server not initialized`,
-  `MCP error ${ErrorCode.ConnectionClosed}: Bad Request: Server not initialized`,
+  "Server not initialized",
+  "Bad Request: Server not initialized",
 ]);
 
 export function isTerminatedSession(err: unknown, hadSessionId: boolean): boolean {
   if (!hadSessionId) return false;
-  if (err instanceof StreamableHTTPError) {
-    return err.code === 404
-      || (err.code === 400
+  if (err instanceof SdkHttpError) {
+    return err.status === 404
+      || (err.status === 400
         && /"code"\s*:\s*-32000/.test(err.message)
         && /"message"\s*:\s*"Bad Request: Server not initialized"/.test(err.message));
   }
-  return err instanceof McpError
-    && err.code === ErrorCode.ConnectionClosed
+  return err instanceof ProtocolError
+    && err.code === CONNECTION_CLOSED_PROTOCOL_CODE
     && SERVER_NOT_INITIALIZED_MCP_MESSAGES.has(err.message);
 }
 
@@ -95,6 +95,9 @@ export async function withSessionRecovery<T>(
   serverName: string,
   fn: (conn: ServerConnection) => Promise<T>,
 ): Promise<T> {
+  if (isServerDisabled(deps.config.mcpServers[serverName])) {
+    throw new Error(`MCP server "${serverName}" is disabled`);
+  }
   const connection = deps.manager.getConnection(serverName);
   if (!connection) {
     throw new Error(`Server "${serverName}" is not connected`);
@@ -105,6 +108,11 @@ export async function withSessionRecovery<T>(
   try {
     return await fn(connection);
   } catch (err) {
+    const definition = deps.config.mcpServers[serverName];
+    if (definition && supportsOAuth(definition)
+      && (err instanceof UnauthorizedError || (err instanceof SdkHttpError && err.status === 401))) {
+      invalidateAuthEntryCache(serverName);
+    }
     if (!isTerminatedSession(err, hadSessionId)) {
       throw err;
     }
@@ -113,7 +121,6 @@ export async function withSessionRecovery<T>(
     // connection's definition, in case config changed since connect. If the
     // server was removed from config in the meantime there is nothing to
     // reconnect to, so surface the original error.
-    const definition = deps.config.mcpServers[serverName];
     if (!definition) {
       throw err;
     }
@@ -139,6 +146,13 @@ export async function withSessionRecovery<T>(
       throw err;
     }
 
+    try {
+      deps.manager.publishMetadataChanged(serverName, freshConnection, "session-reconnect");
+    } catch (publicationError) {
+      const message = publicationError instanceof Error ? publicationError.message : String(publicationError);
+      logger.debug(`MCP metadata publication after reconnect failed for "${serverName}": ${message}`);
+    }
+    throwIfAborted(deps.signal);
     return fn(freshConnection);
   }
 }

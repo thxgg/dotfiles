@@ -1,7 +1,14 @@
 node_modules/
+# Keep generated public helpers in dist/ with this vendored fork.
 .pi/
+conformance/results/
 *.log
 .DS_Store
+
+# The parent Pi workspace owns the npm lockfile.
+package-lock.json
+bun.lock
+bun.lockb
 
 progress.md
 worker-summary.md

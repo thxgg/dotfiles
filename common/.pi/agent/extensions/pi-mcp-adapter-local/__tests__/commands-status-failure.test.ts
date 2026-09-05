@@ -8,6 +8,7 @@ vi.mock("../init.ts", () => ({
   markKeepAliveAfterConnect: vi.fn(),
   recordFailure: vi.fn(),
   updateMetadataCache: vi.fn(),
+  notifyToolMetadataUpdated: vi.fn(),
   updateStatusBar: vi.fn(),
 }));
 
@@ -26,7 +27,39 @@ describe("MCP status failure reasons", () => {
       expect.stringContaining("demo: failed 7s ago — stderr says server failed"),
       "info",
     );
-    expect(ui.notify.mock.calls[0][0]).not.toContain("https://secret.invalid/status");
+    const output = ui.notify.mock.calls[0][0];
+    expect(output).toContain(".mcp.json for this project/team");
+    expect(output).toContain("~/.config/mcp/mcp.json for all projects");
+    expect(output).toContain("Pi-owned files hold compatibility imports and adapter-specific overrides");
+    expect(output).not.toContain("https://secret.invalid/status");
+  });
+
+  it("uses known metadata during reconnect filtering", async () => {
+    const { reconnectServer } = await import("../commands.ts");
+    const connection = {
+      status: "connected",
+      tools: [{ name: "search-records", description: "Search" }],
+      resources: [],
+      prompts: [],
+    };
+    const state = {
+      config: {
+        settings: { toolPrefix: "server" },
+        mcpServers: {
+          "my-server": { command: "hyphen", excludeTools: ["search_records"] },
+          my_2d_server: { command: "escaped" },
+        },
+      },
+      manager: { close: vi.fn(async () => {}), connect: vi.fn(async () => connection) },
+      toolMetadata: new Map([["my_2d_server", [{ name: "my_2d_server_search_records", originalName: "search_records", description: "Other" }]]]),
+      promptMetadata: new Map(),
+      promptMetadataLive: new Set(),
+      serverInstructions: new Map(),
+      failureTracker: new Map(),
+    } as any;
+
+    await expect(reconnectServer(state, { hasUI: false } as any, "my-server")).resolves.toBe(true);
+    expect(state.toolMetadata.get("my-server")?.map((tool: any) => tool.name)).toEqual(["my-server_search-records"]);
   });
 
   it("sanitizes captured diagnostics in reconnect notifications", async () => {

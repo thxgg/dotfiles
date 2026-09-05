@@ -68,13 +68,46 @@ describe("AbortSignal propagation", () => {
 
     const result = await inFlight;
     expect(result.content[0].text).toContain("Failed to call tool: user cancelled");
-    expect(result.details.error).toBe("call_failed");
-    expect(callTool).toHaveBeenCalledWith(
-      { name: "slow", arguments: {}, _meta: undefined },
-      undefined,
-      { signal: controller.signal },
-    );
+    expect(result.details.error).toBe("aborted");
+    expect(callTool).toHaveBeenCalledWith({ name: "slow", arguments: {}, _meta: undefined }, { signal: controller.signal });
     expect(state.manager.decrementInFlight).toHaveBeenCalledWith("demo");
+  });
+
+  it("prefers an exact proxy tool name over an earlier normalized match", async () => {
+    const underscoreCallTool = vi.fn(async () => ({ content: [{ type: "text", text: "underscore" }] }));
+    const hyphenCallTool = vi.fn(async () => ({ content: [{ type: "text", text: "hyphen" }] }));
+    const state = {
+      config: {
+        settings: { toolPrefix: "server" },
+        mcpServers: {
+          my_server: { command: "underscore" },
+          "my-server": { command: "hyphen" },
+        },
+      },
+      manager: {
+        getConnection: vi.fn((server: string) => ({
+          status: "connected",
+          client: server === "my_server" ? { callTool: underscoreCallTool } : { callTool: hyphenCallTool },
+        })),
+        touch: vi.fn(),
+        incrementInFlight: vi.fn(),
+        decrementInFlight: vi.fn(),
+        getRequestOptions: vi.fn(() => undefined),
+      },
+      toolMetadata: new Map([
+        ["my_server", [{ name: "my_server_get", originalName: "get", description: "Underscore" }]],
+        ["my-server", [{ name: "my-server_get", originalName: "get", description: "Hyphen" }]],
+      ]),
+      serverInstructions: new Map(),
+      failureTracker: new Map(),
+      completedUiSessions: [],
+    } as any;
+
+    const result = await executeCall(state, "my-server_get", {});
+
+    expect(result.details).toMatchObject({ server: "my-server", tool: "get" });
+    expect(hyphenCallTool).toHaveBeenCalledWith({ name: "get", arguments: {}, _meta: undefined }, undefined);
+    expect(underscoreCallTool).not.toHaveBeenCalled();
   });
 
   it("proxy tool calls pass AbortSignal to MCP callTool and settle if the MCP SDK promise hangs", async () => {
@@ -88,12 +121,8 @@ describe("AbortSignal propagation", () => {
 
     const result = await inFlight;
     expect(result.content[0].text).toContain("Failed to call tool: user cancelled");
-    expect(result.details.error).toBe("call_failed");
-    expect(callTool).toHaveBeenCalledWith(
-      { name: "slow", arguments: {}, _meta: undefined },
-      undefined,
-      { signal: controller.signal },
-    );
+    expect(result.details.error).toBe("aborted");
+    expect(callTool).toHaveBeenCalledWith({ name: "slow", arguments: {}, _meta: undefined }, { signal: controller.signal });
     expect(state.manager.decrementInFlight).toHaveBeenCalledWith("demo");
   });
 
@@ -102,6 +131,7 @@ describe("AbortSignal propagation", () => {
     const state = {
       config: { mcpServers: { demo: { command: "node", args: ["server.js"] } } },
       manager: {
+        getConnection: vi.fn(() => undefined),
         connect: vi.fn(async (_name, _definition, signal?: AbortSignal) => {
           controller.abort(new Error("user cancelled"));
           signal?.throwIfAborted();
@@ -146,6 +176,9 @@ describe("AbortSignal propagation", () => {
   it("server-manager resource discovery does not swallow host aborts", async () => {
     const controller = new AbortController();
     const client = {
+      // Resource discovery is capability-gated, so the abort path is only
+      // reachable for a server that advertises `resources`.
+      getServerCapabilities: () => ({ resources: {} }),
       listResources: vi.fn(async (_params, options?: { signal?: AbortSignal }) => {
         options?.signal?.throwIfAborted();
         return { resources: [] };

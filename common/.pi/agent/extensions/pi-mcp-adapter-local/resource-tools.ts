@@ -7,11 +7,11 @@ export function resourceNameToToolName(name: string): string {
     .replace(/^_+/, "")  // Remove leading underscores
     .replace(/_+$/, "")  // Remove trailing underscores
     .toLowerCase();
-
+  
   // Ensure we have a valid name
   if (!result || /^\d/.test(result)) {
     result = "resource" + (result ? "_" + result : "");
   }
-
+  
   return result;
 }

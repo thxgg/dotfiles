@@ -40,6 +40,7 @@ function createState(overrides: Record<string, unknown> = {}) {
       },
     },
     manager: { close: vi.fn(async () => {}) },
+    oauthRuntime: { signal: new AbortController().signal },
     toolMetadata: new Map(),
     failureTracker: new Map([["demo", Date.now()]]),
     failureMessages: new Map([["demo", "stale failure"]]),
@@ -68,7 +69,12 @@ describe("manual OAuth proxy actions", () => {
 
     const result = await executeAuthStart(state, "demo");
 
-    expect(mocks.startAuth).toHaveBeenCalledWith("demo", "https://api.example.com/mcp", state.config.mcpServers.demo);
+    expect(mocks.startAuth).toHaveBeenCalledWith(
+      "demo",
+      "https://api.example.com/mcp",
+      state.config.mcpServers.demo,
+      { runtime: state.oauthRuntime },
+    );
     expect(result.content[0].text).toContain("Open this URL in your local browser");
     expect(result.content[0].text).toContain("https://auth.example.com/authorize");
     expect(result.content[0].text).toContain("auth-complete");
@@ -76,6 +82,21 @@ describe("manual OAuth proxy actions", () => {
     expect(result.content[0].text).toContain('args: { code: "PASTE_CODE_HERE" }');
     expect(result.content[0].text).toContain("JSON-string args remain supported");
     expect(result.details).toMatchObject({ mode: "auth-start", server: "demo" });
+  });
+
+  it("explains manual completion for pre-registered HTTPS callbacks", async () => {
+    mocks.startAuth.mockResolvedValueOnce({
+      authorizationUrl: "https://auth.example.com/authorize?redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback",
+    });
+    const { executeAuthStart } = await import("../proxy-modes.ts");
+
+    const result = await executeAuthStart(createState(), "demo");
+
+    expect(result.content[0].text).toContain("pre-registered HTTPS callback");
+    expect(result.content[0].text).toContain("even if the destination page reports an error");
+    expect(result.content[0].text).toContain("Remote HTTPS callbacks must include the full callback URL");
+    expect(result.content[0].text).not.toContain('args: { code: "PASTE_CODE_HERE" }');
+    expect(result.content[0].text).not.toContain("redirected localhost URL");
   });
 
   it("rejects auth-start for non-OAuth servers", async () => {
@@ -94,7 +115,11 @@ describe("manual OAuth proxy actions", () => {
 
     const result = await executeAuthComplete(state, "demo", "http://localhost:19876/callback?code=abc&state=state");
 
-    expect(mocks.completeAuthFromInput).toHaveBeenCalledWith("demo", "http://localhost:19876/callback?code=abc&state=state");
+    expect(mocks.completeAuthFromInput).toHaveBeenCalledWith(
+      "demo",
+      "http://localhost:19876/callback?code=abc&state=state",
+      { runtime: state.oauthRuntime },
+    );
     expect(state.manager.close).toHaveBeenCalledWith("demo");
     expect(state.failureTracker.has("demo")).toBe(false);
     expect(mocks.updateStatusBar).toHaveBeenCalledWith(state);
