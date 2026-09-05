@@ -1,3 +1,4 @@
+import { detectMediaSignature } from "./media.ts";
 import { htmlToMarkdown, htmlToText, isPoorMarkdownConversion } from "./html.ts";
 import { decodeTextBuffer, parseContentType } from "./network.ts";
 import type { PublicWebClient, PublicWebError } from "./public-web-client.ts";
@@ -74,21 +75,26 @@ export class FetchPage {
 		}
 
 		const parsedContentType = parseContentType(response.value.headers.get("content-type"));
-		if (parsedContentType.kind === "raster-image") {
+		const detected = detectMediaSignature(response.value.body);
+		if (detected?.kind === "binary") {
+			return err({ _tag: "UnsupportedBinaryContent", mime: detected.mime });
+		}
+		if (detected?.kind === "raster-image") {
 			return ok({
 				_tag: "Image",
 				requestedUrl: response.value.requestedUrl,
 				finalUrl: response.value.finalUrl,
 				format: input.format,
 				status: response.value.status,
-				mime: parsedContentType.mime,
+				mime: detected.mime,
 				contentType: parsedContentType.contentType,
 				bytes: response.value.bytes,
 				data: response.value.body,
 			});
 		}
 
-		if (parsedContentType.kind === "binary") {
+		if (parsedContentType.kind === "binary" || parsedContentType.kind === "raster-image"
+			|| (parsedContentType.mime.startsWith("image/") && parsedContentType.kind !== "svg")) {
 			if (parsedContentType.mime) {
 				return err({ _tag: "UnsupportedBinaryContent", mime: parsedContentType.mime });
 			}

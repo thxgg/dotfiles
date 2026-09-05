@@ -29,7 +29,11 @@ Behavior notes:
 - only `http://` and `https://` URLs are supported
 - URL userinfo credentials (`https://user:pass@example.com`) are rejected and redacted in diagnostics
 - private/local hosts and IPs are blocked by default
-- raster images (`png`, `jpeg`, `gif`, `webp`) are returned inline as images
+- byte signatures identify raster images (`png`, `jpeg`, `gif`, `webp`) before the declared Content-Type is used
+- supported signatures return inline images with the detected MIME, even with a wrong or generic Content-Type
+- image MIME claims without a supported signature are rejected; SVG remains text, never raster
+- plausible BMP headers and PDF signatures are rejected even when declared as text; a `BM` prefix alone remains text
+- signature checks identify formats; they do not fully decode or validate image files
 - HTML is converted to markdown or text when requested
 - binary content is rejected
 - if a site returns `403` with `cf-mitigated: challenge`, the tool retries with the fallback user agent
