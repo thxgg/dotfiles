@@ -59,6 +59,11 @@ recover_session_env() {
 
 recover_session_env
 
+# The helper owns a session lock and survives bar/theme restarts. It registers
+# only while the Teams PWA is open, and reconnects when the tray host changes.
+nohup python3 -B "$HOME/.config/hypr/scripts/teams-tray.py" \
+    > "$runtime_dir/teams-pwa-tray.log" 2>&1 < /dev/null &
+
 key_value="${WEATHER_API_KEY:-}"
 key_value="${key_value//$'\n'/}"
 key_value="${key_value//$'\r'/}"

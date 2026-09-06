@@ -3,6 +3,7 @@ hypridle
 hyprlock
 hyprpolkitagent
 ags-hyprpanel-git
+python-gobject
 swaync
 swww
 wofi

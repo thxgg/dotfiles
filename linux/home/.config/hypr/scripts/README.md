@@ -1,3 +1,36 @@
+# Teams PWA tray item
+
+`teams-tray.py` publishes a real StatusNotifierItem beside Slack and the other
+tray apps. `start-hyprpanel.sh` starts the helper. A session lock prevents duplicate
+helpers. It reconnects when HyprPanel restarts.
+
+`teams-unread.py` reads the Teams PWA window title through `hyprctl clients -j`.
+The helper checks it every two seconds:
+
+- Positive `(N)` prefix: monochrome Teams logo with a red-pink unread dot.
+- No count: Teams logo without a dot.
+- Failed query: keep the previous state until a query succeeds.
+- No Teams PWA window: disconnect the tray item. Reconnect when Teams opens.
+
+Click the icon or choose **Open Microsoft Teams** from its menu to focus Teams.
+The icon has light and dark variants and follows the saved theme mode. The dot
+uses `#f63579` in both themes. The SVG logo assets
+are local, so the helper does not need Slack or network access to draw its icon.
+The runtime dependency `python-gobject` is in the Linux desktop package profile.
+
+The script also checks `initialTitle`, because Outlook and Linear can share the
+`MicrosoftTeams` window class. Duplicate windows use the maximum count, not the
+sum. This is the Teams title badge, not an independent total of unread messages.
+No browser profile data, credentials, or message bodies are read. The window title
+can contain a chat name, but the helper does not display or log it.
+
+Run the tests from the repository root:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python tests/hyprpanel-teams-unread.py
+PYTHONDONTWRITEBYTECODE=1 python tests/hyprpanel-teams-tray.py
+```
+
 # HyprPanel tray compatibility
 
 Slack 4.52.155 registers a complete D-Bus bus-name/object-path pair. The installed
