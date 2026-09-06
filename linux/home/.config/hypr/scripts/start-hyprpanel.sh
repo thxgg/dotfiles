@@ -141,5 +141,19 @@ PY
 }
 
 runtime_file="$(prepare_lua_compatible_runtime)"
+
+# The installed Astal watcher cannot parse Electron's bus-name/object-path
+# registrations. Use the private build only while the system library matches.
+tray_compat="${XDG_CACHE_HOME:-$HOME/.cache}/hyprpanel/tray-compat"
+if [[ -r "$tray_compat/system-library.sha256" ]]; then
+    if sha256sum --check --status "$tray_compat/system-library.sha256" \
+        && [[ -r "$tray_compat/libastal-tray.so.0.1.0" ]] \
+        && [[ -r "$tray_compat/girepository-1.0/AstalTray-0.1.typelib" ]]; then
+        export GI_TYPELIB_PATH="$tray_compat/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+    else
+        printf 'HyprPanel tray compatibility build is stale; rebuild or remove it.\n' >&2
+    fi
+fi
+
 cd "$runtime_dir"
 exec /usr/bin/gjs -m "$runtime_file"
