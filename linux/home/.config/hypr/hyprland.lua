@@ -212,7 +212,7 @@ hl.window_rule({
 
 hl.window_rule({
     name = "tile-managed-pwas",
-    match = { class = "^(Amp|Linear|MicrosoftTeams)$" },
+    match = { class = "^(Amp|Linear|MicrosoftTeams|Outlook)$" },
     tile = true,
 })
 

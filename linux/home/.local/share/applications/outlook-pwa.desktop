@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Outlook
+GenericName=Email Client
+Comment=Use Outlook in a dedicated web app window
+Exec=/usr/bin/google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1 --class=Outlook --app=https://outlook.cloud.microsoft/mail/
+Icon=outlook-pwa
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=Outlook
+Categories=Network;Email;
+Keywords=Outlook;Mail;Email;Calendar;Microsoft;
