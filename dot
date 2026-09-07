@@ -323,6 +323,9 @@ update_pi() {
 	info "Installing locked Pi extension dependencies"
 	(cd "$pi_workspace" && "$vp_bin" install --frozen-lockfile) || return
 
+	info "Installing declared Pi packages"
+	zsh "$DOTFILES_DIR/scripts/install-pi-packages.zsh" || return
+
 	local -a pi_update_env
 	pi_update_env=(env CARGO_NET_GIT_FETCH_WITH_CLI=true)
 

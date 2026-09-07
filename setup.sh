@@ -190,6 +190,9 @@ install_pi_workspace_dependencies
 info "Applying stow links"
 zsh "$SCRIPT_DIR/safe-stow.sh"
 
+info "Installing declared Pi packages"
+zsh "$SCRIPT_DIR/scripts/install-pi-packages.zsh"
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	if [[ -x "$HOME/.local/bin/theme-mode" ]]; then
 		info "Setting theme-mode to follow macOS appearance"

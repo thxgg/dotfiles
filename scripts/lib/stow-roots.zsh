@@ -3,7 +3,7 @@
 typeset -g DOTFILES_STOW_COMMON_ROOT="common"
 typeset -g DOTFILES_STOW_MACOS_ROOT="macos/home"
 typeset -g DOTFILES_STOW_LINUX_ROOT="linux/home"
-typeset -g DOTFILES_PI_RUNTIME_REGEX='^\.pi/(\.pi/)?todos(/|$)|^\.pi/agent/(settings(-extensions)?\.json|auth\.json|mcp-auth\.json|mcp-cache\.json|mcp-npx-cache\.json|trust\.json|[^/]+\.local\.jsonc?)$|^\.pi/agent/(mcp-oauth|history|sessions|\.cache)(/|$)'
+typeset -g DOTFILES_PI_RUNTIME_REGEX='^\.pi/(\.pi/)?todos(/|$)|^\.pi/(\.pi/)?agent/(settings(-extensions)?\.json|pi-transcribe\.json|auth\.json|mcp-auth\.json|mcp-cache\.json|mcp-npx-cache\.json|trust\.json|[^/]+\.local\.jsonc?)$|^\.pi/(\.pi/)?agent/(git|mcp-oauth|history|sessions|\.cache)(/|$)'
 typeset -g DOTFILES_STOW_IGNORE_REGEX="^\\.config(/|$)|(^|/)AGENTS\\.md$|(^|/)\\.gitignore$|(^|/)node_modules(/|$)|$DOTFILES_PI_RUNTIME_REGEX"
 
 typeset -ga DOTFILES_ACTIVE_STOW_ROOTS

@@ -14,7 +14,7 @@ Stow payload is split into shared + OS-specific roots:
 
 1. Clone this repository.
 2. Run `./dot init`.
-3. The setup script runs OS-specific package setup, installs Pi and its locked extension workspace dependencies, runs safe stow, and links `dot` into `~/.local/bin`.
+3. The setup script runs OS-specific package setup, installs Pi and its locked extension workspace dependencies, runs safe stow, installs declared external Pi packages, and links `dot` into `~/.local/bin`.
 
 Useful setup flags:
 
@@ -24,10 +24,11 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS packages and global npm/pnpm/Vite+ packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies, runs `pi update --self` plus `pi update --extensions`, and updates Herdr through Homebrew or its self-updater as appropriate
+- `./dot update` pulls latest changes, updates OS packages and global npm/pnpm/Vite+ packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies and declared external Pi packages, runs `pi update --self` plus `pi update --extensions`, and updates Herdr through Homebrew or its self-updater as appropriate
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
-- `./dot doctor` validates symlink health plus the Pi runtime and extension workspace via `doctor.sh`
+- `./dot doctor` validates symlink health plus the Pi runtime, extension workspace, and Pi Transcribe setup via `doctor.sh`
+- External Pi packages are declared in `scripts/pi-packages.txt`. Pi Transcribe model setup remains manual through `/transcribe`; see [Pi setup](common/.pi/README.md#external-packages-and-pi-transcribe).
 - `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
 
 After setup, use `dot` from anywhere in a new shell. If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`; both also refresh the `~/.local/bin/dot` symlink.

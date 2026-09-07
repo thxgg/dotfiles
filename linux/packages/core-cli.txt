@@ -5,6 +5,7 @@ git
 github-cli
 direnv
 fd
+ffmpeg
 fish
 ripgrep
 fzf

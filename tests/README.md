@@ -1,3 +1,10 @@
+# Pi bootstrap checks
+
+Run `python3 tests/pi-bootstrap.test.py` from the repository root. These offline tests use temporary
+files and mock commands. They check package manifest parsing, the Vite+ fallback, install failure
+handling, Stow runtime exclusions, and Pi Transcribe health reports. They do not install packages,
+change live Pi settings, or download models. They require Python 3, zsh, and jq.
+
 # Pi model alias checks
 
 Run from the repository root with Pi installed:

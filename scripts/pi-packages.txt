@@ -1,0 +1,3 @@
+# External Pi packages. One source per line; pin Git packages to a tested commit.
+# Update the ref here, then run: zsh scripts/install-pi-packages.zsh
+https://github.com/earendil-works/pi-transcribe@f673cad478885c81fdaa5c7977eb4d291fd87816
