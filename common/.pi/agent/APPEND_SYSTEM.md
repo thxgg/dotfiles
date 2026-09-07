@@ -88,6 +88,15 @@ Never submit reviews or post comments in Linear or GitHub unless the user explic
 - Write PR bodies and comments to a temp file first and preview the exact text before posting.
 - Use `gh pr create --body-file`, `gh pr edit --body-file`, and `gh pr comment --body-file` instead of passing multi-line markdown directly via `--body`.
 
+### PR Images and Videos
+
+- Do not commit review screenshots, comparison images, or videos to the repository just to get a URL. Keep review evidence outside Git history unless the user explicitly asks to track it.
+- Use native GitHub attachments: `gh pr create --body-file <body-file> --attach <image-path>` or `gh pr edit <number> --body-file <body-file> --attach <image-path>`.
+- Reference the same local image path in the body file as `![Description](<image-path>)`. GitHub CLI replaces that reference with the uploaded attachment URL. Preview the body before posting and verify the resulting PR body.
+- Check `gh --version` and command help for attachment support. If unavailable, use the GitHub browser editor or ask for help; do not commit evidence as a workaround.
+- Inspect the final comparison image before uploading. Use matching viewport, scale, data, and crop coordinates. Put Before on the left and After on the right. Do not crop out relevant unchanged content or capture unfinished transitions.
+- Attachment uploads do not authorize new comments or reviews. Follow the existing external-action rules.
+
 ### Repo-Specific Validation
 
 - Always run repo-local validation commands required by `AGENTS.md` or `CONTRIBUTING.md` before creating a PR.
