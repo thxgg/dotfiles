@@ -453,7 +453,6 @@ check_amp_setup() {
         hubspot-production
         hubspot-staging
         linear
-        logs
         stripe-business-production
         stripe-business-staging
         stripe-memberships-production
