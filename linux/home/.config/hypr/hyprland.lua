@@ -83,8 +83,10 @@ hl.config({
         blur = { size = 3 },
     },
     animations = { enabled = true },
+    -- Consume every bound wheel event instead of passing delayed events to apps.
+    binds = { scroll_event_delay = 0 },
     dwindle = { preserve_split = true },
-    master = { new_status = "master" },
+    master = { new_status = "master", orientation = "center" },
     misc = {
         force_default_wallpaper = 0,
         disable_hyprland_logo = true,
@@ -170,8 +172,27 @@ end
 
 hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
+-- Consume every Super+wheel event, but move at most once per 250 ms.
+-- Keep Hyprland's scroll_event_delay at zero so apps receive no skipped events.
+local scrollCooldownMs = 250
+local scrollCoolingDown = false
+local function scrollWorkspace(direction, workspaceOffset)
+    if scrollCoolingDown then
+        return
+    end
+    scrollCoolingDown = true
+    hl.timer(function() scrollCoolingDown = false end, { timeout = scrollCooldownMs, type = "oneshot" })
+
+    local workspace = hl.get_active_special_workspace() or hl.get_active_workspace()
+    if workspace and workspace.tiled_layout == "scrolling" then
+        hl.dispatch(hl.dsp.layout("focus " .. direction))
+    else
+        hl.dispatch(hl.dsp.focus({ workspace = workspaceOffset }))
+    end
+end
+
+hl.bind(mainMod .. " + mouse_down", function() scrollWorkspace("r", "e+1") end)
+hl.bind(mainMod .. " + mouse_up", function() scrollWorkspace("l", "e-1") end)
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
@@ -222,12 +243,27 @@ hl.window_rule({
     float = true,
 })
 
+-- Use centered Master on the first workspace of each monitor.
+-- Other regular workspaces inherit the global Dwindle layout.
 for workspace = 1, 5 do
-    hl.workspace_rule({ workspace = tostring(workspace), monitor = "DP-3", default = workspace == 1 })
+    hl.workspace_rule({
+        workspace = tostring(workspace),
+        monitor = "DP-3",
+        default = workspace == 1,
+        layout = workspace == 1 and "master" or nil,
+    })
 end
 for workspace = 11, 15 do
-    hl.workspace_rule({ workspace = tostring(workspace), monitor = "HDMI-A-1", default = workspace == 11 })
+    hl.workspace_rule({
+        workspace = tostring(workspace),
+        monitor = "HDMI-A-1",
+        default = workspace == 11,
+        layout = workspace == 11 and "master" or nil,
+    })
 end
+
+-- Keep the scrolling test workspace available on either monitor.
+hl.workspace_rule({ workspace = "special:magic", layout = "scrolling" })
 
 local function xwaylandVideoBridgeRule(name, effect)
     effect.name = name
