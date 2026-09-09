@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Soft Lavender",
+  "version": "1.0.1",
+  "description": "Light browser theme reconstructed from screenshot colors; not an official Mitchell Hashimoto theme.",
+  "theme": {
+    "colors": {
+      "frame": [230, 214, 244],
+      "frame_inactive": [230, 214, 244],
+      "toolbar": [254, 244, 254],
+      "tab_text": [48, 40, 53],
+      "tab_background_text": [48, 40, 53],
+      "bookmark_text": [48, 40, 53],
+      "toolbar_button_icon": [87, 76, 93],
+      "omnibox_background": [236, 224, 239],
+      "omnibox_text": [48, 40, 53],
+      "ntp_background": [254, 244, 254],
+      "ntp_text": [48, 40, 53],
+      "ntp_link": [109, 72, 145]
+    }
+  }
+}
