@@ -1,7 +1,7 @@
 ---
 name: fable-reviewer
-description: Review changes for correctness, regressions, test gaps, security, and unnecessary complexity using Claude Fable 5.
-model: anthropic/claude-fable-5
+description: Review changes for correctness, regressions, test gaps, security, and unnecessary complexity using Claude Fable 5.1.
+model: anthropic/claude-fable-5-1
 thinking: high
 tools: [read, grep, find, ls, bash]
 permissions:

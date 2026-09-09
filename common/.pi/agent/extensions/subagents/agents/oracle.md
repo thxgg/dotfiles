@@ -1,7 +1,7 @@
 ---
 name: oracle
 description: Skeptical second-opinion agent for plans, architecture, hard bugs, and risk review.
-model: anthropic/claude-fable-5
+model: anthropic/claude-fable-5-1
 thinking: high
 tools: [read, grep, find, ls, bash]
 permissions:
