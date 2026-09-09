@@ -1,7 +1,7 @@
 ---
 name: frontend-reviewer
 description: Review frontend changes for usability, accessibility, responsive behavior, interaction quality, and implementation correctness.
-model: opencode/glm-5.2
+model: anthropic/claude-fable-5-1
 thinking: high
 tools: [read, grep, find, ls, bash]
 permissions:

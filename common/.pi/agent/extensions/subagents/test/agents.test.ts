@@ -10,11 +10,21 @@ test("discovers built-in Pi agents", () => {
   assert.deepEqual(names, ["agent", "check", "fable-reviewer", "frontend-reviewer", "librarian", "oracle", "painter", "reviewer", "search"]);
 });
 
-test("frontend reviewer uses the scoped GLM model", () => {
+test("general agents use Astra and Fable reviewers use Fable 5.1", () => {
+  const agents = discoverAgents(process.cwd(), "builtin").agents;
+  for (const name of ["agent", "search", "reviewer", "painter", "check"]) {
+    assert.equal(getAgentByName(agents, name)?.model, "openai-codex/gpt-6-astra", name);
+  }
+  for (const name of ["oracle", "fable-reviewer", "frontend-reviewer"]) {
+    assert.equal(getAgentByName(agents, name)?.model, "anthropic/claude-fable-5-1", name);
+  }
+});
+
+test("frontend reviewer uses Fable 5.1 with read-only tools", () => {
   const agents = discoverAgents(process.cwd(), "builtin").agents;
   const frontendReviewer = getAgentByName(agents, "frontend-reviewer");
   assert.ok(frontendReviewer);
-  assert.equal(frontendReviewer.model, "opencode/glm-5.2");
+  assert.equal(frontendReviewer.model, "anthropic/claude-fable-5-1");
   assert.deepEqual(getActiveToolNames(frontendReviewer), ["read", "grep", "find", "ls", "bash"]);
   assert.deepEqual(frontendReviewer.permissions, { edit: "deny", write: "deny", bash: "readonly" });
 });

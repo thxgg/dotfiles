@@ -149,9 +149,9 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
 
   pi.registerTool({
     name: "workflow", label: "Workflow",
-    description: "Run an approved, sandboxed JavaScript workflow for multi-agent, multi-phase work. Use only when the user explicitly requests a workflow or the task clearly requires structured fan-out, cross-checking, and synthesis. Scripts use phase(), agent(), parallel(), args, and return a JSON-serializable aggregate. Workflow children default to openai-codex/gpt-5.6-sol and may only override model to anthropic/claude-fable-5 (shorthand fable-5). Ordinary isolated units belong in Agent instead.",
+    description: "Run an approved, sandboxed JavaScript workflow for multi-agent, multi-phase work. Use only when the user explicitly requests a workflow or the task clearly requires structured fan-out, cross-checking, and synthesis. Scripts use phase(), agent(), parallel(), args, and return a JSON-serializable aggregate. Workflow children default to openai-codex/gpt-6-astra and may only override model to anthropic/claude-fable-5 (shorthand fable-5). Ordinary isolated units belong in Agent instead.",
     promptSnippet: "Orchestrate bounded multi-agent workflows with phases, parallel children, structured outputs, and persisted progress",
-    promptGuidelines: ["Use workflow for task-level orchestration; use Agent for one isolated unit of work or specialized capability.", "Workflow scripts must check every agent() result's ok field before consuming output or structured data.", "Workflow children use gpt-5.6-sol by default; the only allowed model override is fable-5.", "Do not emulate agent teams or peer messaging; pass results explicitly through workflow variables."],
+    promptGuidelines: ["Use workflow for task-level orchestration; use Agent for one isolated unit of work or specialized capability.", "Workflow scripts must check every agent() result's ok field before consuming output or structured data.", "Workflow children use gpt-6-astra by default; the only allowed model override is fable-5.", "Do not emulate agent teams or peer messaging; pass results explicitly through workflow variables."],
     parameters: Params,
     async execute(_id, params, signal, onUpdate, ctx) {
       const action = params.action ?? (params.script ? "run" : "list");

@@ -47,11 +47,11 @@ function transcript(messages: any[]): TranscriptEntry[] {
   }
   return values.slice(-200).map((entry) => ({ ...entry, text: entry.text.slice(0, 16 * 1024) }));
 }
-export const WORKFLOW_MODELS = ["openai-codex/gpt-5.6-sol", "anthropic/claude-fable-5"] as const;
+export const WORKFLOW_MODELS = ["openai-codex/gpt-6-astra", "anthropic/claude-fable-5"] as const;
 const DEFAULT_WORKFLOW_MODEL = WORKFLOW_MODELS[0];
 export function resolveWorkflowModel(ctx: Pick<ExtensionContext, "modelRegistry">, spec: unknown): Model<any> | undefined {
   const requested = typeof spec === "string" && spec.trim() ? spec.trim() : DEFAULT_WORKFLOW_MODEL;
-  const normalized = requested === "gpt-5.6-sol" ? DEFAULT_WORKFLOW_MODEL : requested === "fable-5" || requested === "claude-fable-5" ? WORKFLOW_MODELS[1] : requested;
+  const normalized = requested === "gpt-6-astra" ? DEFAULT_WORKFLOW_MODEL : requested === "fable-5" || requested === "claude-fable-5" ? WORKFLOW_MODELS[1] : requested;
   if (!(WORKFLOW_MODELS as readonly string[]).includes(normalized)) return undefined;
   const slash = normalized.indexOf("/");
   return ctx.modelRegistry.find(normalized.slice(0, slash), normalized.slice(slash + 1));
@@ -80,7 +80,7 @@ export async function runWorkflowAgent(options: {
   });
   await loader.reload();
   const model = resolveWorkflowModel(options.ctx, options.model);
-  if (!model) return { ok: false, output: "", error: `Unsupported workflow model: ${String(options.model)}. Use gpt-5.6-sol or fable-5.`, usage: emptyUsage(), transcript: [] };
+  if (!model) return { ok: false, output: "", error: `Unsupported workflow model: ${String(options.model)}. Use gpt-6-astra or fable-5.`, usage: emptyUsage(), transcript: [] };
   const modelRuntime = await createChildModelRuntime(options.ctx.modelRegistry);
   const { session } = await createAgentSession({
     cwd: options.cwd, model, modelRuntime, resourceLoader: loader, settingsManager: settings,
