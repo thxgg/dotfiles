@@ -527,7 +527,9 @@ export default async function (pi: ExtensionAPI) {
     if (ctx.mode !== "tui") return;
     const previousFactory = ctx.ui.getEditorComponent();
     ctx.ui.setEditorComponent((tui, theme, keybindings) => {
-      const editor = previousFactory?.(tui, theme, keybindings) ?? new CustomEditor(tui, theme, keybindings);
+      const editor = previousFactory?.(tui, theme, keybindings) ?? new CustomEditor(tui, theme, keybindings, {
+        embedWorkingStatus: true,
+      });
       if (!editor.handleInput) return editor;
       const originalHandleInput = editor.handleInput.bind(editor);
       editor.handleInput = (data: string) => {
