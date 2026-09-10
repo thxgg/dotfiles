@@ -14,7 +14,6 @@ curl
 wget
 tree
 stow
-tmux
 zsh
 shellcheck
 starship
@@ -43,6 +42,5 @@ trufflehog
 diff-so-fancy
 opencode
 zoxide
-sesh-bin
 wl-clipboard
 cliphist
