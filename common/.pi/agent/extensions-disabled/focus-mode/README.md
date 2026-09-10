@@ -1,4 +1,14 @@
-# Focus conversation mode
+# Focus conversation mode (archived)
+
+This extension is stored in `extensions-disabled/` and is not auto-discovered by Pi.
+Active web, Agent, and workflow extensions no longer load its adapters. Their tools
+use native rendering. Explicit loading below groups only opted-in local built-ins.
+The owner adapter tests apply wrappers explicitly; they do not enable production integration.
+
+No deployment or machine-local state cleanup accompanies this archive move.
+The remaining implementation and terminal evidence describe the pre-archive version,
+except for the updated paths and coverage below. Restore owner integrations from
+commit `73e3ea1` if you reactivate them.
 
 Inline tool activity groups for Pi **0.85.1**. No Pi core changes.
 
@@ -19,7 +29,7 @@ The first supported row hosts its group **in chat**. Collapsed sibling rows use 
 From the repository root, start a **new, standard-local** Pi process:
 
 ```bash
-PI_FOCUS_BUILTINS=1 pi -e ./common/.pi/agent/extensions/focus-mode/index.ts
+PI_FOCUS_BUILTINS=1 pi -e ./common/.pi/agent/extensions-disabled/focus-mode/index.ts
 ```
 
 Then use:
@@ -54,8 +64,7 @@ Inline expansion shows all member rows. The header lists at most 20 call labels.
 | Standard `bash` | Yes, with local opt-in. Includes Git, tests, mixed commands, commits, and pushes. No command classification. |
 | Standard `edit`, `write` | Yes, with local opt-in. Native file previews and diffs remain available on expansion. |
 | Standard `read`, `ls`, `grep`, `find` | Yes, with local opt-in. |
-| Repository `webfetch`, `websearch` | Yes, through the existing owning-extension adapters. |
-| Repository `Agent`, `workflow` | Yes, through optional owning-extension adapters. Completion means the tool call returned, not that a background job finished. Background notifications stay normal. |
+| Repository `webfetch`, `websearch`, `Agent`, `workflow` | No. Active owner integrations were removed when Focus was archived. |
 | MCP gateway, MCP scripts, direct MCP tools, namespace proxies | **No.** Inspected, not adapted in this version. Dynamic registration needs an ownership/discovery refresh protocol. |
 | `repo_cache`, `powershell`, user `!`/`!!`, other third-party tools | **No.** Normal rows separate groups. |
 
@@ -67,9 +76,7 @@ User messages, visible assistant text, unsupported calls, user shell commands, v
 
 ## Deployment
 
-Files belong in `common/`. Use `./safe-stow.sh` when ready, then start a new Pi process. Do not copy files into `$HOME`. This implementation does not run Stow, reload the active session, or change its mode.
-
-Web, Agent, and workflow adapters load optionally relative to their real source path. This supports individual Stow file links before the sibling Focus directory is deployed. If Focus is missing or fails to import, the original tools register. Owning extensions verify their active source path during discovery. Listeners are removed on shutdown.
+Files belong in `common/`. The archived location stays outside Pi's automatic extension discovery. Stow deployment does not activate it. Do not copy files into `$HOME`. This move does not run Stow, reload the active session, or remove existing live links.
 
 The mode is saved atomically at:
 
@@ -101,7 +108,7 @@ Theme colors use Pi tokens. `accent` remains Lavender in the repository's Latte 
 ## Validation of this version
 
 ```bash
-npm run check --prefix common/.pi/agent/extensions/focus-mode
+npm run check --prefix common/.pi/agent/extensions-disabled/focus-mode
 npm run check --prefix common/.pi/agent/extensions/web-tools
 npm run check --prefix common/.pi/agent/extensions/subagents
 npm run check --prefix common/.pi/agent/extensions/workflows
@@ -109,7 +116,7 @@ npm run check --prefix common/.pi/agent/extensions/workflows
 
 Tests use the installed Pi 0.85.1 packages through ignored local peer-package links. No installed package files changed.
 
-Automated tests cover actual bash execution, mutation commands in temporary files, shell settings/environment, timeout, cancellation, edit/write execution and native parity, inline expansion, renderer failures, owner discovery/collisions/disposal, optional Stow loading, 20-call composition, boundaries, duplicates, out-of-order results, images, prompt exclusions, reconstruction, non-TUI guards, and bounded previews.
+Automated tests cover actual bash execution, mutation commands in temporary files, shell settings/environment, timeout, cancellation, edit/write execution and native parity, inline expansion, renderer failures, explicit adapter discovery/collisions/disposal, 20-call composition, boundaries, duplicates, out-of-order results, images, prompt exclusions, reconstruction, non-TUI guards, and bounded previews.
 
 New terminal validation uses a separate tmux server, isolated settings/session storage, and a deterministic offline provider. Actual Git status/diff, shell validation, failure, and cancellation commands run through Pi's agent loop. No paid model calls, repository commits, or pushes run.
 

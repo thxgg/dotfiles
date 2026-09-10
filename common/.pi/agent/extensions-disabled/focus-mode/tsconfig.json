@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["./*.ts", "./test/*.ts"]
+  "include": ["./*.ts", "./test/*.ts", "../../extensions/web-tools/vendor.d.ts"]
 }

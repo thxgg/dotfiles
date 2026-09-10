@@ -1,17 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import subagents, { loadFocusAdapter as loadAgents } from "../../subagents/index.ts";
-import workflows, { loadFocusAdapter as loadWorkflows } from "../../workflows/index.ts";
-import { DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "../adapter.ts";
+import subagents from "../../../extensions/subagents/index.ts";
+import workflows from "../../../extensions/workflows/index.ts";
+import { announceFocusTools, withFocusRendering, DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "../adapter.ts";
 import { Activity } from "../model.ts";
 import { activityComponent } from "../render.ts";
 
-test("owner adapters group Agent and workflow, preserve normal output and dispose discovery", async () => {
+test("explicit archived adapters group Agent and workflow and dispose discovery", async () => {
   initTheme("dark", false);
   for (const [factory, name, owner] of [[subagents, "Agent", "subagents"], [workflows, "workflow", "workflows"]] as const) {
     const definitions = new Map<string, any>();
@@ -21,13 +19,17 @@ test("owner adapters group Agent and workflow, preserve normal output and dispos
     const pi = {
       registerTool(tool: any) { definitions.set(tool.name, tool); }, registerCommand() {}, registerMessageRenderer() {},
       on(event: string, handler: any) { handlers.set(event, handler); },
-      getAllTools() { return [...definitions.keys()].map(name => ({ name, sourceInfo: { path: wrongOwner ? "<sdk:replacement>" : fileURLToPath(new URL(`../../${owner}/index.ts`, import.meta.url)) } })); },
+      getAllTools() { return [...definitions.keys()].map(name => ({ name, sourceInfo: { path: wrongOwner ? "<sdk:replacement>" : fileURLToPath(new URL(`../../../extensions/${owner}/index.ts`, import.meta.url)) } })); },
       events: {
         on(event: string, handler: any) { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event)!.add(handler); return () => listeners.get(event)!.delete(handler); },
         emit(event: string, value: any) { for (const handler of listeners.get(event) ?? []) handler(value); },
       },
     };
     await factory(pi as never);
+    const original = definitions.get(name);
+    assert.notEqual(original.renderShell, "self");
+    definitions.set(name, withFocusRendering(pi as never, original));
+    const dispose = announceFocusTools(pi as never, [name], new URL(`../../../extensions/${owner}/index.ts`, import.meta.url).href);
     const discovery = { names: new Set<string>() };
     pi.events.emit(DISCOVER_EVENT, discovery);
     assert.deepEqual([...discovery.names], [name]);
@@ -53,23 +55,7 @@ test("owner adapters group Agent and workflow, preserve normal output and dispos
     for (const row of rows) row.setExpanded(true);
     assert.match(rows[1]!.render(80).join("\n"), /OWNER_ORIGINAL_RESULT/);
     await handlers.get("session_shutdown")?.({ reason: "reload" }, {});
+    dispose();
     assert.equal(listeners.get(DISCOVER_EVENT)?.size, 0);
   }
-});
-
-test("owner optional imports resolve individual Stow links and fail open if Focus is missing or broken", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "focus-owners-"));
-  try {
-    for (const [load, owner] of [[loadAgents, "subagents"], [loadWorkflows, "workflows"]] as const) {
-      const link = join(dir, `${owner}.ts`);
-      await symlink(fileURLToPath(new URL(`../../${owner}/index.ts`, import.meta.url)), link);
-      assert.equal(typeof (await load(pathToFileURL(link).href))?.withFocusRendering, "function");
-      const standalone = join(dir, "standalone", owner, "index.ts");
-      await mkdir(join(dir, "standalone", owner), { recursive: true }); await writeFile(standalone, "// owner");
-      assert.equal(await load(pathToFileURL(standalone).href), undefined);
-    }
-    await mkdir(join(dir, "standalone", "focus-mode"));
-    await writeFile(join(dir, "standalone", "focus-mode", "adapter.ts"), 'throw new Error("broken optional deployment");');
-    for (const [load, owner] of [[loadAgents, "subagents"], [loadWorkflows, "workflows"]] as const) assert.equal(await load(pathToFileURL(join(dir, "standalone", owner, "index.ts")).href), undefined);
-  } finally { await rm(dir, { recursive: true, force: true }); }
 });

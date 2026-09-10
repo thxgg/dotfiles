@@ -27,6 +27,8 @@ common/.pi/agent/*
 !common/.pi/agent/cloak.json
 !common/.pi/agent/extensions/
 !common/.pi/agent/extensions/**
+!common/.pi/agent/extensions-disabled/
+!common/.pi/agent/extensions-disabled/**
 !common/.pi/agent/keybindings.json
 !common/.pi/agent/npm/
 !common/.pi/agent/npm/package.json
