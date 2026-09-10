@@ -47,7 +47,6 @@ brew "uv"
 brew "wget"
 
 # Casks
-cask "aerospace"
 cask "aldente"
 cask "alt-tab"
 cask "caffeine"

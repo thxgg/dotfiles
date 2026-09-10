@@ -100,19 +100,31 @@ ensure_vite_plus_node() {
 	VP_NODE_MANAGER=yes "$vp_bin" env setup --refresh
 	"$vp_bin" env on
 	"$vp_bin" env install 14 || warn "Could not install legacy Node.js 14 with Vite+; continuing"
-	"$vp_bin" env install 17 || warn "Could not install legacy Node.js 17 with Vite+; continuing"
 	"$vp_bin" env install lts
 	"$vp_bin" env default lts
 }
 
-ensure_open_computer_use() {
-	if ! command -v npm >/dev/null 2>&1; then
-		warn "npm not found; skipping Open Computer Use installation"
+configure_java_home() {
+	local jdk_home java_home
+	jdk_home="$(brew --prefix openjdk@21)/libexec/openjdk.jdk"
+	if [[ ! -d "$jdk_home" ]]; then
+		warn "Homebrew JDK 21 not found; skipping Java setup"
 		return
 	fi
 
-	info "Installing Open Computer Use"
-	npm install --global open-computer-use
+	# Register in the user's JDK directory without requiring sudo.
+	mkdir -p "$HOME/Library/Java/JavaVirtualMachines"
+	local jdk_link="$HOME/Library/Java/JavaVirtualMachines/homebrew-openjdk-21.jdk"
+	if [[ -e "$jdk_link" && ! -L "$jdk_link" ]]; then
+		warn "Refusing to replace existing JDK directory: $jdk_link"
+		return
+	fi
+	ln -sfn "$jdk_home" "$jdk_link"
+	if java_home="$(/usr/libexec/java_home -v 21 2>/dev/null)"; then
+		export JAVA_HOME="$java_home"
+	else
+		warn "macOS could not locate JDK 21"
+	fi
 }
 
 set_launchservices_extension_handler() {
@@ -304,6 +316,9 @@ fi
 
 check_network
 
+# Discover existing installations before deciding whether to install.
+load_brew_shellenv
+
 # Install homebrew if missing
 if ! command -v brew &>/dev/null; then
 	info "Homebrew not found, installing"
@@ -356,7 +371,6 @@ fi
 
 # Node.js setup with Vite+
 ensure_vite_plus_node
-ensure_open_computer_use
 
 # Python CLI setup with pipx
 if command -v pipx &>/dev/null; then
@@ -368,7 +382,7 @@ fi
 info "Cleaning up Homebrew cache"
 brew cleanup
 
-# Set default java version
-export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+# Register JDK 21 for macOS discovery and future login shells.
+configure_java_home
 
 success "macOS setup complete"

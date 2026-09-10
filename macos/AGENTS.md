@@ -27,8 +27,13 @@ brew bundle check --file=./macos/Brewfile
 
 ## Dependencies & Edges
 - Uplink: [Root](../AGENTS.md)
-- Downlinks: none
+- Downlink: [macOS Home Payload](./home/AGENTS.md)
 
 ## Patterns & Pitfalls
 - Service names are formula-specific (`postgresql@18`, `redis`).
-- Apple Silicon vs Intel PATH initialization is handled in-script; preserve both paths.
+- Load Homebrew shellenv before checking whether installation is needed; support Apple Silicon and Intel paths.
+- Vite+ manages Node.js and global JavaScript packages. Bootstrap installs LTS and Node 14 for legacy admin deployment parity. Project `.node-version` files control local selection (the legacy admin currently pins 16.20.2).
+- Register Homebrew JDK 21 under `~/Library/Java/JavaVirtualMachines` so `/usr/libexec/java_home` and Fish can discover it.
+- Setup makes Fish the login shell when permitted and assigns text/code file types to VS Code when installed.
+- The GUI PATH LaunchAgent includes user commands, Vite+, Homebrew, and system commands.
+- Theme synchronization has no LaunchAgent. Keep manual theme commands and native application appearance settings.

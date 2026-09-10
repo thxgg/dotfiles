@@ -8,10 +8,9 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/launchctl</string>
-    <string>setenv</string>
-    <string>PATH</string>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>exec /bin/launchctl setenv PATH "$HOME/.local/bin:$HOME/.vite-plus/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"</string>
   </array>
 
   <key>RunAtLoad</key>

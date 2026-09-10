@@ -20,7 +20,7 @@ Initial discovery:
 
 ## Approach
 
-Use the existing `theme-mode` architecture instead of inventing a new switcher, but change macOS behavior to resolve from the system appearance automatically. Keep manual `set light` / `set dark` for testing and Linux compatibility, and add/allow `auto` so macOS can derive the active mode via `defaults read -g AppleInterfaceStyle` (`Dark` => `dark`, missing/unset => `light`). Wrappers will call the resolver at launch, and a macOS LaunchAgent will run a small apply/check loop so long-running tmux and generated runtime files update after the system appearance changes.
+Use the existing `theme-mode` architecture instead of inventing a new switcher, but change macOS behavior to resolve from the system appearance automatically. Keep manual `set light` / `set dark` for testing and Linux compatibility, and add/allow `auto` so macOS can derive the active mode via `defaults read -g AppleInterfaceStyle` (`Dark` => `dark`, missing/unset => `light`). Wrappers call the resolver at launch. The macOS synchronization LaunchAgent has been removed; use manual theme commands where an application does not follow system appearance itself.
 
 Apply official Catppuccin Latte/Mocha palettes and standard Lavender accents:
 
@@ -90,7 +90,7 @@ Expected critical files:
 - [x] Confirm requirements for Helium profile/NightTab and Slack theming: macOS first, auto from system light/dark, Slack supported theme level only.
 - [x] Define the exact Catppuccin Latte/Mocha role mapping with Lavender as the accent.
 - [x] Extend `theme-mode`/`theme-lib.sh` so macOS can resolve `auto` from system appearance and reload only when the resolved mode changes.
-- [x] Add a macOS LaunchAgent and setup hook so `theme-mode --quiet apply` runs automatically after system appearance changes.
+- [x] Remove the macOS synchronization LaunchAgent and automatic theme setup hook. Keep manual theme commands and native application appearance settings.
 - [x] Update wrappers/config names so launch-time theme selection points to Catppuccin assets rather than legacy custom assets.
 - [x] Replace Ghostty custom themes with Catppuccin Latte/Mocha theme files and update shared/macOS config references.
 - [x] Point btop at `catppuccin_latte.theme`/`catppuccin_mocha.theme` and make Lavender the primary highlight/selected/accent color.
@@ -107,7 +107,7 @@ Expected critical files:
 ## Verification
 
 - On macOS, toggle System Settings appearance between Light and Dark; confirm `theme-mode get` resolves `light`/`dark` correctly in auto mode.
-- Confirm the LaunchAgent is loaded and only reapplies when the resolved system mode changes.
+- Confirm the removed theme synchronization LaunchAgent is not loaded; use manual application where needed.
 - Run `theme-mode set light`, `theme-mode set dark`, and `theme-mode set auto` for override/auto behavior; confirm tmux reloads.
 - Launch Ghostty in both OS-specific configs and confirm Latte/Mocha with Lavender cursor/selection/accent.
 - Launch `btop`, `starship` via a new shell, `lazygit`, and `lazydocker` in both modes.
