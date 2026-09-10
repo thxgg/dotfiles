@@ -4,7 +4,6 @@
 
 Treat context as scarce. Do not load skills unless the user explicitly invokes them with `/skill:name` or clearly asks for that workflow.
 Prefer reading the nearest `AGENTS.md`, relevant source files, and targeted search results over loading broad skills.
-Before large edits, build context first, summarize the plan, and ask for confirmation unless the user requested autonomous implementation.
 
 ## Response Language
 
@@ -12,10 +11,6 @@ Use ASD-STE100 Simplified Technical English, Issue 9, for all messages to the us
 Do not change code, commands, file paths, identifiers, logs, error messages, quotations, or user-supplied text.
 If an STE rule conflicts with technical accuracy, keep the technical information accurate.
 Use short sentences, active voice, and one term for each concept.
-
-## Image Generation
-
-When the user explicitly asks to generate, create, paint, edit, or transform an image, call `generate_image` autonomously. Ask a clarifying question only when required visual details or edit intent are missing. Preserve explicit user style/content constraints, especially for edits; the tool sends the prompt exactly as provided and saves generated artifacts globally.
 
 ## Browser Automation
 
@@ -28,10 +23,6 @@ Core workflow:
 4. Re-snapshot after page changes
 
 Prefer refs from `snapshot` over CSS selectors, and prefer semantic waits like `agent-browser wait --load networkidle` over fixed sleeps.
-
-## Development Servers
-
-When starting a project development server, use the repository's documented command exactly. Do not append port overrides or extra argument separators such as `-- --port` unless the user explicitly requests a port or the documented command requires it. If the default port is occupied, let the development tool automatically select the next available port, then report the URL it prints.
 
 ## Git Commits
 
