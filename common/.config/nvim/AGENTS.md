@@ -21,7 +21,7 @@ This node covers editor behavior and plugin architecture only.
 - Mixing global keymap styles (`vim.api.nvim_set_keymap` vs `vim.keymap.set`) within new code.
 
 ## Dependencies & Edges
-- Uplink: [Config Tree](../CLAUDE.md)
+- Uplink: [Config Tree](../AGENTS.md)
 - Downlinks: none
 
 ## Patterns & Pitfalls

@@ -72,8 +72,7 @@ if is_ssh then
 				["*"] = osc52.copy("*"),
 			},
 			paste = {
-				-- Don't use OSC 52 for paste: tmux intercepts the read query
-				-- and never forwards it to the outer terminal, causing a hang.
+				-- OSC 52 does not support reading clipboard content reliably.
 				-- Returning nil makes Neovim use its internal register cache.
 				["+"] = function() end,
 				["*"] = function() end,

@@ -19,7 +19,6 @@ local vue_ts_plugin_path =
 
 local jdtls_cache_dir = vim.fn.stdpath("cache") .. "/jdtls"
 local jdtls_config_dir = jdtls_cache_dir .. "/config"
-local jdtls_workspace_dir = jdtls_cache_dir .. "/workspace"
 local jdtls_lombok_jar = vim.fn.stdpath("data") .. "/mason/share/jdtls/lombok.jar"
 
 local java_configuration = {
@@ -40,8 +39,6 @@ local jdtls_cmd = {
 	"jdtls",
 	"-configuration",
 	jdtls_config_dir,
-	"-data",
-	jdtls_workspace_dir,
 }
 
 if vim.fn.filereadable(jdtls_lombok_jar) == 1 then
@@ -137,7 +134,13 @@ end, {})
 
 -- Java
 vim.lsp.config('jdtls', {
-	cmd = jdtls_cmd,
+	cmd = function(dispatchers, config)
+		local root = config.root_dir or assert(vim.uv.cwd(), "JDTLS requires a working directory")
+		local workspace = jdtls_cache_dir .. "/workspaces/" .. vim.fn.sha256(root)
+		vim.fn.mkdir(workspace, "p")
+		local cmd = vim.list_extend(vim.deepcopy(jdtls_cmd), { "-data", workspace })
+		return vim.lsp.rpc.start(cmd, dispatchers, { cwd = root })
+	end,
 	settings = {
 		java = {
 			eclipse = {
@@ -157,7 +160,7 @@ vim.lsp.config('jdtls', {
 				includeAccessors = true,
 			},
 			inlayHints = {
-				paramerNames = {
+				parameterNames = {
 					enabled = "all",
 				},
 			},

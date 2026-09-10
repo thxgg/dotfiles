@@ -27,7 +27,7 @@ return {
 			lualine_y = { { "diff" } },
 			lualine_z = { { "b:gitsigns_head", icon = "" } },
 		},
-		-- tabline disabled — tmux handles window/tab navigation
+		-- Optional buffer tabline.
 		-- tabline = {
 		-- 	lualine_a = { { "buffers", icons_enabled = false } },
 		-- 	lualine_b = {},

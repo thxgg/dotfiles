@@ -98,7 +98,9 @@ return {
 	},
 	{
 		"leoluz/nvim-dap-go",
+		dependencies = { "mfussenegger/nvim-dap" },
 		config = function()
+			require("dap-go").setup()
 			vim.keymap.set("n", "<leader>dt", require("dap-go").debug_test, { desc = "[D]ebug [T]est" })
 		end,
 	},

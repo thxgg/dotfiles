@@ -11,8 +11,8 @@ vim.g.mapleader = " "
 
 -- Human error correction
 map("n", "W", ":w<CR>", { desc = "[W]rite Buffer" })
-map("n", "Wq", ":w<CR>", { desc = "[W]rite Buffer and [Q]uit" })
-map("n", "Wqa", ":w<CR>", { desc = "[W]rite Buffer and [Q]uit [A]ll" })
+map("n", "Wq", ":wq<CR>", { desc = "[W]rite Buffer and [Q]uit" })
+map("n", "Wqa", ":wqa<CR>", { desc = "[W]rite Buffer and [Q]uit [A]ll" })
 map("n", "Q", ":q<CR>", { desc = "[Q]uit Window" })
 map("n", "Qa", ":qa<CR>", { desc = "[Q]uit [A]ll Windows" })
 map("n", "Bd", ":bd<CR>", { desc = "[D]elete [B]uffer" })
@@ -31,8 +31,10 @@ map("n", "H", ":bprevious<CR>", { desc = "Previous buffer" })
 map("n", "L", ":bnext<CR>", { desc = "Next buffer" })
 map("n", "<C-d>", "<C-d>zz", { desc = "Recenter cursor after half-page jumping down" })
 map("n", "<C-u>", "<C-u>zz", { desc = "Recenter cursor after half-page jumping up" })
--- C-h/j/k/l navigation is handled by nvim-tmux-navigation plugin
--- (seamlessly moves between nvim splits and tmux panes)
+map("n", "<C-h>", "<C-w>h", { desc = "Focus window left" })
+map("n", "<C-j>", "<C-w>j", { desc = "Focus window down" })
+map("n", "<C-k>", "<C-w>k", { desc = "Focus window up" })
+map("n", "<C-l>", "<C-w>l", { desc = "Focus window right" })
 map("n", "[q", ":cprevious<CR>", { desc = "Previous [Q]uickfix item" })
 map("n", "]q", ":cnext<CR>", { desc = "Next [Q]uickfix item" })
 
