@@ -461,6 +461,7 @@
   "menus.dashboard.shortcuts.left.shortcut3.command": "slack",
   "bar.customModules.worldclock.formatDiffDate": "%a %b %d  %I:%M:%S %p %Z",
   "theme.bar.outer_spacing": "0.4em",
+  "hyprpanel.restartCommand": "hyprpanel -q; \"$HOME/.config/hypr/scripts/start-hyprpanel.sh\"",
   "bar.workspaces.monitorSpecific": true,
   "bar.workspaces.showAllActive": true,
   "theme.bar.buttons.workspaces.smartHighlight": true,

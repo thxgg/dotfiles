@@ -1,5 +1,6 @@
 """Check compatibility patches and fallback without starting a desktop."""
 import base64
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -33,6 +34,15 @@ class PanelFallback(unittest.TestCase):
     def encoded_launcher(self, source):
         payload = base64.b64encode(source.encode()).decode()
         return 'cat <<EOF | base64 --decode > $file\n' + payload + '\nEOF\n'
+
+    def test_theme_restarts_use_compatibility_launcher(self):
+        for name in ('config.json', 'config-light.json'):
+            with self.subTest(config=name):
+                config = json.loads((ROOT / 'linux/home/.config/hyprpanel' / name).read_text())
+                self.assertEqual(
+                    config['hyprpanel.restartCommand'],
+                    'hyprpanel -q; "$HOME/.config/hypr/scripts/start-hyprpanel.sh"',
+                )
 
     def test_changed_launcher_format(self):
         self.check_launcher('#!/bin/sh\necho upstream-format-changed\n')
