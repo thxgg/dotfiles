@@ -36,4 +36,4 @@ brew bundle check --file=./macos/Brewfile
 - Register Homebrew JDK 21 under `~/Library/Java/JavaVirtualMachines` so `/usr/libexec/java_home` and Fish can discover it.
 - Setup makes Fish the login shell when permitted and assigns text/code file types to VS Code when installed.
 - The GUI PATH LaunchAgent includes user commands, Vite+, Homebrew, and system commands.
-- Theme synchronization has no LaunchAgent. Keep manual theme commands and native application appearance settings.
+- Theme synchronization has no LaunchAgent or command wrappers. Keep static assets and native application appearance settings.

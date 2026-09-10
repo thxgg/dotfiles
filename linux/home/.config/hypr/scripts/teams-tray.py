@@ -162,14 +162,8 @@ class TeamsTray:
             self.address = None
         else:
             self.address = next(c.get("address") for c in clients if badge_module.is_teams(c))
-            state_root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
-            try:
-                theme = (state_root / "theme/mode").read_text().strip()
-            except OSError:
-                theme = "dark"
-            changed = badge != self.badge or theme != self.theme
+            changed = badge != self.badge
             self.badge = badge
-            self.theme = theme
             if self.connection is None:
                 self.open()
             elif changed:

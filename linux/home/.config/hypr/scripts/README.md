@@ -42,8 +42,8 @@ The helper checks it every two seconds:
 - No Teams PWA window: disconnect the tray item. Reconnect when Teams opens.
 
 Click the icon or choose **Open Microsoft Teams** from its menu to focus Teams.
-The icon has light and dark variants and follows the saved theme mode. The dot
-uses `#f63579` in both themes. The SVG logo assets
+The icon has light and dark assets and uses a static dark default. It does not
+read shared theme state. The dot uses `#f63579` in both variants. The SVG logo assets
 are local, so the helper does not need Slack or network access to draw its icon.
 The runtime dependency `python-gobject` is in the Linux desktop package profile.
 

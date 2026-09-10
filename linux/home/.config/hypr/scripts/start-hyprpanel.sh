@@ -11,22 +11,9 @@ fi
 key_file="$runtime_dir/hyprpanel-weather-key.json"
 config_root="$runtime_dir/hyprpanel-config-home"
 panel_config_dir="$config_root/hyprpanel"
-theme_mode_file="${XDG_STATE_HOME:-$HOME/.local/state}/theme/mode"
-
-theme_mode="dark"
-if [[ -r "$theme_mode_file" ]]; then
-    candidate_mode="$(tr -d '[:space:]' < "$theme_mode_file")"
-    if [[ "$candidate_mode" == "light" || "$candidate_mode" == "dark" ]]; then
-        theme_mode="$candidate_mode"
-    fi
-fi
-
+# Use the static application configuration. Do not read shared theme state.
 panel_config_source="$HOME/.config/hyprpanel/config.json"
 panel_scss_source="$HOME/.config/hyprpanel/modules.scss"
-if [[ "$theme_mode" == "light" ]]; then
-    panel_config_source="$HOME/.config/hyprpanel/config-light.json"
-    panel_scss_source="$HOME/.config/hyprpanel/modules-light.scss"
-fi
 
 export PATH="$HOME/.config/hypr/scripts:$PATH"
 
