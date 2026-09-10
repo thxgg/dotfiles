@@ -12,7 +12,7 @@
 \setenv PAGER 'nvim -R -c "set nomodifiable nowrap" -'
 
 \timing on
-\set HISTFILE ~/.psql_history.d/history-:DBNAME
+\set HISTFILE ~/.psql_history-:DBNAME
 \set HISTCONTROL ignoredups
 \set COMP_KEYWORD_CASE upper
 

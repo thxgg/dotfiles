@@ -1,3 +1,13 @@
+# Shared configuration checks
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/common-config.test.py
+```
+
+These checks use temporary homes. They check retired Amp/theme configuration,
+Docker PATH guards, PostgreSQL history, and editor setup with stubbed LSP/DAP
+interfaces. They do not start language servers or install editor plugins.
+
 # Root command and deployment safety checks
 
 ```sh
