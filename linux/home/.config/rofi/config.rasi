@@ -1,11 +1,9 @@
 configuration {
-    modi: "drun,run,window";
+    modi: "drun";
     show-icons: true;
     drun-display-format: "{icon} {name}";
     display-drun: " Apps ";
-    display-run: " Run ";
-    display-window: " Windows ";
-    sidebar-mode: true;
+    sidebar-mode: false;
     disable-history: false;
     hide-scrollbar: true;
 }
@@ -31,4 +29,10 @@ element {
 
 element-icon {
     size: 1.1em;
+}
+
+@theme "catppuccin-light"
+
+mainbox {
+    children: [ "inputbar", "message", "listview" ];
 }
