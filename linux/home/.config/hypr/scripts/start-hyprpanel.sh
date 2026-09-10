@@ -2,7 +2,12 @@
 
 set -euo pipefail
 
-runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+# This directory holds secrets and executable generated code. Never use /tmp.
+runtime_dir="${XDG_RUNTIME_DIR:?A private XDG_RUNTIME_DIR is required}"
+if [[ ! -d "$runtime_dir" || ! -O "$runtime_dir" || -L "$runtime_dir" ]]; then
+    printf 'Invalid session runtime directory: %s\n' "$runtime_dir" >&2
+    exit 1
+fi
 key_file="$runtime_dir/hyprpanel-weather-key.json"
 config_root="$runtime_dir/hyprpanel-config-home"
 panel_config_dir="$config_root/hyprpanel"
@@ -44,7 +49,8 @@ recover_session_env() {
         local latest_hypr_dir
         latest_hypr_dir="$(find "$runtime_dir/hypr" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
         if [[ -n "$latest_hypr_dir" ]]; then
-            export HYPRLAND_INSTANCE_SIGNATURE="$(basename "$latest_hypr_dir")"
+            HYPRLAND_INSTANCE_SIGNATURE="$(basename "$latest_hypr_dir")"
+            export HYPRLAND_INSTANCE_SIGNATURE
         fi
     fi
 
@@ -52,7 +58,8 @@ recover_session_env() {
         local wayland_socket
         wayland_socket="$(find "$runtime_dir" -maxdepth 1 -type s -name 'wayland-*' | sort | head -n 1)"
         if [[ -n "$wayland_socket" ]]; then
-            export WAYLAND_DISPLAY="$(basename "$wayland_socket")"
+            WAYLAND_DISPLAY="$(basename "$wayland_socket")"
+            export WAYLAND_DISPLAY
         fi
     fi
 }
@@ -96,9 +103,10 @@ prepare_lua_compatible_runtime() {
         /^cat <<EOF \| base64 --decode > \$file$/ { in_payload = 1; next }
         in_payload && /^EOF$/ { exit }
         in_payload { print }
-    ' "$launcher" | base64 --decode > "$runtime_file"
+    ' "$launcher" | base64 --decode > "$runtime_file" || return 1
+    [[ -s "$runtime_file" ]] || return 1
 
-    python3 - "$runtime_file" <<'PY'
+    python3 - "$runtime_file" <<'PY' || return 1
 from pathlib import Path
 import sys
 
@@ -145,7 +153,12 @@ PY
     printf '%s\n' "$runtime_file"
 }
 
-runtime_file="$(prepare_lua_compatible_runtime)"
+# Upstream builds can change their generated symbols. Keep the bar available
+# instead of aborting login when an optional compatibility patch no longer fits.
+if ! runtime_file="$(prepare_lua_compatible_runtime)"; then
+    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions may be unavailable.\n' >&2
+    exec /usr/share/hyprpanel/hyprpanel-app
+fi
 
 # The installed Astal watcher cannot parse Electron's bus-name/object-path
 # registrations. Use the private build only while the system library matches.

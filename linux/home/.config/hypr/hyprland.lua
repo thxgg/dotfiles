@@ -33,7 +33,6 @@ hl.on("hyprland.start", function()
         "systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service",
         "systemctl --user start hyprpolkitagent",
         "udiskie",
-        "bash -lc '$HOME/.local/bin/theme-mode --quiet --session-init apply'",
         os.getenv("HOME") .. "/.config/hypr/scripts/start-hyprpanel.sh",
         "bash -lc 'QT_QPA_PLATFORM=wayland XDG_CURRENT_DESKTOP=Hyprland flameshot'",
         "dropbox",

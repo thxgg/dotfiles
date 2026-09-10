@@ -1,24 +1,40 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+"""Act on the immutable recording path carried by a notification."""
+import os
+from pathlib import Path
+import subprocess
+import sys
 
-set -euo pipefail
 
-output_path="$(cat /tmp/last_recording_path 2>/dev/null || true)"
-if [[ -z "$output_path" || ! -f "$output_path" ]]; then
-    notify-send "Recording unavailable" "The recorded file was not found." \
-        -i dialog-error \
-        -a "Screen Recorder"
-    exit 1
-fi
+def main():
+    if len(sys.argv) != 3 or sys.argv[1] not in {"directory", "play", "copy-file", "copy-path"}:
+        print(f"Usage: {sys.argv[0]} {{directory|play|copy-file|copy-path}} HEX_PATH", file=sys.stderr)
+        return 2
+    action, token = sys.argv[1:]
+    try:
+        path = Path(os.fsdecode(bytes.fromhex(token)))
+        if not path.is_absolute() or not path.is_file():
+            raise ValueError("Recording not found")
+    except (ValueError, OSError):
+        print("Recording unavailable: invalid path or missing file", file=sys.stderr)
+        return 1
+    try:
+        if action == "directory":
+            subprocess.run(["nautilus", "--select", str(path)], check=True)
+        elif action == "play":
+            subprocess.run(["xdg-open", str(path)], check=True)
+        elif action == "copy-file":
+            # File-aware Wayland clients can request this MIME type on paste.
+            subprocess.run(["wl-copy", "--type", "text/uri-list"],
+                           input=(path.as_uri() + "\r\n").encode(), check=True)
+        else:
+            subprocess.run(["wl-copy", "--type", "text/plain;charset=utf-8"],
+                           input=os.fsencode(path), check=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        print(f"Recording action failed: {error}", file=sys.stderr)
+        return 1
+    return 0
 
-case "${1:-}" in
-    directory)
-        nautilus --select "$output_path"
-        ;;
-    play)
-        xdg-open "$output_path"
-        ;;
-    *)
-        echo "Usage: $0 {directory|play}" >&2
-        exit 2
-        ;;
-esac
+
+if __name__ == "__main__":
+    sys.exit(main())

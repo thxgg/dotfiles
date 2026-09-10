@@ -28,8 +28,14 @@ zsh ./linux/setup.sh --dry-run
 
 ## Dependencies & Edges
 - Uplink: [Root](../AGENTS.md)
-- Downlinks: none
+- Downlink: [Linux Home Payload](./home/AGENTS.md)
 
 ## Patterns & Pitfalls
-- Service enablement is best-effort and unit-name dependent (`postgresql18` and `postgresql` checks both exist).
+- Service changes apply only to requested packages. Missing units are skipped; failures from existing units stop setup.
+- Replace conflicting system Node.js providers in one package transaction. Never remove a provider first with dependency checks disabled.
+- `--with-virtualization` adds to either the default or explicitly selected profiles.
 - Keep profile files comment-friendly and one package per line for easy diff/review.
+- Vite+ manages project Node.js selection. Bootstrap installs LTS and Node 14 for legacy admin deployment parity; the legacy admin's local `.node-version` selects 16.20.2.
+- Theme application is manual; no session-start theme hook or wallpaper polling service is deployed.
+- `--dry-run` requires Arch Linux and previews conditional post-install actions. On macOS, run `zsh -n linux/setup.sh` and the mocked tests in `tests/linux-bootstrap.test.py`.
+- Recording clipboard and launcher fallback tests live in `tests/linux-recording.test.py` and `tests/linux-panel-launcher.test.py`. They do not validate real Wayland paste or desktop behavior.

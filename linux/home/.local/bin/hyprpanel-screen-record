@@ -8,29 +8,59 @@ if [[ "${1:-}" != "stop" ]]; then
     exec "$upstream_script" "$@"
 fi
 
-if ! pgrep -x wf-recorder >/dev/null; then
+# Capture this recording's path before another recording can replace it.
+output_path="$(cat /tmp/last_recording_path 2>/dev/null || true)"
+pids=()
+while IFS= read -r pid; do
+    [[ -n "$pid" ]] && pids+=("$pid")
+done < <(pgrep -u "$(id -u)" -x wf-recorder || true)
+if [[ ${#pids[@]} -eq 0 ]]; then
     echo "No recording in progress."
     exit 1
 fi
 
-pkill -SIGINT -x wf-recorder
-for _ in {1..20}; do
-    pgrep -x wf-recorder >/dev/null || break
+kill -INT "${pids[@]}"
+for _ in {1..100}; do
+    running=0
+    for pid in "${pids[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then running=1; fi
+    done
+    [[ "$running" == 0 ]] && break
     sleep 0.1
 done
-
-output_path="$(cat /tmp/last_recording_path 2>/dev/null || true)"
-if [[ -z "$output_path" || ! -f "$output_path" ]]; then
-    notify-send "Recording stopped" "No recent recording found." \
-        -i video-x-generic \
-        -a "Screen Recorder" \
-        -t 10000
+if [[ "$running" != 0 ]]; then
+    notify-send "Recording is still stopping" "Wait for the video to finish before copying it." -a "Screen Recorder"
     exit 1
 fi
 
-notify-send "Recording stopped" "Saved to: $output_path" \
-    -i video-x-generic \
-    -a "Screen Recorder" \
-    -t 10000 \
-    --action="scriptAction:-$HOME/.local/bin/hyprpanel-recording-action directory=Open Directory" \
-    --action="scriptAction:-$HOME/.local/bin/hyprpanel-recording-action play=Play"
+if [[ -z "$output_path" || ! -f "$output_path" ]]; then
+    notify-send "Recording stopped" "No recent recording found." -i video-x-generic -a "Screen Recorder"
+    exit 1
+fi
+
+# Hex encoding keeps filenames out of the notification's shell command syntax.
+token="$(python3 - "$output_path" <<'PY'
+import os
+import sys
+print(os.fsencode(os.path.abspath(sys.argv[1])).hex())
+PY
+)"
+action="$HOME/.local/bin/hyprpanel-recording-action"
+message="Saved to: $output_path"
+if "$action" copy-file "$token"; then
+    message="$message (file copied; use Copy Path for text paste)"
+else
+    message="$message (clipboard copy failed)"
+fi
+
+# A standard action ID is returned by libnotify. Do not embed shell commands.
+# The detached handler lets the bar finish its stop action immediately.
+(
+    selected="$(notify-send "Recording stopped" "$message" \
+        -i video-x-generic -a "Screen Recorder" -t 10000 --wait \
+        --action="directory=Open Directory" --action="play=Play" \
+        --action="copy-file=Copy File" --action="copy-path=Copy Path")" || exit
+    case "$selected" in
+        directory|play|copy-file|copy-path) "$action" "$selected" "$token" ;;
+    esac
+) </dev/null >/dev/null 2>&1 &

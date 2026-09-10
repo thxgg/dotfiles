@@ -1,3 +1,32 @@
+# Recording clipboard and notifications
+
+Stopping a recording waits for the recorder to exit, then copies a `text/uri-list`
+file reference with `wl-copy`. Applications that accept file paste can use this
+reference. It does not put the video bytes on the clipboard. File paste support
+varies by application; this is not the macOS pasteboard.
+
+The notification provides **Copy File**, **Copy Path**, **Play**, and
+**Open Directory**. Copy Path replaces the clipboard with the plain file path.
+Only one representation is selected at a time. Every action keeps the original
+recording path, even after a new recording starts. Clipboard failures do not
+remove the saved recording.
+
+Required tools include `wf-recorder`, `wl-clipboard`, Python 3, and `libnotify`.
+The panel launcher requires the private session `XDG_RUNTIME_DIR`. If its
+version-specific compatibility patches fail, it starts the unmodified upstream
+panel and warns that custom workspace/recording actions may be unavailable.
+The recording helper can still be called directly.
+
+Portable tests:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-recording.test.py
+```
+
+On Linux, record a short video, stop it, and test file paste in a file manager
+and Copy Path in a text editor. Repeat after starting another recording to check
+that the earlier notification still opens the original file.
+
 # Teams PWA tray item
 
 `teams-tray.py` publishes a real StatusNotifierItem beside Slack and the other

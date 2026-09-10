@@ -13,7 +13,12 @@ fi
 # Keep US as the first XWayland group even while Bulgarian is active. Qt/X11
 # apps use the full XKB keymap to resolve accelerators, so this preserves
 # Latin shortcuts like Ctrl+A/C/V while the active typing layout is Bulgarian.
-if ! command -v setxkbmap >/dev/null 2>&1 || [[ -z "${DISPLAY:-}" ]]; then
+if ! command -v setxkbmap >/dev/null 2>&1; then
+    printf '%s\n' 'Warning: setxkbmap is missing. Install xorg-setxkbmap to update the XWayland keyboard layout.' >&2
+    exit 0
+fi
+
+if [[ -z "${DISPLAY:-}" ]]; then
     exit 0
 fi
 

@@ -1,3 +1,17 @@
+# Linux offline checks
+
+Run from the repository root:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-bootstrap.test.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-recording.test.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-panel-launcher.test.py
+```
+
+These tests use temporary files and mock commands. They do not change packages,
+services, or the clipboard. Actual Wayland file paste, notifications, GTK/Qt
+appearance, and HyprPanel startup still require a Linux desktop check.
+
 # Pi bootstrap checks
 
 Run `python3 tests/pi-bootstrap.test.py` from the repository root. These offline tests use temporary

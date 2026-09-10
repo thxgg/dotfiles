@@ -39,6 +39,12 @@ current_login_shell() {
 configure_fish_shell() {
 	local fish_path current_shell
 
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info 'If fish is available, listed in /etc/shells, and not the login shell, run from a terminal:'
+		printf 'chsh -s "$(command -v fish)"\n'
+		return 0
+	fi
+
 	if ! command -v fish >/dev/null 2>&1; then
 		warn "fish not found in PATH; skipping login shell migration"
 		return
@@ -82,6 +88,19 @@ ensure_vite_plus_node() {
 	vp_home="${VP_HOME:-$HOME/.vite-plus}"
 	vp_bin="$vp_home/bin/vp"
 
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info 'Install Vite+ if vp is not available in PATH or VP_HOME:'
+		printf 'curl -fsSL https://vite.plus | env VP_NODE_MANAGER=yes bash\n'
+		info 'Use vp from PATH, or VP_HOME/bin/vp, for Node.js setup:'
+		printf 'vp_bin="$(command -v vp || printf '\''%%s'\'' "${VP_HOME:-$HOME/.vite-plus}/bin/vp")"\n'
+		printf 'VP_NODE_MANAGER=yes "$vp_bin" env setup --refresh\n'
+		printf '"$vp_bin" env on\n'
+		printf '"$vp_bin" env install 14 # Continue if this legacy version is unavailable\n'
+		printf '"$vp_bin" env install lts\n'
+		printf '"$vp_bin" env default lts\n'
+		return 0
+	fi
+
 	if ! command -v vp >/dev/null 2>&1 && [[ ! -x "$vp_bin" ]]; then
 		if ! command -v curl >/dev/null 2>&1; then
 			warn "curl not found; skipping Vite+ installation"
@@ -105,22 +124,17 @@ ensure_vite_plus_node() {
 	VP_NODE_MANAGER=yes "$vp_bin" env setup --refresh
 	"$vp_bin" env on
 	"$vp_bin" env install 14 || warn "Could not install legacy Node.js 14 with Vite+; continuing"
-	"$vp_bin" env install 17 || warn "Could not install legacy Node.js 17 with Vite+; continuing"
 	"$vp_bin" env install lts
 	"$vp_bin" env default lts
 }
 
-ensure_open_computer_use() {
-	if ! command -v npm >/dev/null 2>&1; then
-		warn "npm not found; skipping Open Computer Use installation"
-		return
+ensure_amp() {
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info 'Install or update Amp if curl is available:'
+		printf 'curl -fsSL https://ampcode.com/install.sh | bash\n'
+		return 0
 	fi
 
-	info "Installing Open Computer Use"
-	npm install --global open-computer-use
-}
-
-ensure_amp() {
 	if ! command -v curl >/dev/null 2>&1; then
 		warn "curl not found; skipping Amp installation"
 		return
@@ -268,13 +282,13 @@ reconcile_nodejs_provider_conflict() {
 	warn "Installed provider $lts_provider conflicts with nodejs"
 
 	if [[ ! -t 0 || ! -t 1 ]]; then
-		error "Run 'sudo pacman -Rdd $lts_provider && sudo pacman -S nodejs npm' first, then re-run setup"
+		error "Run 'sudo pacman -S --needed nodejs npm' from a terminal and review the provider replacement, then re-run setup"
 		exit 1
 	fi
 
 	info "Switching system Node.js provider from $lts_provider to nodejs"
-	sudo pacman -Rdd --noconfirm "$lts_provider"
-	sudo pacman -S --needed --noconfirm nodejs npm
+	# Let pacman validate dependencies and ask before replacing the provider.
+	sudo pacman -S --needed nodejs npm
 }
 
 ensure_sudo_session() {
@@ -308,6 +322,13 @@ initialize_postgresql18_cluster() {
 	local initdb_bin="/opt/postgresql18/bin/initdb"
 
 	if ! package_is_requested postgresql18; then
+		return 0
+	fi
+
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info 'Initialize PostgreSQL 18 only if its service is inactive, PG_VERSION is absent, the data directory is empty, and initdb is available:'
+		printf 'sudo install -d -m 700 -o postgres -g postgres /var/lib/postgres\n'
+		printf 'sudo -u postgres %q -D %q\n' "$initdb_bin" "$pgdata"
 		return 0
 	fi
 
@@ -378,7 +399,7 @@ usage() {
 Usage: ./linux/setup.sh [options]
 
 Options:
-  --dry-run                Print install commands only
+  --dry-run                Print package and post-install commands only
   --with-virtualization    Include virtualization profile
   --profiles a,b,c         Override profiles to install
   --skip-network-check     Skip connectivity preflight check
@@ -444,10 +465,11 @@ fi
 
 if [[ ${#PROFILES[@]} -eq 0 ]]; then
 	PROFILES=(core-cli core-apps desktop-hyprland)
-	if [[ $WITH_VIRTUALIZATION -eq 1 ]]; then
-		PROFILES+=(virtualization)
-	fi
 fi
+if [[ $WITH_VIRTUALIZATION -eq 1 ]]; then
+	PROFILES+=(virtualization)
+fi
+PROFILES=(${(u)PROFILES})
 
 packages=()
 for profile in "${PROFILES[@]}"; do
@@ -478,29 +500,15 @@ fi
 info "Resolved profiles: ${PROFILES[*]}"
 info "Resolved package count: ${#unique_packages[@]}"
 
-if [[ $DRY_RUN -eq 1 ]]; then
-	info "Dry run package list:"
-	printf ' - %s\n' "${unique_packages[@]}"
-	info "Dry run command:"
-	printf 'yay -S --needed --noconfirm'
-	printf ' %q' "${unique_packages[@]}"
-	printf '\n'
-	info "Dry run post-install command:"
-	printf 'curl -fsSL https://ampcode.com/install.sh | bash\n'
-	success "Dry run complete"
-	exit 0
-fi
-
-info "Installing packages with yay"
-ensure_sudo_session
-reconcile_valkey_conflict
-reconcile_flameshot_conflict
-reconcile_nodejs_provider_conflict
-yay -S --needed --noconfirm --answerclean N --answerdiff N --answeredit N "${unique_packages[@]}"
-
 enable_service() {
 	local service="$1"
 	local unit_entry enabled_state
+
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info "If $service exists, enable and start it (start only for an alias):"
+		printf 'sudo systemctl enable --now %q # Use start instead for an alias\n' "$service"
+		return 0
+	fi
 
 	unit_entry="$(systemctl list-unit-files "$service" --no-legend 2>/dev/null | head -n 1)"
 	if [[ -z "$unit_entry" ]]; then
@@ -521,8 +529,16 @@ enable_service() {
 
 disable_service() {
 	local service="$1"
+	local unit_entry
 
-	if ! systemctl list-unit-files "$service" --no-legend &>/dev/null; then
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info "If $service exists, disable and stop it:"
+		printf 'sudo systemctl disable --now %q\n' "$service"
+		return 0
+	fi
+
+	unit_entry="$(systemctl list-unit-files "$service" --no-legend 2>/dev/null | head -n 1)"
+	if [[ -z "$unit_entry" ]]; then
 		warn "Service not found, skipping: $service"
 		return
 	fi
@@ -531,30 +547,61 @@ disable_service() {
 	sudo systemctl disable --now "$service"
 }
 
-info "Running post-install service setup"
-enable_service docker.service
-enable_service valkey.service
-enable_service redis.service
-disable_service tailscaled.service
+run_postinstall_setup() {
+	info "Running post-install service setup"
+	if package_is_requested docker; then
+		enable_service docker.service
+	fi
+	if package_is_requested valkey; then
+		enable_service valkey.service
+	fi
+	if package_is_requested redis; then
+		enable_service redis.service
+	fi
+	if package_is_requested tailscale; then
+		disable_service tailscaled.service
+	fi
 
-if package_is_requested postgresql18; then
-	initialize_postgresql18_cluster
-	enable_service postgresql18.service
+	if package_is_requested postgresql18; then
+		initialize_postgresql18_cluster
+		enable_service postgresql18.service
+	fi
+	if package_is_requested postgresql; then
+		enable_service postgresql.service
+	fi
+
+	configure_fish_shell
+	ensure_vite_plus_node
+	ensure_amp
+
+	if [[ $DRY_RUN -eq 1 ]]; then
+		info 'If pipx is available, set up its PATH:'
+		printf 'pipx ensurepath\n'
+	elif command -v pipx &>/dev/null; then
+		info "Ensuring pipx path setup"
+		pipx ensurepath
+	fi
+}
+
+if [[ $DRY_RUN -eq 1 ]]; then
+	info "Dry run package list:"
+	printf ' - %s\n' "${unique_packages[@]}"
+	info "Dry run command:"
+	printf 'yay -S --needed --noconfirm --answerclean N --answerdiff N --answeredit N'
+	printf ' %q' "${unique_packages[@]}"
+	printf '\n'
+	info "Dry run post-install commands (conditional steps are described below):"
+	run_postinstall_setup
+	success "Dry run complete"
+	exit 0
 fi
 
-if package_is_requested postgresql; then
-	enable_service postgresql.service
-fi
+info "Installing packages with yay"
+ensure_sudo_session
+reconcile_valkey_conflict
+reconcile_flameshot_conflict
+reconcile_nodejs_provider_conflict
+yay -S --needed --noconfirm --answerclean N --answerdiff N --answeredit N "${unique_packages[@]}"
 
-configure_fish_shell
-
-ensure_vite_plus_node
-ensure_open_computer_use
-ensure_amp
-
-if command -v pipx &>/dev/null; then
-	info "Ensuring pipx path setup"
-	pipx ensurepath
-fi
-
+run_postinstall_setup
 success "Linux setup complete"
