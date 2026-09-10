@@ -21,7 +21,7 @@ complete -c dot -s h -l help -d "Show help"
 complete -c dot -n "__fish_seen_subcommand_from update" -s v -l verbose -d "Stream full update output"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip OS and global JS package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip Herdr self-update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 

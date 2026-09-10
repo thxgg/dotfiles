@@ -1,6 +1,6 @@
 function glp
-    if test (count $argv) -eq 0
-        echo 'usage: glp <count>' >&2
+    if test (count $argv) -ne 1; or not string match -qr '^[1-9][0-9]*$' -- "$argv[1]"
+        echo 'usage: glp <positive integer>' >&2
         return 1
     end
 
