@@ -21,11 +21,10 @@ This node covers shared layout and ownership boundaries across apps.
 - Storing macOS-only or Linux-only app config under `common/.config`.
 
 ## Dependencies & Edges
-- Uplink: [Common Home Tree](../CLAUDE.md)
+- Uplink: [Common Home Tree](../AGENTS.md)
 - Downlinks:
-  - [Neovim Config](./nvim/CLAUDE.md)
-  - [OpenCode Config](./opencode/CLAUDE.md)
+  - [Neovim Config](./nvim/AGENTS.md)
 
 ## Patterns & Pitfalls
-- `nvim` and `opencode` are the highest-churn subtrees; treat them as independent domains.
+- `nvim` owns editor behavior. `opencode` contains its MCP/UI configuration and Herdr integration.
 - Keep `.gitignore` entries aligned when adding any generated output under `.config`.

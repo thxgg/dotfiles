@@ -2,7 +2,7 @@
 
 This repository manages shell/editor/system configuration with GNU Stow.
 
-Primary interactive shell behavior lives in `common/.config/fish/config.fish`, with tmux in `common/.config/tmux/tmux.conf`. Zsh remains a scripting dependency for the bootstrap and dotfiles management commands.
+Primary interactive shell behavior lives in `common/.config/fish/config.fish`, with terminal workspace management in `common/.config/herdr/config.toml`. Zsh remains a scripting dependency for the bootstrap and dotfiles management commands.
 
 Stow payload is split into shared + OS-specific roots:
 
@@ -28,15 +28,10 @@ The root `dot` CLI wraps the repo scripts for day-to-day use:
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health plus the Pi runtime, extension workspace, and Pi Transcribe setup via `doctor.sh`
-- External Pi packages are declared in `scripts/pi-packages.txt`. Pi Transcribe model setup remains manual through `/transcribe`; see [Pi setup](common/.pi/README.md#external-packages-and-pi-transcribe).
+- External Pi packages are declared in `common/.pi/agent/npm/package.json`. Pi Transcribe model setup remains manual through `/transcribe`; see [Pi setup](common/.pi/README.md#external-packages-and-pi-transcribe).
 - `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
 
 After setup, use `dot` from anywhere in a new shell. If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`; both also refresh the `~/.local/bin/dot` symlink.
-
-If you update terminal or tmux config and use long-lived tmux sessions, fully restart the tmux server afterward so refreshed GUI/session environment variables are picked up:
-
-- `tmux kill-server`
-- `tmux`
 
 If you only want specific app config components under `~/.config`, you can use scoped mode:
 
@@ -47,7 +42,9 @@ If you only want specific app config components under `~/.config`, you can use s
 
 This is useful for sharing one part of your setup (for example just Neovim) without installing shell/system dotfiles. Empty or unknown selections are rejected. List-only commands do not deploy or migrate files. Config-only commands do not migrate Pi state, change Codex instructions, or require Pi health checks.
 
-Theme application is manual. Neither setup nor `dot update` resets the selected theme mode.
+Themes are static application assets. There are no theme-changing wrappers, shared theme-state readers, or setup/update hooks. Native Ghostty and Herdr appearance settings remain available. See [theme assets](docs/catppuccin-latte-mocha-theme.md).
+
+Local Amp configuration and CLI installation are retired. Amp runs remotely through Orbs; the Linux web-app launcher remains available.
 
 Validate key symlinks and stow setup health:
 
@@ -103,9 +100,7 @@ Useful commands:
 
 Linux setup is Arch-only and requires `yay`.
 
-The package profile includes the shared fish + tmux toolchain, and `linux/setup.sh` will try to migrate the login shell to fish when run interactively (or print the `chsh` command to run manually).
-
-For Wayland terminals inside tmux, the shared tmux config refreshes GUI/session environment variables from the attaching client so clipboard-dependent tools like Pi image paste keep working. After deploying tmux config changes, restart the tmux server once.
+The package profile includes the shared fish shell toolchain, and `linux/setup.sh` will try to migrate the login shell to fish when run interactively (or print the `chsh` command to run manually).
 
 Package profiles are in `linux/packages/`:
 
@@ -148,12 +143,6 @@ To remove links:
 See [tests/README.md](tests/README.md) for portable regression tests and Linux-only tray tests. Portable tests use temporary homes and mock commands; they must not change real services, packages, or the clipboard.
 
 Run `./doctor.sh` for full machine health, or `./doctor.sh --only-config nvim` for a scoped check. Linux desktop appearance, notifications, and file paste still require a Linux session.
-
-## Third-Party Sounds
-
-The MP3 files in `common/.config/opencode/sounds/` are third-party assets and are not owned by this repository author.
-
-These files are not covered by this repository's MIT license. All rights remain with their respective owners.
 
 ## Nerd Font Helper
 

@@ -8,7 +8,7 @@ Personal machine bootstrap + dotfiles repository using GNU Stow.
 ```text
 dotfiles/
 ├── common/                     # shared stow payload mirrored to $HOME
-│   ├── .config/                # app/tool configs (fish, tmux, nvim, ghostty, ...)
+│   ├── .config/                # app/tool configs (fish, nvim, ghostty, herdr, ...)
 │   ├── .gitconfig/.ssh/...     # shared git, SSH, and database config
 ├── macos/                      # Homebrew bootstrap + Brewfile + macOS-only stow payload
 │   └── home/                   # macOS-only stow payload mirrored to $HOME
@@ -30,13 +30,13 @@ dotfiles/
 | Fix stow collisions | `safe-stow.sh` | Backs up conflicting leaf targets before linking active roots |
 | Validate deployment | `doctor.sh` | Reports OK/WARN/FAIL; config-only checks exclude Pi health |
 | Test changes | `tests/README.md` | Portable mocks plus explicitly isolated Linux tray checks |
-| Pi package manifests | `scripts/pi-packages.txt` | External packages; Vite+ owns CLI updates |
+| Pi package manifests | `common/.pi/agent/npm/package.json` | External packages; Vite+ owns CLI updates |
 | Add macOS packages | `macos/Brewfile` | Declarative source for brew formulae/casks |
 | Add Arch packages | `linux/packages/*.txt` | Profile-based lists consumed by `linux/setup.sh` |
-| Shell behavior | `common/.config/fish/config.fish` + `common/.config/tmux/tmux.conf` | Primary interactive shell is fish; keep secrets in `~/.env.secrets`, not tracked files |
+| Shell behavior | `common/.config/fish/config.fish` + `common/.config/herdr/config.toml` | Primary interactive shell is fish; keep secrets in `~/.env.secrets`, not tracked files |
 | Neovim behavior | `common/.config/nvim` | Lazy plugin specs + core/user modules |
-| Codex setup | `common/.codex` + `common/.agents/skills` | Global Codex config, personal instructions, MCP servers, and user-wide skills |
-| OpenCode setup | `common/.config/opencode` | Agents/commands/skills and local plugin code |
+| Codex setup | `common/.codex` + `common/.agents/skills` | Tracked personal instructions and user-wide skills; Codex settings and MCP servers are machine-local |
+| OpenCode setup | `common/.config/opencode` | MCP/UI configuration and Herdr integration |
 
 ## Conventions (Project-Specific)
 - Keep shared paths in `common/`; place OS-specific dotfiles in `macos/home/` or `linux/home/`.
@@ -46,9 +46,10 @@ dotfiles/
 - Use `safe-stow.sh` instead of raw `stow` so conflicts are backed up first.
 - Reject empty/invalid config selections before mutations. List-only mode must be read-only; scoped mode must not change unrelated home files or migrate Pi state.
 - Test deployment and removal with temporary homes and mock commands. Do not let inherited shell startup files or live clipboard/service tools execute in portable tests.
-- Theme selection is manual. Do not reintroduce automatic theme application in setup or `dot update`.
+- Keep static themes and native application appearance settings. Do not add theme-changing scripts, wrappers, shared theme state, or setup/update hooks.
 - Keep machine secrets in untracked `~/.env.secrets`.
-- Catppuccin Latte/Mocha theming is implemented as native per-app theme assets plus wrapper/runtime selection logic (`common/.local/bin/*`, `~/.local/state/theme`). Use Lavender as the accent for both variants, and update matching light/dark variants across themed apps so they stay visually synchronized.
+- Catppuccin Latte/Mocha assets use Lavender accents. Select themes in each application; there is no repository-wide theme controller.
+- Local Amp configuration is retired; Amp runs remotely through Orbs.
 
 ## Anti-Patterns (This Project)
 - Committing secrets or token-bearing host files (for example auth host maps) without review.
