@@ -8,6 +8,8 @@
 ## Communication
 Use ASD-STE100 Simplified Technical English, Issue 9, with short sentences and active voice. Preserve code, commands, paths, identifiers, logs, errors, quotations, and user-supplied text. Technical accuracy takes precedence over STE rules. State the result, relevant evidence, and remaining limits.
 
+When writing Mermaid, avoid literal semicolons in labels; renderers can interpret them as statement separators.
+
 ## Browser Automation
 Use `agent-browser` for browser automation. Read its installed core instructions before use.
 
