@@ -25,6 +25,27 @@ class CommonConfigTests(unittest.TestCase):
             source = (ROOT / 'linux/home/.config/hypr/scripts' / name).read_text()
             self.assertNotIn('theme/mode', source)
 
+    def test_hyprland_uses_installed_launchers_and_static_wofi_style(self):
+        style = ROOT / 'linux/home/.config/wofi/style-dark.css'
+        self.assertTrue(style.is_file())
+        pipelines = []
+        for name in ('hyprland.conf', 'hyprland.lua'):
+            source = (ROOT / 'linux/home/.config/hypr' / name).read_text()
+            with self.subTest(config=name):
+                self.assertNotIn('.local/bin/rofi', source)
+                self.assertNotIn('.local/bin/wofi', source)
+                self.assertIn('rofi -show drun', source)
+                clipboard = [line.split('cliphist list | ', 1)[1]
+                             for line in source.splitlines() if 'cliphist list | ' in line]
+                self.assertEqual(len(clipboard), 2)
+                for command in clipboard:
+                    self.assertTrue(command.startswith(
+                        'wofi --style "$HOME/.config/wofi/style-dark.css" --dmenu '))
+                if name.endswith('.lua'):
+                    clipboard = [command.removesuffix("'))") for command in clipboard]
+                pipelines.append(clipboard)
+        self.assertEqual(pipelines[0], pipelines[1])
+
     def test_history_uses_existing_home_directory(self):
         source = (ROOT / 'common/.psqlrc').read_text()
         self.assertIn(r'\set HISTFILE ~/.psql_history-:DBNAME', source)

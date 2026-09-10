@@ -18,7 +18,7 @@ local terminal = "ghostty"
 local browser = "helium-browser"
 local browser2 = "google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1"
 local fileManager = "nautilus"
-local menu = os.getenv("HOME") .. "/.local/bin/rofi -show drun"
+local menu = "rofi -show drun"
 local discord = "discord --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland"
 
 -----------------
@@ -142,8 +142,8 @@ hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(discord))
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("slack"))
 hl.bind(mainMod .. " + F", hl.dsp.exec_cmd('hyprctl --batch "dispatch togglefloating ; dispatch centerwindow 1"'))
-hl.bind(mainMod .. " + V", hl.dsp.exec_cmd('cliphist list | ' .. home .. '/.local/bin/wofi --dmenu --prompt="Clipboard" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist decode | wl-copy'))
-hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd('cliphist list | ' .. home .. '/.local/bin/wofi --dmenu --prompt="Delete clipboard entry" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist delete'))
+hl.bind(mainMod .. " + V", hl.dsp.exec_cmd('cliphist list | wofi --style "$HOME/.config/wofi/style-dark.css" --dmenu --prompt="Clipboard" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist decode | wl-copy'))
+hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd('cliphist list | wofi --style "$HOME/.config/wofi/style-dark.css" --dmenu --prompt="Delete clipboard entry" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist delete'))
 hl.bind(mainMod .. " + C", hl.dsp.window.center())
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
 hl.bind("CTRL + ALT + SPACE", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/switch-keyboard-layout.sh"))

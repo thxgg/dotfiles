@@ -6,7 +6,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/common-config.test.py
 
 These checks use temporary homes. They check retired Amp/theme configuration,
 Docker PATH guards, PostgreSQL history, and editor setup with stubbed LSP/DAP
-interfaces. They do not start language servers or install editor plugins.
+interfaces. Static checks reject retired launcher paths in both Hyprland configurations
+and verify matching clipboard commands with an existing Wofi stylesheet.
+They do not start language servers, install editor plugins, or verify live Linux
+launcher and clipboard behavior.
 
 # Root command and deployment safety checks
 
