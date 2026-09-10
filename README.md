@@ -24,7 +24,7 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS packages and global npm/pnpm/Vite+ packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies and declared external Pi packages, runs `pi update --self` plus `pi update --extensions`, and updates Herdr through Homebrew or its self-updater as appropriate
+- `./dot update` pulls latest changes, updates OS packages and global npm/pnpm/Vite+ packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies and declared external Pi packages, updates the Pi CLI through Vite+ and runs only `pi update --extensions`, and updates Herdr through Homebrew or its self-updater as appropriate
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health plus the Pi runtime, extension workspace, and Pi Transcribe setup via `doctor.sh`
@@ -45,7 +45,9 @@ If you only want specific app config components under `~/.config`, you can use s
 - `./doctor.sh --only-config nvim`
 - `./unstow.sh --only-config nvim`
 
-This is useful for sharing one part of your setup (for example just Neovim) without installing shell/system dotfiles.
+This is useful for sharing one part of your setup (for example just Neovim) without installing shell/system dotfiles. Empty or unknown selections are rejected. List-only commands do not deploy or migrate files. Config-only commands do not migrate Pi state, change Codex instructions, or require Pi health checks.
+
+Theme application is manual. Neither setup nor `dot update` resets the selected theme mode.
 
 Validate key symlinks and stow setup health:
 
@@ -86,6 +88,11 @@ Optional bypass for emergency local commits:
   - `brew bundle --file=./macos/Brewfile`
   - login-shell migration to fish when run interactively
   - service setup for PostgreSQL and Redis
+  - Vite+ installation and Node.js setup
+  - Homebrew JDK 21 registration for macOS discovery
+  - VS Code file associations when the application is installed
+
+The GUI PATH LaunchAgent includes `~/.local/bin` and `~/.vite-plus/bin`.
 
 Useful commands:
 
@@ -119,6 +126,8 @@ Optional flags:
 - `--with-virtualization`
 - `--profiles core-cli,core-apps`
 
+Pass these flags directly to `zsh linux/setup.sh`. `--with-virtualization` adds to explicit profiles as well as defaults. Dry-run requires Arch and `yay`; it previews package and conditional post-install actions without applying them.
+
 ## Stow Workflow
 
 - `./safe-stow.sh` resolves active stow roots by OS (`common` + `macos/home` on macOS, `common` + `linux/home` on Linux)
@@ -133,6 +142,12 @@ Optional flags:
 To remove links:
 
 - `./unstow.sh`
+
+## Validation
+
+See [tests/README.md](tests/README.md) for portable regression tests and Linux-only tray tests. Portable tests use temporary homes and mock commands; they must not change real services, packages, or the clipboard.
+
+Run `./doctor.sh` for full machine health, or `./doctor.sh --only-config nvim` for a scoped check. Linux desktop appearance, notifications, and file paste still require a Linux session.
 
 ## Third-Party Sounds
 

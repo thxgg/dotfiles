@@ -65,53 +65,66 @@ class RecordingActions(unittest.TestCase):
 
 
 class RecordingStop(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.video = self.root / "original ' recording.mp4"
+        self.video.write_bytes(b'video')
+        state = self.root / 'last-path'
+        state.write_text(str(self.video))
+        self.log = self.root / 'actions'
+        self.log.touch()
+        helper = self.root / '.local/bin/hyprpanel-recording-action'
+        helper.parent.mkdir(parents=True)
+        helper.write_text('#!/bin/sh\nprintf "%s %s\\n" "$1" "$2" >> "$ACTION_LOG"\n')
+        helper.chmod(0o755)
+        self.script = (ROOT / 'linux/home/.local/bin/hyprpanel-screen-record').read_text()
+        self.script = self.script.replace('/tmp/last_recording_path', str(state))
+        # Do not inherit BASH_ENV, exported functions, or desktop session state.
+        self.env = {
+            'HOME': str(self.root),
+            'PATH': '/usr/bin:/bin',
+            'ACTION_LOG': str(self.log),
+            'NOTIFY_LOG': str(self.root / 'notify'),
+        }
+
+    def run_stop(self, prelude):
+        return subprocess.run(['bash', '--noprofile', '--norc', '-c',
+                               prelude + self.script, 'record', 'stop'],
+                              env=self.env, capture_output=True, text=True, timeout=5)
+
     def test_stop_copies_original_path_and_offers_actions(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            video = root / "original ' recording.mp4"
-            video.write_bytes(b'video')
-            state = root / 'last-path'
-            state.write_text(str(video))
-            log = root / 'actions'
-            helper = root / '.local/bin/hyprpanel-recording-action'
-            helper.parent.mkdir(parents=True)
-            helper.write_text('#!/bin/sh\nprintf "%s %s\\n" "$1" "$2" >> "$ACTION_LOG"\n')
-            helper.chmod(0o755)
-            script = (ROOT / 'linux/home/.local/bin/hyprpanel-screen-record').read_text()
-            script = script.replace('/tmp/last_recording_path', str(state))
-            prelude = '''
+        prelude = '''
 pgrep() { printf '12345\\n'; }
 kill() { [[ "$1" == -INT ]]; }
 notify-send() { printf '%s\\n' "$@" > "$NOTIFY_LOG"; printf 'copy-path'; }
 export -f pgrep kill notify-send
 '''
-            env = dict(os.environ, HOME=str(root), ACTION_LOG=str(log), NOTIFY_LOG=str(root/'notify'))
-            result = subprocess.run(['bash', '-c', prelude + script, 'record', 'stop'],
-                                    env=env, capture_output=True, text=True, timeout=5)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            # Background notification handling can finish after the parent.
-            import time
-            deadline = time.monotonic() + 3
-            while time.monotonic() < deadline:
-                if log.exists() and 'copy-path' in log.read_text():
-                    break
-                time.sleep(0.01)
-            token = os.fsencode(video).hex()
-            self.assertEqual(log.read_text().splitlines(), [f'copy-file {token}', f'copy-path {token}'])
-            self.assertIn('--action=copy-file=Copy File', (root/'notify').read_text())
+        result = self.run_stop(prelude)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Background notification handling can finish after the parent.
+        import time
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            if 'copy-path' in self.log.read_text():
+                break
+            time.sleep(0.01)
+        token = os.fsencode(self.video).hex()
+        self.assertEqual(self.log.read_text().splitlines(), [f'copy-file {token}', f'copy-path {token}'])
+        self.assertIn('--action=copy-file=Copy File', (self.root / 'notify').read_text())
 
     def test_still_running_never_copies(self):
-        script = (ROOT / 'linux/home/.local/bin/hyprpanel-screen-record').read_text()
         prelude = '''
 pgrep() { printf '12345\\n'; }
 kill() { return 0; }
 sleep() { :; }
 notify-send() { printf '%s\\n' "$1"; }
 '''
-        result = subprocess.run(['bash', '-c', prelude + script, 'record', 'stop'],
-                                capture_output=True, text=True, timeout=5)
-        self.assertEqual(result.returncode, 1)
+        result = self.run_stop(prelude)
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('Recording is still stopping', result.stdout)
+        self.assertEqual(self.log.read_text(), '')
 
 
 if __name__ == '__main__':

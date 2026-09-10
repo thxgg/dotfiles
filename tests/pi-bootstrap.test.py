@@ -1,6 +1,5 @@
 """Offline bootstrap checks. Run: python3 tests/pi-bootstrap.test.py"""
 
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,8 +19,8 @@ class PiBootstrapTests(unittest.TestCase):
         self.home.mkdir()
         self.bin = self.base / "bin"
         self.bin.mkdir()
+        # Do not inherit shell startup hooks or live Pi configuration.
         self.env = {
-            **os.environ,
             "HOME": str(self.home),
             "PATH": f"{self.bin}:/usr/bin:/bin",
             "PI_CODING_AGENT_DIR": str(self.home / ".pi/agent"),
@@ -42,7 +41,8 @@ class PiBootstrapTests(unittest.TestCase):
         path.chmod(0o755)
 
     def run_zsh(self, *args):
-        return subprocess.run(["zsh", *map(str, args)], env=self.env, text=True, capture_output=True)
+        return subprocess.run(["zsh", "-f", *map(str, args)], env=self.env,
+                              text=True, capture_output=True, timeout=5)
 
     def test_manifest_comments_whitespace_and_final_line(self):
         result = self.run_zsh(self.helper)
@@ -56,6 +56,8 @@ class PiBootstrapTests(unittest.TestCase):
         shutil.move(self.bin / "pi", fallback)
         result = self.run_zsh(self.helper)
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(self.env["CALL_LOG"]).read_text().splitlines(),
+                         ["install", SOURCE + "abc", "install", "npm:example@1.0.0"])
 
     def test_install_failure_stops_before_next_package(self):
         self.executable(self.bin / "pi", '#!/bin/sh\nprintf "%s\\n" "$@" >> "$CALL_LOG"\nexit 7\n')

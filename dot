@@ -186,16 +186,22 @@ cmd_unlink() {
 	header "Uninstalling dot command"
 
 	local paths=(
-		"$HOME/.local/bin/dot"
+		"${DOTFILES_BIN_DIR:-$HOME/.local/bin}/dot"
 		"/usr/local/bin/dot"
 		"/opt/homebrew/bin/dot"
 	)
-	local removed=0 path
+	local removed=0 link_path link_target
 
-	for path in "${paths[@]}"; do
-		if [[ -L "$path" ]]; then
-			rm "$path"
-			success "Removed $path"
+	for link_path in "${paths[@]}"; do
+		if [[ -L "$link_path" ]]; then
+			link_target="$(readlink "$link_path")" || return
+			[[ "$link_target" == /* ]] || link_target="${link_path:h}/$link_target"
+			if [[ "${link_target:A}" != "${DOTFILES_DIR:A}/dot" ]]; then
+				warn "Leaving unrelated symlink: $link_path"
+				continue
+			fi
+			rm "$link_path" || return
+			success "Removed $link_path"
 			removed=1
 		fi
 	done
@@ -298,7 +304,7 @@ update_global_js_packages() {
 }
 
 update_pi() {
-	header "Updating pi and extensions"
+	header "Updating pi extensions"
 
 	if ! command_exists pi; then
 		warn "pi not found; skipping"
@@ -335,17 +341,12 @@ update_pi() {
 		pi_update_env+=(RUSTUP_TOOLCHAIN=stable)
 	fi
 
-	if (cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --help 2>&1 | grep -q -- '--extensions'); then
-		info "Updating pi CLI"
-		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --self) || return
-		info "Updating pi extensions/packages"
-		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --extensions) || return
-	else
-		warn "pi update --extensions not supported; falling back to legacy pi update"
-		(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update) || return
-	fi
+	# Vite+ owns CLI updates in update_global_js_packages. Do not run Pi's
+	# self-updater against the Vite+-managed installation.
+	info "Updating pi extensions/packages"
+	(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --extensions) || return
 
-	success "pi and extensions updated"
+	success "pi extensions updated"
 }
 
 update_herdr() {
@@ -481,12 +482,6 @@ LUA
 	success "Neovim plugins and tools updated"
 }
 
-update_theme() {
-	[[ "$OSTYPE" == darwin* && -x "$HOME/.local/bin/theme-mode" ]] || return 0
-	header "Refreshing macOS theme mode"
-	"$HOME/.local/bin/theme-mode" --quiet set auto
-}
-
 run_update_step() {
 	local key="$1"
 	local label="$2"
@@ -571,7 +566,7 @@ Options:
   -v, --verbose    Stream full output from every update tool
   --skip-packages  Skip OS and global JavaScript package updates
   --skip-stow      Skip re-applying stow links
-  --skip-pi        Skip pi and extension updates
+  --skip-pi        Skip pi extension updates (CLI updates with global packages)
   --skip-herdr     Skip Herdr update
   --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
   --help           Show this help
@@ -618,7 +613,7 @@ EOF
 	fi
 
 	if [[ $skip_pi -eq 0 ]]; then
-		if ! run_update_step pi "pi and extensions" update_pi; then
+		if ! run_update_step pi "pi extensions" update_pi; then
 			failed_steps+=(pi)
 			warn "pi and extension update failed; continuing with remaining update steps"
 		fi
@@ -628,13 +623,6 @@ EOF
 		if ! run_update_step herdr "Herdr" update_herdr; then
 			failed_steps+=(herdr)
 			warn "Herdr update failed; continuing with remaining update steps"
-		fi
-	fi
-
-	if [[ "$OSTYPE" == darwin* && -x "$HOME/.local/bin/theme-mode" ]]; then
-		if ! run_update_step theme "macOS theme mode" update_theme; then
-			failed_steps+=(theme)
-			warn "Could not refresh theme mode"
 		fi
 	fi
 
@@ -748,6 +736,11 @@ cmd_check_packages() {
 					pkg="${pkg#${pkg%%[![:space:]]*}}"
 					pkg="${pkg%${pkg##*[![:space:]]}}"
 					[[ -z "$pkg" ]] && continue
+					# Match bootstrap's Redis replacement only when the repositories
+					# no longer provide Redis. Do not mutate or refresh package DBs.
+					if [[ "$pkg" == redis ]] && ! pacman -Si redis >/dev/null 2>&1 && pacman -Si valkey >/dev/null 2>&1; then
+						pkg=valkey
+					fi
 					pacman -Q "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
 				done < "$profile_file"
 			done
@@ -874,7 +867,7 @@ complete -c dot -s h -l help -d "Show help"
 complete -c dot -n "__fish_seen_subcommand_from update" -s v -l verbose -d "Stream full update output"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-packages -d "Skip OS and global JS package updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re-stowing dotfiles"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi and extension updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip Herdr self-update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 

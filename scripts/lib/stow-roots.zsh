@@ -20,6 +20,21 @@ dotfiles_is_pi_runtime_path() {
     [[ "$path" =~ $DOTFILES_PI_RUNTIME_REGEX ]]
 }
 
+# Resolve the link text explicitly: zsh :A alone can leave a dangling link
+# unresolved. Normalize relative link text against the link's parent directory.
+dotfiles_resolved_link_target() {
+    local target="$1"
+    local link_target
+
+    if [[ -L "$target" ]]; then
+        link_target="$(readlink "$target")" || return 1
+        [[ "$link_target" == /* ]] || link_target="${target:h}/$link_target"
+        print -r -- "${link_target:A}"
+    else
+        print -r -- "${target:A}"
+    fi
+}
+
 dotfiles_resolve_active_roots() {
     local repo_root="$1"
     local mode="${2:-strict}"

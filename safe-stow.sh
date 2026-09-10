@@ -33,11 +33,12 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --only-config)
-            if [[ $# -lt 2 ]]; then
+            if [[ $# -lt 2 || -z "$2" ]]; then
                 echo "Error: --only-config requires a comma-separated value"
                 usage
                 exit 1
             fi
+            CONFIG_ONLY_MODE=1
             ONLY_CONFIG_CSV="$2"
             shift 2
             ;;
@@ -56,10 +57,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-if [[ -n "$ONLY_CONFIG_CSV" ]]; then
-    CONFIG_ONLY_MODE=1
-fi
 
 if [[ $LIST_CONFIG_ONLY -eq 1 && $CONFIG_ONLY_MODE -eq 1 ]]; then
     echo "Error: --list-config cannot be combined with --only-config"
@@ -286,8 +283,8 @@ is_managed_target() {
     local target="$1"
     local source="$2"
 
-    [[ -e "$target" ]] || return 1
-    [[ "${target:A}" == "${source:A}" ]]
+    [[ -e "$target" || -L "$target" ]] || return 1
+    [[ "$(dotfiles_resolved_link_target "$target")" == "${source:A}" ]]
 }
 
 relative_path_from() {
@@ -449,7 +446,8 @@ detach_ignored_pi_runtime_links() {
 # they resolve to the correct source. Normalize those links before invoking
 # stow so a previous manual/safe-stow absolute link does not abort the run.
 remove_obsolete_managed_symlinks() {
-    local target_path expected_source
+    local target_path expected_source child_link child_source
+    local -i owned_tree
     local -a obsolete_paths
     obsolete_paths=(
         ".pi/agent/mcp.json"
@@ -469,10 +467,19 @@ remove_obsolete_managed_symlinks() {
 
         # Stow can leave a real directory containing only broken child links
         # after the tracked source tree is deleted. Remove that shell only when
-        # it contains no regular files and every symlink is broken.
+        # it contains no regular files and every symlink is broken and owned.
         if [[ -d "$target_path" && ! -L "$target_path" && ! -e "$expected_source" ]]; then
             [[ -z "$(find "$target_path" -type f -print -quit)" ]] || continue
             [[ -z "$(find "$target_path" -type l -exec test -e {} \; -print -quit)" ]] || continue
+            owned_tree=1
+            while IFS= read -r child_link; do
+                child_source="$expected_source/${child_link#$target_path/}"
+                if ! is_managed_target "$child_link" "$child_source"; then
+                    owned_tree=0
+                    break
+                fi
+            done < <(find "$target_path" -type l -print)
+            [[ $owned_tree -eq 1 ]] || continue
             rm -rf "$target_path"
             echo "Removed obsolete stow link tree: $target_path"
         fi
@@ -506,8 +513,7 @@ needs_backup() {
     local target="$1"
     local source="$2"
 
-    [[ -e "$target" ]] || return 1
-    [[ -L "$target" ]] && return 1
+    [[ -e "$target" || -L "$target" ]] || return 1
     is_managed_target "$target" "$source" && return 1
 
     return 0
@@ -694,13 +700,13 @@ link_dot_command() {
     if is_managed_target "$target_path" "$source_path_abs"; then
         echo "dot command already linked: $target_path"
     else
-        if [[ -e "$target_path" && ! -L "$target_path" ]]; then
+        if [[ -e "$target_path" || -L "$target_path" ]]; then
             echo "Error: $target_path still exists after conflict handling"
             echo "Refusing to overwrite unknown content while linking dot command."
             exit 1
         fi
 
-        ln -sfn "$source_path_abs" "$target_path"
+        ln -s "$source_path_abs" "$target_path"
         echo "Linked dot command: $target_path -> $source_path_abs"
     fi
 
@@ -727,13 +733,12 @@ fi
 
 package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 
-unfold_managed_pi_directories
-detach_ignored_pi_runtime_links
-
 for root in "${package_roots[@]}"; do
     collect_package_entries "$root"
 done
-collect_special_leaf_entries
+if [[ $include_deploy_paths -eq 1 ]]; then
+    collect_special_leaf_entries
+fi
 
 collect_special_source_dirs
 
@@ -749,6 +754,12 @@ fi
 echo "Active stow roots: ${package_roots[*]}"
 if [[ $CONFIG_ONLY_MODE -eq 1 ]]; then
     echo "Selected ~/.config components: ${config_children[*]}"
+fi
+
+# Validate selections before any migration can change HOME or package sources.
+if [[ $include_deploy_paths -eq 1 ]]; then
+    unfold_managed_pi_directories
+    detach_ignored_pi_runtime_links
 fi
 
 # Check for conflicts and backup if necessary

@@ -28,11 +28,12 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --only-config)
-            if [[ $# -lt 2 ]]; then
+            if [[ $# -lt 2 || -z "$2" ]]; then
                 echo "Error: --only-config requires a comma-separated value"
                 usage
                 exit 1
             fi
+            CONFIG_ONLY_MODE=1
             ONLY_CONFIG_CSV="$2"
             shift 2
             ;;
@@ -51,10 +52,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-if [[ -n "$ONLY_CONFIG_CSV" ]]; then
-    CONFIG_ONLY_MODE=1
-fi
 
 if [[ $LIST_CONFIG_ONLY -eq 1 && $CONFIG_ONLY_MODE -eq 1 ]]; then
     echo "Error: --list-config cannot be combined with --only-config"
@@ -252,7 +249,9 @@ package_roots=("${DOTFILES_ACTIVE_STOW_ROOTS[@]}")
 for root in "${package_roots[@]}"; do
     collect_config_children "$root"
 done
-collect_special_leaf_entries
+if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 ]]; then
+    collect_special_leaf_entries
+fi
 
 if [[ $LIST_CONFIG_ONLY -eq 1 ]]; then
     print_available_config_children

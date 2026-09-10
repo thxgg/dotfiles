@@ -14,6 +14,8 @@ dotfiles/
 │   └── home/                   # macOS-only stow payload mirrored to $HOME
 ├── linux/                      # Arch+yay bootstrap + package profiles + Linux-only stow payload
 │   └── home/                   # Linux-only stow payload mirrored to $HOME
+├── scripts/                    # package installers and shared shell helpers
+├── tests/                      # portable regression and Linux desktop checks
 ├── setup.sh                    # top-level orchestrator
 ├── safe-stow.sh                # conflict-aware stow deployment
 ├── unstow.sh                   # remove stow links
@@ -26,7 +28,9 @@ dotfiles/
 |------|----------|-------|
 | Install on new machine | `setup.sh` | Runs OS setup then `safe-stow.sh` |
 | Fix stow collisions | `safe-stow.sh` | Backs up conflicting leaf targets before linking active roots |
-| Validate deployment | `doctor.sh` | Reports OK/WARN/FAIL on key managed paths |
+| Validate deployment | `doctor.sh` | Reports OK/WARN/FAIL; config-only checks exclude Pi health |
+| Test changes | `tests/README.md` | Portable mocks plus explicitly isolated Linux tray checks |
+| Pi package manifests | `scripts/pi-packages.txt` | External packages; Vite+ owns CLI updates |
 | Add macOS packages | `macos/Brewfile` | Declarative source for brew formulae/casks |
 | Add Arch packages | `linux/packages/*.txt` | Profile-based lists consumed by `linux/setup.sh` |
 | Shell behavior | `common/.config/fish/config.fish` + `common/.config/tmux/tmux.conf` | Primary interactive shell is fish; keep secrets in `~/.env.secrets`, not tracked files |
@@ -40,6 +44,9 @@ dotfiles/
 - Prefer declarative package manifests (`macos/Brewfile`, `linux/packages/*.txt`) over ad-hoc install loops.
 - Keep git hooks enabled with `git config core.hooksPath .githooks`.
 - Use `safe-stow.sh` instead of raw `stow` so conflicts are backed up first.
+- Reject empty/invalid config selections before mutations. List-only mode must be read-only; scoped mode must not change unrelated home files or migrate Pi state.
+- Test deployment and removal with temporary homes and mock commands. Do not let inherited shell startup files or live clipboard/service tools execute in portable tests.
+- Theme selection is manual. Do not reintroduce automatic theme application in setup or `dot update`.
 - Keep machine secrets in untracked `~/.env.secrets`.
 - Catppuccin Latte/Mocha theming is implemented as native per-app theme assets plus wrapper/runtime selection logic (`common/.local/bin/*`, `~/.local/state/theme`). Use Lavender as the accent for both variants, and update matching light/dark variants across themed apps so they stay visually synchronized.
 

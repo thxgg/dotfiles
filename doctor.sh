@@ -36,11 +36,12 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --only-config)
-            if [[ $# -lt 2 ]]; then
+            if [[ $# -lt 2 || -z "$2" ]]; then
                 printf '[FAIL] %s\n' "--only-config requires a comma-separated value"
                 usage
                 exit 1
             fi
+            CONFIG_ONLY_MODE=1
             ONLY_CONFIG_CSV="$2"
             shift 2
             ;;
@@ -63,10 +64,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-if [[ -n "$ONLY_CONFIG_CSV" ]]; then
-    CONFIG_ONLY_MODE=1
-fi
 
 if [[ $LIST_CONFIG_ONLY -eq 1 && $CONFIG_ONLY_MODE -eq 1 ]]; then
     printf '[FAIL] %s\n' "--list-config cannot be combined with --only-config"
@@ -123,7 +120,10 @@ collect_expected_entries() {
 
     [[ -d "$package_root" ]] || return
 
-    root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
+    root_paths=()
+    if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 ]]; then
+        root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
+    fi
     for item in "${root_paths[@]}"; do
         [[ -n "$item" ]] || continue
         dotfiles_is_stow_ignored_path "$item" && continue
@@ -403,7 +403,7 @@ check_pi_runtime_locality() {
     for ancestor in ".pi" ".pi/.pi" ".pi/agent"; do
         target_path="$TARGET_ROOT/$ancestor"
         [[ -L "$target_path" ]] || continue
-        resolved_target="${target_path:A}"
+        resolved_target="$(dotfiles_resolved_link_target "$target_path")"
         for root in "${package_roots[@]}"; do
             package_root="${SCRIPT_DIR:A}/$root"
             if [[ "$resolved_target" == "$package_root" || "$resolved_target" == "$package_root/"* ]]; then
@@ -414,12 +414,12 @@ check_pi_runtime_locality() {
         done
     done
 
-    [[ -d "$TARGET_ROOT/.pi" ]] || return
+    [[ -d "$TARGET_ROOT/.pi" ]] || return 0
 
     while IFS= read -r target_path; do
         relative_path="${target_path#$TARGET_ROOT/}"
         dotfiles_is_pi_runtime_path "$relative_path" || continue
-        resolved_target="${target_path:A}"
+        resolved_target="$(dotfiles_resolved_link_target "$target_path")"
 
         for root in "${package_roots[@]}"; do
             package_root="${SCRIPT_DIR:A}/$root"
@@ -584,7 +584,7 @@ check_pi_workspace() {
     fi
 }
 
-if [[ $LIST_CONFIG_ONLY -eq 0 ]]; then
+if [[ $LIST_CONFIG_ONLY -eq 0 && $CONFIG_ONLY_MODE -eq 0 ]]; then
     if ! command -v stow >/dev/null 2>&1; then
         print_status WARN "stow not found in PATH"
     else
@@ -607,7 +607,9 @@ else
     for root in "${package_roots[@]}"; do
         collect_expected_entries "$root"
     done
-    collect_special_expected_entries
+    if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 ]]; then
+        collect_special_expected_entries
+    fi
 
     collect_special_source_dirs
 
