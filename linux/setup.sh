@@ -128,22 +128,6 @@ ensure_vite_plus_node() {
 	"$vp_bin" env default lts
 }
 
-ensure_amp() {
-	if [[ $DRY_RUN -eq 1 ]]; then
-		info 'Install or update Amp if curl is available:'
-		printf 'curl -fsSL https://ampcode.com/install.sh | bash\n'
-		return 0
-	fi
-
-	if ! command -v curl >/dev/null 2>&1; then
-		warn "curl not found; skipping Amp installation"
-		return
-	fi
-
-	info "Installing or updating Amp with the official binary installer"
-	curl -fsSL https://ampcode.com/install.sh | bash
-}
-
 replace_package_if_needed() {
 	local old_name="$1"
 	local new_name="$2"
@@ -572,7 +556,6 @@ run_postinstall_setup() {
 
 	configure_fish_shell
 	ensure_vite_plus_node
-	ensure_amp
 
 	if [[ $DRY_RUN -eq 1 ]]; then
 		info 'If pipx is available, set up its PATH:'

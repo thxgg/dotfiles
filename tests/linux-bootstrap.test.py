@@ -161,7 +161,6 @@ class LinuxBootstrapTests(unittest.TestCase):
                     initialize_postgresql18_cluster() {{ print 'CALL init postgresql18'; }}
                     configure_fish_shell() {{ :; }}
                     ensure_vite_plus_node() {{ :; }}
-                    ensure_amp() {{ :; }}
                     pipx() {{ [[ "$*" == ensurepath ]]; }}
                     run_postinstall_setup
                 ''')
@@ -293,13 +292,13 @@ class LinuxBootstrapTests(unittest.TestCase):
             '"$vp_bin" env install 14',
             '"$vp_bin" env install lts',
             '"$vp_bin" env default lts',
-            "curl -fsSL https://ampcode.com/install.sh | bash",
             "pipx ensurepath",
         ):
             with self.subTest(command=command):
                 self.assertIn(command, result.stdout)
         self.assertNotIn("env install 17", result.stdout)
         self.assertNotIn("open-computer-use", result.stdout)
+        self.assertNotIn("ampcode.com/install.sh", result.stdout)
 
     def test_dry_run_unselected_services_are_not_previewed(self):
         result = self.run_zsh('''

@@ -12,7 +12,6 @@ common/.config/herdr/release-notes.json
 common/.config/herdr/session.json
 common/.config/herdr/session-history.json
 common/.config/herdr/*.log
-common/.config/amp/*.amp-write-meta
 .claude/settings.local.json
 
 # Agent-generated local/project state
