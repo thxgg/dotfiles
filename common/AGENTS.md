@@ -1,32 +1,27 @@
 # Common Home Tree
 
-## Purpose & Scope
-`common/` is the shared stow payload that mirrors `$HOME` across macOS and Linux.
-OS-specific payload lives in `macos/home/` and `linux/home/`.
+Shared configuration for macOS and Linux. Root placement, deployment, secret, and theme contracts apply here.
 
-## Entry Points & Contracts
-- Deployment target: repo root scripts `safe-stow.sh` and `unstow.sh`.
-- Contract: paths in `common/` map 1:1 to `$HOME` relative paths and must be cross-platform safe.
-- Health checks: `doctor.sh` validates key symlinked paths.
+## Configuration Contracts
+- `~/.config` remains a real directory. Deployment links each direct child from the active roots.
+- Give each application's configuration its own `.config/<tool>/` directory. Shared files must work on both platforms; guarded platform-specific behavior is allowed.
+- Keep configuration minimal and reproducible. Exclude runtime caches, generated dependency trees, machine-only binaries, and generated blobs unless tracking them is intentional. Update `.gitignore` for generated output.
+- Empty directories are not meaningful stow artifacts; manage concrete files or symlinks.
+- Codex `config.toml` and MCP authentication remain machine-local. Keep personal instructions in `.codex/AGENTS.md` and shared skills in `.agents/skills/`.
 
-## Usage Patterns
-- **Add a shared dotfile**: create path under `common/`, then run `./safe-stow.sh`.
-- **Add an OS-specific dotfile**: create path under `macos/home/` or `linux/home/`.
-- **Update existing config**: edit tracked file in `common/`, not the live file in `$HOME`.
-- **Update Codex instructions**: edit `common/.codex/AGENTS.md` or `common/.agents/skills`. Codex `config.toml` and MCP authentication remain machine-local.
-- **Machine secrets**: keep only references in tracked shell config; values live in `~/.env.secrets`.
+## Validation and Deployment
+Test new or changed configuration before deployment. Use the relevant checks in `tests/README.md`; editing a file does not require deploying it.
 
-## Anti-Patterns
-- Editing `$HOME/.gitconfig` or `$HOME/.config/*` directly and not syncing back.
-- Defining the same target path in `common/` and an OS-specific stow root.
-- Tracking generated dependency trees except where explicitly intentional.
+When config deployment is requested, use the smallest applicable scope. Run from the repository root:
 
-## Dependencies & Edges
-- Uplink: [Root](../AGENTS.md)
-- Downlinks:
-  - [Config Tree](./.config/AGENTS.md)
+```sh
+./safe-stow.sh --only-config nvim   # Deploy one configuration
+./doctor.sh --only-config nvim     # Check its deployed paths without Pi checks
+```
 
-## Patterns & Pitfalls
-- macOS-only targets like `~/Library/...` belong in `macos/home/`, not `common/`.
-- Child-link deployment keeps `~/.config` as a real directory; each direct child is symlinked from active roots.
-- Empty directories are not meaningful stow artifacts; manage concrete files/symlinks instead.
+## Navigation
+- [Root](../AGENTS.md)
+- [Neovim Config](./.config/nvim/AGENTS.md)
+- [Codex Instructions](./.codex/AGENTS.md)
+- [Pi Global Prompt Notes](./.pi/agent/AGENTS.md)
+- OpenCode MCP/UI configuration and Herdr integration: `.config/opencode/`

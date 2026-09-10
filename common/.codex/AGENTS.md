@@ -1,82 +1,31 @@
 # Global Agent Instructions
 
-## Context Discipline
+## Scope and Context
+- Read applicable repository instructions and task-relevant source. Load only skills needed for the task.
+- For review, diagnosis, or planning requests, inspect and report without making changes. For implementation requests, complete the requested local changes and relevant checks.
+- Ask when missing information materially changes the result, or before destructive actions, unauthorized external writes, or substantial scope expansion.
 
-Treat context as scarce. Do not load skills unless the user explicitly invokes them with `/skill:name` or clearly asks for that workflow.
-Prefer reading the nearest `AGENTS.md`, relevant source files, and targeted search results over loading broad skills.
-Before large edits, build context first, summarize the plan, and ask for confirmation unless the user requested autonomous implementation.
-
-## Image Generation
-
-When the user explicitly asks to generate, create, paint, edit, or transform an image, call `generate_image` autonomously. Ask a clarifying question only when required visual details or edit intent are missing. Preserve explicit user style/content constraints, especially for edits; the tool sends the prompt exactly as provided and saves generated artifacts globally.
+## Communication
+Use short, clear sentences and active voice. State the result, relevant evidence, and remaining limits.
 
 ## Browser Automation
+Use `agent-browser` for browser automation. Read its installed core instructions before use.
 
-Use `agent-browser` for browser automation tasks. Before automating, load the bundled instructions that match the installed CLI with `agent-browser skills get core`; add `--full` when references and templates are needed. Use `agent-browser skills list` and `agent-browser skills get <name>` to discover and load task-specific skills. Prefer these current bundled skills over cached or pre-baked copies. Run `agent-browser --help` for the full command set.
-
-Core workflow:
-1. `agent-browser open <url>`
-2. `agent-browser snapshot -i`
-3. `agent-browser click @e1` / `agent-browser fill @e2 "text"`
-4. Re-snapshot after page changes
-
-Prefer refs from `snapshot` over CSS selectors, and prefer semantic waits like `agent-browser wait --load networkidle` over fixed sleeps.
+## Validation
+Run checks relevant to the change and all repository-required checks. Broaden or repeat validation only when changes, failures, or unresolved concerns justify it. Report checks that could not run.
 
 ## Git Commits
+- Inspect staged and unstaged changes. Preserve unrelated work and stage only relevant files. Make focused commits.
+- Use Conventional Commits: `<type>(<scope>): <summary>`. Type is required; scope is optional and should use project-local terminology.
+- Use an imperative summary of at most 72 characters with no trailing period. Use a subject only: no body or co-authored-by footer. Add ticket IDs only when project conventions require them.
 
-### Workflow
-
-1. Run `git status` and `git diff` (staged + unstaged) to understand current changes.
-2. Run `git log -n 50 --pretty=format:%s` to check recent message style and discover common scopes.
-3. Stage only the relevant files if they are not already staged.
-4. If changes are logically distinct, split them into separate commits.
-5. Commit with `git commit -m "<subject>"`.
-6. Do not push unless the user explicitly asks, or asks you to create/update a PR and a push is required for that workflow.
-
-### Format
-
-- Use [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <summary>`.
-- `type` is required: `feat`, `fix`, `docs`, `refactor`, `chore`, `test`, `perf`, etc.
-- `scope` is optional. Include when it adds clarity; prefer project-local domain scopes over the repo name.
-- `summary`: imperative mood, ≤ 72 characters, no trailing period.
-- **Never include a body.** The subject line alone must be sufficient.
-- Do not include a co-authored-by footer.
-- Do not include ticket IDs or story references unless project conventions say otherwise.
-
-## External Comments and Reviews
-
-Never submit reviews or post comments in Linear or GitHub unless the user explicitly asks for that exact external action.
+## External Actions
+- Create or update PRs only when explicitly requested. Push only when explicitly requested or required for an explicitly requested PR.
+- Submit GitHub or Linear comments and reviews only when the user explicitly requests that exact action. A PR request does not authorize a separate comment or review.
 
 ## Pull Requests
-
-### Workflow
-
-1. Only create or update pull requests when the user explicitly asks.
-2. Before creating or updating a PR, read repo-local `AGENTS.md`, `CONTRIBUTING.md`, and any PR template if they exist.
-3. Detect the default branch dynamically; never assume `main` or `master`.
-4. Check `git status -sb`, `git branch --show-current`, and the commit range against the detected default branch.
-5. Keep PRs small and focused. If the branch mixes unrelated work, recommend splitting it or opening a draft PR instead.
-6. Check whether a PR already exists for the current branch before creating a new one.
-7. If the user asked to create or update a PR and the branch is not pushed yet, pushing the current branch is allowed only as needed for that PR workflow.
-
-### PR Body
-
-- Keep PR titles and bodies concise, technical, and easy to scan.
-- Structure PR bodies with:
-  - `## Problem`
-  - `## Solution`
-  - `## Verification`
-  - `## Risks`
-- For web UI changes, include screenshots or videos when repo policy expects them (if needed, see the `/ui-evidence` skill).
-- For logic or backend changes, explain the concrete verification steps and any remaining gaps.
-- Do not manually add issue or story links when repo automation already derives them from branch or commit naming.
-- If validation is incomplete, follow-ups remain, or the user wants early feedback, prefer a draft PR.
-
-### GitHub CLI Safety
-
-- Write PR bodies and comments to a temp file first and preview the exact text before posting.
-- Use `gh pr create --body-file`, `gh pr edit --body-file`, and `gh pr comment --body-file` instead of passing multi-line markdown directly via `--body`.
-
-### Repo-Specific Validation
-
-- Always run repo-local validation commands required by `AGENTS.md` or `CONTRIBUTING.md` before creating a PR.
+- Follow repository instructions, contribution rules, and PR templates. Check the actual default branch, current branch diff, and any existing PR. Keep PRs focused; recommend splitting unrelated work.
+- Use concise titles. Follow the repository's PR template; otherwise use `## Problem`, `## Solution`, `## Verification`, and `## Risks`. Explain validation and remaining gaps. Prefer a draft when validation is incomplete, follow-ups remain, or early feedback is requested.
+- Do not duplicate issue links supplied by repository automation.
+- Include UI screenshots or video when repository policy requires them. Use the `ui-evidence` skill for capture and attachment procedures. Do not commit review evidence merely to obtain a URL.
+- Write PR bodies and comments to a temporary file and preview the exact text before posting. Use `gh ... --body-file` for multiline content.

@@ -78,6 +78,16 @@ agent-browser record stop
 
 Keep recordings focused: start immediately before the relevant interaction and stop immediately after the result is visible.
 
+## PR Attachments
+
+Use this procedure only for an explicitly requested PR creation or update. Uploading evidence does not authorize a separate comment or review.
+
+- Keep review evidence out of Git history unless the user explicitly asks to track it. Do not commit images or videos merely to obtain a URL.
+- Inspect the final comparison before uploading. Match viewport, scale, data, and crop coordinates. Put Before on the left and After on the right. Keep relevant unchanged content visible and wait for transitions to finish.
+- Write the PR body to a temporary file. Reference each local image as `![Description](<image-path>)`, and preview the exact body before posting.
+- Check `gh --version` and `gh pr create --help` or `gh pr edit --help` for attachment support. If supported, use `gh pr create --body-file <body-file> --attach <image-path>` or `gh pr edit <number> --body-file <body-file> --attach <image-path>`. Verify that the posted body contains the uploaded attachment URL instead of the local path.
+- If the CLI does not support the required attachment, use the GitHub browser editor or ask for help. Do not commit evidence as a workaround.
+
 ## Final Response
 
 Always include:

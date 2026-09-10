@@ -1,39 +1,34 @@
-# macOS Bootstrap
+# macOS Bootstrap and Home Payload
 
-## Purpose & Scope
-macOS bootstrap based on Homebrew plus post-install runtime initialization.
-This area owns package manifests, mac-specific service/tool setup, and macOS-only stow payload.
+Homebrew bootstrap with post-install runtime and service setup. Entrypoint: `macos/setup.sh`; package manifest: `macos/Brewfile`; payload: `macos/home/`.
 
-## Entry Points & Contracts
-- Entrypoint: `macos/setup.sh`.
-- Package source of truth: `macos/Brewfile`.
-- Dotfile payload root: `macos/home/` (mirrors `$HOME` for macOS-only files).
-- Install flow: ensure Homebrew -> update/upgrade -> `brew bundle` -> service/tool setup.
-- Current pinned database formula: `postgresql@18`.
+## Current Configuration
+- Install flow: ensure Homebrew, update/upgrade, run `brew bundle`, then configure services and tools.
+- Current service formulae are `postgresql@18` and `redis`; the registered Homebrew JDK is version 21.
+- Vite+ manages Node.js and global JavaScript packages. Bootstrap installs LTS and attempts Node 14 installation for legacy deployment parity; a Node 14 failure does not stop setup. Project `.node-version` files control local selection.
+- Setup makes Fish the login shell when permitted and assigns text/code file types to VS Code when installed.
 
-## Usage Patterns
-- Add/remove formulae/casks in `Brewfile` first.
-- Keep macOS-only dotfiles in `macos/home/` and out of `common/`.
-- Keep `setup.sh` focused on orchestration and post-install initialization.
-- Validate state without installing new packages:
-```bash
-brew bundle check --file=./macos/Brewfile
+## Bootstrap Contracts
+- Keep package choices in `Brewfile` and `setup.sh` focused on orchestration and post-install initialization.
+- Load Homebrew shellenv before checking whether installation is needed. Support Apple Silicon and Intel paths.
+- Keep service names aligned with the selected Homebrew formulae.
+- Register the selected Homebrew JDK under `~/Library/Java/JavaVirtualMachines` so `/usr/libexec/java_home` and Fish can discover it.
+
+## Home Payload Contracts
+- Ghostty configuration and Catppuccin themes live in `Library/Application Support/com.mitchellh.ghostty/`. Preserve machine-specific paths in that configuration.
+- `Library/LaunchAgents/com.thxgg.gui-path.plist` sets GUI PATH at login with user commands, Vite+, Homebrew, and system commands. Use a shell to expand `$HOME`; launchd does not expand it in plain arguments.
+- Do not restore the removed artifact-cloud or theme synchronization LaunchAgents.
+
+## Validation
+Run from the repository root:
+
+```sh
+zsh -f -n macos/setup.sh
+HOMEBREW_NO_AUTO_UPDATE=1 brew bundle check --file=./macos/Brewfile
+plutil -lint macos/home/Library/LaunchAgents/com.thxgg.gui-path.plist
 ```
 
-## Anti-Patterns
-- Reintroducing imperative per-package loops in `setup.sh`.
-- Adding Linux-specific setup logic here.
-- Hiding package decisions in script branches instead of `Brewfile` diffs.
+These checks do not install packages or deploy the payload.
 
-## Dependencies & Edges
-- Uplink: [Root](../AGENTS.md)
-- Downlink: [macOS Home Payload](./home/AGENTS.md)
-
-## Patterns & Pitfalls
-- Service names are formula-specific (`postgresql@18`, `redis`).
-- Load Homebrew shellenv before checking whether installation is needed; support Apple Silicon and Intel paths.
-- Vite+ manages Node.js and global JavaScript packages. Bootstrap installs LTS and Node 14 for legacy admin deployment parity. Project `.node-version` files control local selection (the legacy admin currently pins 16.20.2).
-- Register Homebrew JDK 21 under `~/Library/Java/JavaVirtualMachines` so `/usr/libexec/java_home` and Fish can discover it.
-- Setup makes Fish the login shell when permitted and assigns text/code file types to VS Code when installed.
-- The GUI PATH LaunchAgent includes user commands, Vite+, Homebrew, and system commands.
-- Theme synchronization has no LaunchAgent or command wrappers. Keep static assets and native application appearance settings.
+## Navigation
+- [Root](../AGENTS.md)

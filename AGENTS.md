@@ -1,81 +1,50 @@
-# DOTFILES KNOWLEDGE BASE
+# Dotfiles
 
-## Overview
-Personal machine bootstrap + dotfiles repository using GNU Stow.
-`common/` holds shared payload, while `macos/home/` and `linux/home/` hold OS-specific payload linked into `$HOME`.
+Personal machine bootstrap and dotfiles repository using GNU Stow.
 
-## Structure
-```text
-dotfiles/
-├── common/                     # shared stow payload mirrored to $HOME
-│   ├── .config/                # app/tool configs (fish, nvim, ghostty, herdr, ...)
-│   ├── .gitconfig/.ssh/...     # shared git, SSH, and database config
-├── macos/                      # Homebrew bootstrap + Brewfile + macOS-only stow payload
-│   └── home/                   # macOS-only stow payload mirrored to $HOME
-├── linux/                      # Arch+yay bootstrap + package profiles + Linux-only stow payload
-│   └── home/                   # Linux-only stow payload mirrored to $HOME
-├── scripts/                    # package installers and shared shell helpers
-├── tests/                      # portable regression and Linux desktop checks
-├── setup.sh                    # top-level orchestrator
-├── safe-stow.sh                # conflict-aware stow deployment
-├── unstow.sh                   # remove stow links
-├── doctor.sh                   # symlink health checks
-└── .githooks/pre-commit        # gitleaks staged-secret scan
-```
+Current configuration and architecture sections describe the implementation, not permanent requirements. Update these facts when an authorized change modifies them.
 
 ## Where to Look
 | Task | Location | Notes |
 |------|----------|-------|
-| Install on new machine | `setup.sh` | Runs OS setup then `safe-stow.sh` |
-| Fix stow collisions | `safe-stow.sh` | Backs up conflicting leaf targets before linking active roots |
-| Validate deployment | `doctor.sh` | Reports OK/WARN/FAIL; config-only checks exclude Pi health |
-| Test changes | `tests/README.md` | Portable mocks plus explicitly isolated Linux tray checks |
-| Pi package manifests | `common/.pi/agent/npm/package.json` | External packages; Vite+ owns CLI updates |
-| Add macOS packages | `macos/Brewfile` | Declarative source for brew formulae/casks |
-| Add Arch packages | `linux/packages/*.txt` | Profile-based lists consumed by `linux/setup.sh` |
-| Shell behavior | `common/.config/fish/config.fish` + `common/.config/herdr/config.toml` | Primary interactive shell is fish; keep secrets in `~/.env.secrets`, not tracked files |
-| Neovim behavior | `common/.config/nvim` | Lazy plugin specs + core/user modules |
-| Codex setup | `common/.codex` + `common/.agents/skills` | Tracked personal instructions and user-wide skills; Codex settings and MCP servers are machine-local |
-| OpenCode setup | `common/.config/opencode` | MCP/UI configuration and Herdr integration |
+| Bootstrap a machine | `setup.sh` | Runs OS setup, then deployment |
+| Deploy or remove links | `safe-stow.sh`, `unstow.sh` | Conflict backups and scoped config selection |
+| Check deployment | `doctor.sh` | Reports OK/WARN/FAIL; config-only checks exclude Pi health |
+| Test changes | `tests/README.md` | Portable mocks and isolated Linux desktop checks |
+| Manage external Pi packages | `common/.pi/agent/npm/package.json` | Single external package declaration; Vite+ owns CLI updates |
+| Add macOS packages | `macos/Brewfile` | Homebrew formulae and casks |
+| Add Arch packages | `linux/packages/*.txt` | Profile lists consumed by `linux/setup.sh` |
+| Change shell or terminal behavior | `common/.config/fish/`, `common/.config/ghostty/`, `common/.config/herdr/` | Fish is the primary interactive shell |
+| Change Neovim | `common/.config/nvim/` | Lazy plugin specs and core/user modules |
+| Change agent instructions or skills | `common/.codex/AGENTS.md`, `common/.pi/agent/APPEND_SYSTEM.md`, `common/.agents/skills/` | Codex settings and MCP authentication remain machine-local |
+| Change OpenCode | `common/.config/opencode/` | MCP/UI configuration and Herdr integration |
 
-## Conventions (Project-Specific)
-- Keep shared paths in `common/`; place OS-specific dotfiles in `macos/home/` or `linux/home/`.
-- Do not define the same target path in more than one stow root.
-- Prefer declarative package manifests (`macos/Brewfile`, `linux/packages/*.txt`) over ad-hoc install loops.
-- Keep git hooks enabled with `git config core.hooksPath .githooks`.
-- Use `safe-stow.sh` instead of raw `stow` so conflicts are backed up first.
-- Reject empty/invalid config selections before mutations. List-only mode must be read-only; scoped mode must not change unrelated home files or migrate Pi state.
-- Test deployment and removal with temporary homes and mock commands. Do not let inherited shell startup files or live clipboard/service tools execute in portable tests.
-- Keep static themes and native application appearance settings. Do not add theme-changing scripts, wrappers, shared theme state, or setup/update hooks.
-- Keep machine secrets in untracked `~/.env.secrets`.
-- Catppuccin Latte/Mocha assets use Lavender accents. Select themes in each application; there is no repository-wide theme controller.
+## Repository Contracts
+- Paths in `common/`, `macos/home/`, and `linux/home/` map to `$HOME`. Put shared files in `common/` and platform-only files in the matching platform root. Guard platform-specific behavior inside shared files.
+- Do not define the same target path in more than one stow root. Edit repository files, not separate live copies in `$HOME`.
+- Declare package choices in `macos/Brewfile` or `linux/packages/*.txt`, rather than per-package install loops.
+- Use `safe-stow.sh` instead of raw `stow` so conflicts are backed up. Editing and testing do not imply deployment authorization.
+- Reject empty or invalid config selections before mutations. List-only mode is read-only. Scoped operations must not change unrelated home files or migrate Pi state.
+- Test deployment and removal with temporary homes and mock commands. Portable tests must not execute inherited shell startup files or live clipboard/service tools.
+- Keep secrets in untracked `~/.env.secrets`; tracked configuration may reference them. Do not commit credentials or token-bearing auth files.
+- Keep hooks enabled with `git config core.hooksPath .githooks`. Fix gitleaks detections instead of bypassing them with `SKIP_GITLEAKS=1`.
+- Keep static Catppuccin Latte/Mocha assets with Lavender accents. Do not restore repository-wide theme automation or controls that rewrite other applications' settings. Native per-application theme controls are allowed.
 - Local Amp configuration is retired; Amp runs remotely through Orbs.
 
-## Anti-Patterns (This Project)
-- Committing secrets or token-bearing host files (for example auth host maps) without review.
-- Editing files directly in `$HOME` and forgetting to sync back to `common/`, `macos/home/`, or `linux/home/`.
-- Bypassing gitleaks by default (`SKIP_GITLEAKS=1`) instead of fixing detections.
-- Adding OS-specific behavior into shared sections without guards.
-
 ## Commands
-```bash
-# Full machine bootstrap
-./setup.sh
+Run from the repository root. Bootstrap and deployment change the machine; use them only when deployment is requested.
 
-# Link dotfiles only
-./safe-stow.sh
-
-# Validate symlink health
-./doctor.sh
-
-# macOS package validation
-brew bundle check --file=./macos/Brewfile
-
-# Linux package dry run (Arch)
-zsh ./linux/setup.sh --dry-run
+```sh
+./setup.sh                              # Full bootstrap
+./safe-stow.sh                          # Full deployment
+./safe-stow.sh --only-config nvim        # Scoped deployment example
+./doctor.sh                            # Full deployment health
+./doctor.sh --only-config nvim          # Scoped health example
 ```
 
-## Intent Nodes
-- [Common Home Tree](./common/AGENTS.md) - shared stowed files mirrored into `$HOME`
-- [Linux Bootstrap](./linux/AGENTS.md) - Arch + `yay` package/profile orchestration
-- [macOS Bootstrap](./macos/AGENTS.md) - Homebrew bootstrap and service setup
+Platform validation commands are in the platform instructions. Test commands and their limits are in `tests/README.md`.
+
+## Related Instructions
+- [Common Home Tree](./common/AGENTS.md)
+- [Linux Bootstrap](./linux/AGENTS.md)
+- [macOS Bootstrap](./macos/AGENTS.md)
