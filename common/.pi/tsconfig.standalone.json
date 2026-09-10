@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["agent/extensions/*.ts", "agent/extensions/pi-cloak/**/*.ts"],
+  "exclude": ["node_modules"]
+}

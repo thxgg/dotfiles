@@ -1,6 +1,7 @@
 """Offline bootstrap checks. Run: python3 tests/pi-bootstrap.test.py"""
 
 from pathlib import Path
+import json
 import shutil
 import subprocess
 import tempfile
@@ -32,8 +33,13 @@ class PiBootstrapTests(unittest.TestCase):
             self.executable(self.bin / name, '#!/bin/sh\nprintf "%s\\n" "$@" >> "$CALL_LOG"\n')
         self.helper = self.base / "install-pi-packages.zsh"
         shutil.copyfile(ROOT / "scripts/install-pi-packages.zsh", self.helper)
-        self.manifest = self.base / "pi-packages.txt"
-        self.manifest.write_text(f"# Comment\n\n  {SOURCE}abc  # pin\n npm:example@1.0.0")
+        self.manifest = self.base / "package.json"
+        self.manifest.write_text(json.dumps({"piPackages": [SOURCE + "abc"],
+                                             "dependencies": {"example": "^1.0.0"}}))
+        jq = shutil.which("jq")
+        if not jq:
+            self.skipTest("jq is required")
+        (self.bin / "jq").symlink_to(jq)
 
     def executable(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,24 +50,33 @@ class PiBootstrapTests(unittest.TestCase):
         return subprocess.run(["zsh", "-f", *map(str, args)], env=self.env,
                               text=True, capture_output=True, timeout=5)
 
-    def test_manifest_comments_whitespace_and_final_line(self):
-        result = self.run_zsh(self.helper)
+    def test_manifest_registers_git_and_npm_dependencies(self):
+        result = self.run_zsh(self.helper, self.manifest)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(Path(self.env["CALL_LOG"]).read_text().splitlines(),
-                         ["install", SOURCE + "abc", "install", "npm:example@1.0.0"])
+                         ["install", SOURCE + "abc", "install", "npm:example@^1.0.0"])
+
+    def test_invalid_manifest_has_no_install_side_effects(self):
+        for data in ("invalid json", '{"piPackages": [], "dependencies": {}}',
+                     '{"piPackages": ["https://example.test/repo@abc"], "dependencies": {"bad": false}}'):
+            with self.subTest(data=data):
+                self.manifest.write_text(data)
+                result = self.run_zsh(self.helper, self.manifest)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(Path(self.env["CALL_LOG"]).exists())
 
     def test_vite_fallback(self):
         fallback = Path(self.env["VP_HOME"]) / "bin/pi"
         fallback.parent.mkdir(parents=True)
         shutil.move(self.bin / "pi", fallback)
-        result = self.run_zsh(self.helper)
+        result = self.run_zsh(self.helper, self.manifest)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(Path(self.env["CALL_LOG"]).read_text().splitlines(),
-                         ["install", SOURCE + "abc", "install", "npm:example@1.0.0"])
+                         ["install", SOURCE + "abc", "install", "npm:example@^1.0.0"])
 
     def test_install_failure_stops_before_next_package(self):
         self.executable(self.bin / "pi", '#!/bin/sh\nprintf "%s\\n" "$@" >> "$CALL_LOG"\nexit 7\n')
-        result = self.run_zsh(self.helper)
+        result = self.run_zsh(self.helper, self.manifest)
         self.assertEqual(result.returncode, 7)
         self.assertNotIn("npm:example", Path(self.env["CALL_LOG"]).read_text())
         self.assertNotIn("[OK]", result.stdout)
@@ -100,7 +115,7 @@ class PiBootstrapTests(unittest.TestCase):
         (package / "node_modules").mkdir(parents=True)
         (package / "package.json").write_text("{}")
         self.executable(self.bin / "git", '#!/bin/sh\nprintf "abc\\n"\n')
-        self.manifest.write_text(SOURCE + "abc\n")
+        self.manifest.write_text(json.dumps({"piPackages": [SOURCE + "abc"], "dependencies": {}}))
         (agent / "settings.json").write_text(json.dumps({"packages": [{"source": SOURCE + "abc"}]}))
         model = self.base / "local model.gguf"
         config = agent / "pi-transcribe.json"

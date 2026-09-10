@@ -21,7 +21,7 @@ dotfiles_check_pi_transcribe() {
         return
     fi
 
-    expected_source="$(grep '^https://github.com/earendil-works/pi-transcribe@' "$manifest" || true)"
+    expected_source="$(jq -r '.piPackages[]? | select(startswith("https://github.com/earendil-works/pi-transcribe@"))' "$manifest" 2>/dev/null || true)"
     expected_ref="${expected_source##*@}"
     actual_ref="$(git -C "$package_dir" rev-parse HEAD 2>/dev/null || true)"
     if [[ -n "$expected_source" && -f "$package_dir/package.json" && -d "$package_dir/node_modules" && "$actual_ref" == "$expected_ref" ]] &&

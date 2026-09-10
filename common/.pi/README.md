@@ -12,13 +12,18 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-Pi `0.85.0` imports `@earendil-works/pi-server` through its SDK but does not declare that dependency. This workspace pins it explicitly so SDK imports and extension tests work. Remove this workaround when Pi declares the dependency or no longer imports it.
+Pi `0.85.1` imports `@earendil-works/pi-server` through its SDK but does not declare that dependency. This workspace pins it explicitly so SDK imports and extension tests work. Remove this workaround when Pi declares the dependency or no longer imports it.
 
 ## External packages and Pi Transcribe
 
-`scripts/pi-packages.txt` declares external packages separately from the local npm workspace.
-`setup.sh` and `dot update` install these packages with Pi's package manager. The helper preserves
-unrelated packages and user preferences in the machine-local `~/.pi/agent/settings.json`.
+`agent/npm/package.json` is the single external package declaration. Its standard `dependencies`
+map declares npm packages. Its repository-specific `piPackages` array declares pinned HTTPS Git
+sources such as Pi Transcribe. This custom field is consumed by our setup helper, not by npm or Pi.
+
+`setup.sh` and `dot update` register these sources with `pi install`. Registration is necessary:
+installing npm dependencies alone does not make Pi discover their resources. The helper preserves
+unrelated packages and user preferences in machine-local `~/.pi/agent/settings.json`. Pi may update
+the npm dependency map during package operations; review those changes before committing.
 
 To restore declared packages without running the full bootstrap, run from the repository root:
 
@@ -27,7 +32,7 @@ zsh scripts/install-pi-packages.zsh
 ```
 
 Pi Transcribe uses a public HTTPS source pinned to a tested commit. To update it, change the ref
-in `scripts/pi-packages.txt`, then run the helper. `pi update --extensions` keeps that pin.
+in `agent/npm/package.json`, then run the helper. `pi update --extensions` keeps that pin.
 Pi manages the checkout and dependencies under `~/.pi/agent/git/`; do not edit or Stow that directory.
 Pi can reset and clean this checkout when it changes the pinned ref.
 
@@ -61,7 +66,10 @@ load a model, or download files.
 npm --prefix common/.pi run check
 ```
 
-The aggregate check type-checks the covered extension workspaces and runs their available tests.
+The aggregate check type-checks standalone extensions, `pi-cloak`, and extension workspaces.
+It also runs isolated standalone import/registration checks, masking and prompt-sanitation tests,
+and each workspace's available tests. Herdr-managed source retains its upstream `@ts-nocheck`;
+its import and inactive-outside-Herdr behavior are checked without editing that integration.
 After changing extension code, reload Pi with `/reload`.
 
 Use `/toggle-skills` in interactive Pi sessions to switch discovered skills between agent-invocable and manual-only modes. The command updates each skill's `disable-model-invocation` frontmatter and reloads Pi resources.

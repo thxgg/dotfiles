@@ -1,7 +1,11 @@
 {
   "name": "pi-extensions",
   "private": true,
+  "piPackages": [
+    "https://github.com/earendil-works/pi-transcribe@f673cad478885c81fdaa5c7977eb4d291fd87816"
+  ],
   "dependencies": {
-    "@plannotator/pi-extension": "^0.27.12"
+    "@plannotator/pi-extension": "^0.27.12",
+    "pi-autoresearch": "^1.8.1"
   }
 }
