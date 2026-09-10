@@ -1,12 +1,11 @@
-import {
-  createReadToolDefinition, createLsToolDefinition, createGrepToolDefinition, createFindToolDefinition,
-  getAgentDir, SettingsManager, type ExtensionAPI, type ExtensionContext, type ToolDefinition,
-} from "@earendil-works/pi-coding-agent";
-import { DISCOVER_EVENT, RENDER_EVENT, withFocusRendering, type RenderRequest } from "./adapter.ts";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "./adapter.ts";
+import { registerLocalTools } from "./builtins.ts";
 import { loadEnabled, persistEnabled } from "./config.ts";
 import { showDetails } from "./details.ts";
 import { Activity, type Content } from "./model.ts";
-import type { TSchema } from "typebox";
 import { BOUNDARY_ENTRY, OUTSIDE_ENTRY, reconstruct } from "./rebuild.ts";
 import { activityComponent } from "./render.ts";
 
@@ -55,7 +54,11 @@ export default function focusMode(pi: ExtensionAPI): void {
     request.component = {
       invalidate() {},
       render(width) { return activityComponent(activity, request, () => terminal && enabled && supported.has(request.name), id => invalidators.has(id)).render(width); },
-      handleMouse(event) { return activityComponent(activity, request, () => terminal && enabled && supported.has(request.name)).handleMouse?.(event); },
+      handleMouse(event) {
+        const result = activityComponent(activity, request, () => terminal && enabled && supported.has(request.name), id => invalidators.has(id)).handleMouse?.(event);
+        if (result?.handled) redraw();
+        return result;
+      },
     };
   });
   const rebuild = (ctx: ExtensionContext, keepRows = false) => {
@@ -73,36 +76,18 @@ export default function focusMode(pi: ExtensionAPI): void {
     }
     lastEntry = entries.at(-1)?.id;
   };
-  if (eager) {
-    const register = <P extends TSchema, D>(definition: ToolDefinition<P, D>) => {
-      supported.add(definition.name);
-      pi.registerTool(withFocusRendering(pi, definition));
-    };
-    const read = createReadToolDefinition(process.cwd());
-    register({ ...read, execute(id, args, signal, onUpdate, ctx) {
-      const settings = SettingsManager.create(ctx.cwd, getAgentDir(), { projectTrusted: ctx.isProjectTrusted() });
-      return createReadToolDefinition(ctx.cwd, { autoResizeImages: settings.getImageAutoResize() }).execute(id, args, signal, onUpdate, ctx);
-    } });
-    register(createLsToolDefinition(process.cwd()));
-    register(createGrepToolDefinition(process.cwd()));
-    register(createFindToolDefinition(process.cwd()));
-  }
+  const localNames = eager ? registerLocalTools(pi) : [];
   pi.on("session_start", async (_event, ctx) => {
     terminal = ctx.mode === "tui";
     if (!terminal) return; // No registration, terminal UI, or state writes in RPC/print/JSON.
     enabled = await loadEnabled();
-    // Use provenance, not tool names, to avoid replacing SDK, remote, or extension execution.
-    const builtins = new Set(pi.getAllTools().filter(t => t.sourceInfo.source === "builtin").map(t => t.name));
-    const settings = SettingsManager.create(ctx.cwd, getAgentDir(), { projectTrusted: ctx.isProjectTrusted() });
-    const register = <P extends TSchema, D>(definition: ToolDefinition<P, D>) => {
-      if (!builtins.has(definition.name)) return;
-      supported.add(definition.name);
-      pi.registerTool(withFocusRendering(pi, definition));
-    };
-    register(createReadToolDefinition(ctx.cwd, { autoResizeImages: settings.getImageAutoResize() }));
-    register(createLsToolDefinition(ctx.cwd));
-    register(createGrepToolDefinition(ctx.cwd));
-    register(createFindToolDefinition(ctx.cwd));
+    supported.clear();
+    for (const tool of pi.getAllTools()) {
+      if (!localNames.includes(tool.name)) continue;
+      try {
+        if (realpathSync(tool.sourceInfo.path) === realpathSync(fileURLToPath(import.meta.url))) supported.add(tool.name);
+      } catch { /* Unknown or competing owner: normal rows. */ }
+    }
     // Owners respond synchronously through the documented shared event bus.
     const discovery = { names: new Set<string>() };
     pi.events.emit(DISCOVER_EVENT, discovery);
@@ -164,7 +149,7 @@ export default function focusMode(pi: ExtensionAPI): void {
     activity = new Activity(supported);
   });
   pi.registerCommand("focus", {
-    description: "Group exploration output: on, off, status, details [group-id]",
+    description: "Group inline tool activity: on, off, status, details [group-id]",
     getArgumentCompletions(prefix) {
       return ["on", "off", "status", "details"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
     },
@@ -176,13 +161,13 @@ export default function focusMode(pi: ExtensionAPI): void {
         try { await persistEnabled(enabled); }
         catch { ctx.ui.notify("Focus mode changed, but the saved setting could not be written.", "warning"); }
         redraw();
-        ctx.ui.notify(`Focus ${enabled ? "on" : "off"}. Use /focus details for results.`, "info");
+        ctx.ui.notify(`Focus ${enabled ? "on" : "off"}. Inline tools: ${[...supported].join(", ") || "none"}. Ctrl+O or fullscreen click expands original rows. /focus details opens the secondary viewer. ${eager ? "" : "Built-in grouping requires PI_FOCUS_BUILTINS=1 in a new standard-local Pi process."}`, "info");
       } else if (action === "details") {
         inspectingDetails = true;
         try { await showDetails(ctx, activity, id); }
         finally { inspectingDetails = false; redraw(); }
       } else if (action === "status") {
-        ctx.ui.notify(`Focus ${enabled ? "on" : "off"}\nSupported: ${[...supported].join(", ") || "none"}\nImages and input requests keep normal rows. Shell, edits, writes, MCP, subagents, workflows, and unadapted tools are not grouped.\nRegular terminal scrollback may retain old rendering. Historical built-in grouping after /reload requires PI_FOCUS_BUILTINS=1 (standard local tools only).`, "info");
+        ctx.ui.notify(`Focus ${enabled ? "on" : "off"}\nSupported: ${[...supported].join(", ") || "none"}\nImages, input requests, user ! commands, and unadapted tools keep normal rows and separate groups. Only the listed tools are grouped.\nRegular terminal scrollback may retain old rendering. Historical built-in grouping after /reload requires PI_FOCUS_BUILTINS=1 (standard local tools only).`, "info");
       } else ctx.ui.notify("Use /focus on|off|status|details [group-id]", "warning");
     },
   });

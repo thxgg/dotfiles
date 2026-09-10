@@ -12,6 +12,7 @@ export interface RenderRequest {
   context: RenderContext;
   theme: RenderTheme;
   normal: Component;
+  expandedNormal?: Component;
   component?: Component;
 }
 export const RENDER_EVENT = "dotfiles:focus:render:v1";
@@ -23,7 +24,7 @@ export function withFocusRendering<P extends TSchema, D>(
   pi: Pick<ExtensionAPI, "events">,
   tool: ToolDefinition<P, D>,
 ): ToolDefinition<P, D> {
-  const rows = new WeakMap<object, { call?: Component; result?: Component }>();
+  const rows = new WeakMap<object, { call?: Component; result?: Component; expandResult?: () => void }>();
   const row = (state: object) => {
     let value = rows.get(state);
     if (!value) { value = {}; rows.set(state, value); }
@@ -34,7 +35,11 @@ export function withFocusRendering<P extends TSchema, D>(
     renderShell: "self",
     renderCall(args, theme, context) {
       const current = row(context.state);
-      current.call = tool.renderCall?.(args, theme, { ...context, lastComponent: current.call }) ?? new Text(tool.name, 0, 0);
+      const renderCall = (expanded = context.expanded) => {
+        try { return tool.renderCall?.(args, theme, { ...context, expanded, lastComponent: current.call }) ?? new Text(tool.name, 0, 0); }
+        catch { return new Text(theme.fg("toolTitle", tool.name), 0, 0); }
+      };
+      current.call = renderCall();
       const normal: Component = {
         invalidate() {},
         render(width) {
@@ -46,14 +51,32 @@ export function withFocusRendering<P extends TSchema, D>(
           return box.render(width);
         },
       };
-      const request: RenderRequest = { name: tool.name, context, theme, normal };
+      let expanded = false;
+      const expandedNormal: Component = {
+        invalidate() { expanded = false; },
+        render(width) {
+          if (!expanded) {
+            current.call = renderCall(true);
+            current.expandResult?.();
+            expanded = true;
+          }
+          return normal.render(width);
+        },
+      };
+      const request: RenderRequest = { name: tool.name, context, theme, normal, expandedNormal };
       pi.events.emit(RENDER_EVENT, request);
       return request.component ?? normal;
     },
     renderResult(result, options, theme, context) {
       const current = row(context.state);
-      current.result = tool.renderResult?.(result, options, theme, { ...context, lastComponent: current.result })
-        ?? new Text(result.content.filter(p => p.type === "text").map(p => p.text).join("\n"), 0, 0);
+      const renderResult = (expanded = options.expanded) => {
+        try {
+          if (tool.renderResult) return tool.renderResult(result, { ...options, expanded }, theme, { ...context, expanded, lastComponent: current.result });
+        } catch { /* Keep the result visible if the owning renderer fails. */ }
+        return new Text(result.content.filter(p => p.type === "text").map(p => p.text).join("\n"), 0, 0);
+      };
+      current.result = renderResult();
+      current.expandResult = () => { current.result = renderResult(true); };
       // Both native slots live in the call component so normal mode has one unchanged box.
       return new Container();
     },

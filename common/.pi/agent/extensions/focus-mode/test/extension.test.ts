@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 import { initTheme, ToolExecutionComponent, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import focusMode from "../index.ts";
@@ -28,7 +29,7 @@ function harness(mode = "tui", owner = "builtin") {
       emit(name: string, value: unknown) { for (const listener of listeners.get(name) ?? []) listener(value); },
     },
     registerTool(def: ToolDefinition<any, any>) { definitions.set(def.name, def); },
-    getAllTools: () => ["read", "grep", "find", "ls"].map(name => ({ name, sourceInfo: { source: owner } })),
+    getAllTools: () => ["read", "bash", "edit", "write", "grep", "find", "ls"].map(name => ({ name, sourceInfo: { source: owner, path: owner === "builtin" ? fileURLToPath(new URL("../index.ts", import.meta.url)) : "<sdk:tool>" } })),
     registerCommand(name: string, command: any) { commands.set(name, command); },
     appendEntry() {},
   };
@@ -53,9 +54,11 @@ test("live extension events keep source order, progress, mode switching, and dis
   process.env.PI_CODING_AGENT_DIR = dir;
   initTheme("dark", false);
   try {
+    process.env.PI_FOCUS_BUILTINS = "1";
     const h = harness();
+    delete process.env.PI_FOCUS_BUILTINS;
     await h.event("session_start");
-    assert.equal(h.definitions.size, 4);
+    assert.equal(h.definitions.size, 7);
     await h.commands.get("focus").handler("on", h.ctx);
     const tools = Array.from({ length: 20 }, (_, i) => ({ type: "toolCall", id: `c${i}`, name: "read", arguments: { path: `${i}.ts` } }));
     const message = { role: "assistant", content: [{ type: "text", text: "Checking files." }, ...tools] };
@@ -99,14 +102,14 @@ test("eager adapters survive rows constructed before session_start on reload", a
   try {
     await persistEnabled(true);
     const h = harness();
-    const row = new ToolExecutionComponent("read", "history", { path: "history.txt" }, { showImages: false }, h.definitions.get("read"), h.ctx.ui as never, tmpdir());
+    const row = new ToolExecutionComponent("bash", "history", { command: "git status" }, { showImages: false }, h.definitions.get("bash"), h.ctx.ui as never, tmpdir());
     row.updateResult({ content: [{ type: "text", text: "original" }], isError: false });
     h.ctx.sessionManager.buildContextEntries = (() => [
-      { type: "message", message: { role: "assistant", content: [{ type: "toolCall", id: "history", name: "read", arguments: { path: "history.txt" } }] } },
+      { type: "message", message: { role: "assistant", content: [{ type: "toolCall", id: "history", name: "bash", arguments: { command: "git status" } }] } },
       { type: "message", message: { role: "toolResult", toolCallId: "history", content: [{ type: "text", text: "original" }], isError: false } },
     ]) as never;
     await h.event("session_start", { reason: "reload" });
-    assert.match(row.render(80).join("\n"), /Explored · 1 read/);
+    assert.match(row.render(80).join("\n"), /Ran 1 command · completed/);
     await h.event("session_shutdown");
   } finally {
     if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
@@ -127,4 +130,23 @@ test("non-TUI modes do not register overrides or emit UI; extension-owned tools 
   const h = harness("tui", "sdk");
   await h.event("session_start");
   assert.equal(h.definitions.size, 0);
+});
+
+test("eager registration does not group competing owners or use UI in non-TUI modes", async () => {
+  process.env.PI_FOCUS_BUILTINS = "1";
+  try {
+    for (const mode of ["rpc", "json", "print"]) {
+      const h = harness(mode);
+      assert.equal(h.definitions.size, 7);
+      await h.event("session_start");
+      await h.commands.get("focus").handler("on", h.ctx);
+      assert.equal(h.notifications.length, 0);
+      await h.event("session_shutdown");
+    }
+    const h = harness("tui", "sdk");
+    await h.event("session_start");
+    await h.commands.get("focus").handler("status", h.ctx);
+    assert.match(h.notifications[0]!, /Supported: none/);
+    await h.event("session_shutdown");
+  } finally { delete process.env.PI_FOCUS_BUILTINS; }
 });

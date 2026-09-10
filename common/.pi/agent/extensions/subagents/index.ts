@@ -1,4 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { discoverAgents, formatAgentList, type AgentScope } from "./agents.ts";
 import { registerRepoCacheTool } from "./repo-cache.ts";
 import { abortRunningJobs, cancelJob, createAgentTool, getJobSnapshots, getRunningJobCount } from "./runtime.ts";
@@ -50,10 +53,22 @@ function formatJobDetails(id?: string): string {
     .join("\n\n---\n\n");
 }
 
-export default function subagentsExtension(pi: ExtensionAPI): void {
+// Resolve through individual Stow links. Focus is an optional UI dependency.
+export async function loadFocusAdapter(ownerUrl: string) {
+  try {
+    const adapterPath = resolve(dirname(realpathSync(fileURLToPath(ownerUrl))), "../focus-mode/adapter.ts");
+    if (!existsSync(adapterPath)) return undefined;
+    return await import(pathToFileURL(adapterPath).href) as typeof import("../focus-mode/adapter.ts");
+  } catch { return undefined; }
+}
+
+export default async function subagentsExtension(pi: ExtensionAPI): Promise<void> {
+  const adapter = await loadFocusAdapter(import.meta.url);
   registerRepoCacheTool(pi);
   registerAgentNotificationRenderer(pi);
-  pi.registerTool(createAgentTool());
+  const agent = createAgentTool();
+  pi.registerTool(adapter ? adapter.withFocusRendering(pi, agent) : agent);
+  const disposeFocus = adapter?.announceFocusTools(pi, ["Agent"], import.meta.url);
   let stopNotificationPump: (() => void) | undefined;
 
   pi.registerCommand("agents", {
@@ -140,6 +155,7 @@ export default function subagentsExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", async (event, ctx) => {
+    disposeFocus?.();
     stopNotificationPump?.();
     stopNotificationPump = undefined;
     if (event.reason !== "quit") return;

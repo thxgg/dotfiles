@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -8,7 +9,7 @@ import { Type } from "typebox";
 import { WorkflowController } from "./controller.ts";
 import { showWorkflowDashboard } from "./dashboard.ts";
 import { showActivityDashboard } from "./activity.ts";
-import { prepareWorkflowScript } from "./meta.ts";
+import { extractMeta, prepareWorkflowScript } from "./meta.ts";
 import { emptyUsage, formatElapsed, shortenHome, type WorkflowAgentRecord, type WorkflowDetails } from "./model.ts";
 import { runWorkflowAgent } from "./runner.ts";
 import { openSessionPane } from "../subagents/session-pane.ts";
@@ -60,7 +61,19 @@ function saveReport(runId: string): string {
   const target = path.join(runDir(runId), "report.md"); fs.writeFileSync(target, buildReport(details), { encoding: "utf8", mode: 0o600 }); return `Saved report to ${shortenHome(target)}`;
 }
 
-export default function workflowsExtension(pi: ExtensionAPI): void {
+// Optional import relative to the real source, not the Stow link location.
+export async function loadFocusAdapter(ownerUrl: string) {
+  try {
+    const adapterPath = path.resolve(path.dirname(fs.realpathSync(fileURLToPath(ownerUrl))), "../focus-mode/adapter.ts");
+    if (!fs.existsSync(adapterPath)) return undefined;
+    return await import(pathToFileURL(adapterPath).href) as typeof import("../focus-mode/adapter.ts");
+  } catch { return undefined; }
+}
+
+export default async function workflowsExtension(pi: ExtensionAPI): Promise<void> {
+  const adapter = await loadFocusAdapter(import.meta.url);
+  const decorate: typeof import("../focus-mode/adapter.ts").withFocusRendering = adapter?.withFocusRendering ?? ((_pi, tool) => tool);
+  const disposeFocus = adapter?.announceFocusTools(pi, ["workflow"], import.meta.url);
   const instanceId = randomUUID();
   pi.registerMessageRenderer<WorkflowNotificationDetails>("workflow-notification", (message, _options, theme) => {
     const run = message.details?.run;
@@ -74,7 +87,7 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
   let lastUi: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1]["ui"] | undefined;
   const updateStatus = () => { lastUi?.setStatus("workflows", active.size ? `◇ ${active.size}` : undefined); };
   pi.on("session_start", (_event, ctx) => { lastUi = ctx.ui; reconcileOrphanedWorkflows(); updateStatus(); });
-  pi.on("session_shutdown", async () => { for (const run of active.values()) run.controller.abort("Parent session is shutting down."); await Promise.all([...active.values()].map((run) => run.controller.settle(true))); lastUi?.setStatus("workflows", undefined); });
+  pi.on("session_shutdown", async () => { disposeFocus?.(); for (const run of active.values()) run.controller.abort("Parent session is shutting down."); await Promise.all([...active.values()].map((run) => run.controller.settle(true))); lastUi?.setStatus("workflows", undefined); });
 
   const approveWorkflow = async (source: string, ctx: any): Promise<boolean> => {
     if (!ctx.hasUI) return true;
@@ -147,7 +160,7 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
     }, latest);
   } });
 
-  pi.registerTool({
+  pi.registerTool(decorate(pi, {
     name: "workflow", label: "Workflow",
     description: "Run an approved, sandboxed JavaScript workflow for multi-agent, multi-phase work. Use only when the user explicitly requests a workflow or the task clearly requires structured fan-out, cross-checking, and synthesis. Scripts use phase(), agent(), parallel(), args, and return a JSON-serializable aggregate. Workflow children default to openai-codex/gpt-6-astra and may only override model to anthropic/claude-fable-5 (shorthand fable-5). Ordinary isolated units belong in Agent instead.",
     promptSnippet: "Orchestrate bounded multi-agent workflows with phases, parallel children, structured outputs, and persisted progress",
@@ -175,7 +188,7 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
       }
       const details = await completion; if (details.status !== "completed") throw new Error(summary(details)); return { content: [{ type: "text", text: `${summary(details)}\n\nResult:\n${JSON.stringify(details.result, null, 2)}` }], details: { action, runs: [details] } };
     },
-    renderCall(args, theme) { const meta = args.script ? prepareWorkflowScript(args.script).meta : undefined; return new Text(`${theme.fg("toolTitle", theme.bold("Workflow "))}${theme.fg("accent", args.action ?? "run")}${meta?.name ? theme.fg("muted", ` ${meta.name}`) : ""}`, 0, 0); },
+    renderCall(args, theme) { const meta = args.script ? extractMeta(args.script) : undefined; return new Text(`${theme.fg("toolTitle", theme.bold("Workflow "))}${theme.fg("accent", args.action ?? "run")}${meta?.name ? theme.fg("muted", ` ${meta.name}`) : ""}`, 0, 0); },
     renderResult(result, _options, theme) { const run = (result.details as any)?.runs?.[0] as WorkflowDetails | undefined; return new Text(run ? `${theme.fg(run.status === "completed" ? "success" : run.status === "running" || run.status === "incomplete" ? "warning" : "error", "■")} ${theme.fg("accent", run.name ?? run.runId)} ${theme.fg("dim", summary(run))}` : (result.content[0] as any)?.text ?? "", 0, 0); },
-  });
+  }));
 }

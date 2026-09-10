@@ -21,7 +21,7 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       const calls = activity.members(group);
       // A competing owner can replace a tool after discovery. Fail open, not invisible.
       if (!adapted(calls[0]!.id)) return request.normal.render(width);
-      if (!activity.host(call)) return [];
+      if (!activity.host(call)) return group.expanded ? (request.expandedNormal ?? request.normal).render(width) : [];
       const failed = calls.some(c => c.status === "error");
       const expanded = group.expanded;
       const lines = [request.theme.fg(failed ? "error" : "accent", `${expanded ? "▾" : "▸"} ${failed ? "FAILED · " : ""}${summary(calls)}`)];
@@ -31,13 +31,16 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
         if (calls.length > 20) lines.push(`  … ${calls.length - 20} more calls`);
       }
       if (expanded || failed) lines.push(request.theme.fg("dim", `/focus details ${group.id}`));
-      return lines.map(line => truncateToWidth(line, Math.max(0, width)));
+      const header = lines.map(line => truncateToWidth(line, Math.max(0, width)));
+      return expanded ? [...header, ...(request.expandedNormal ?? request.normal).render(width)] : header;
     },
     handleMouse(event) {
       const call = activity.calls.get(request.context.toolCallId);
-      if (!enabled() || !call || call.outside || !activity.host(call)) return;
-      if (event.type !== "click" || event.button !== "left") return;
+      if (!enabled() || !call || call.outside) return;
       const group = activity.group(call.group)!;
+      if (!adapted(activity.members(group)[0]!.id)) return;
+      if (!activity.host(call) && !group.expanded) return;
+      if (event.type !== "click" || event.button !== "left") return;
       group.expanded = !group.expanded;
       request.context.invalidate();
       return { handled: true }; // Do not take focus from the editor.

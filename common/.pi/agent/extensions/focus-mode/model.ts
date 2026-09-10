@@ -23,8 +23,8 @@ export function safeLabel(value: unknown): string {
   return String(value ?? "").slice(0, 500).replace(/[\x00-\x1f\x7f-\x9f]/g, " ");
 }
 export function callLabel(name: string, args: Record<string, unknown>): string {
-  const verb: Record<string, string> = { read: "Read", ls: "List", grep: "Search", find: "Find", websearch: "Search web", webfetch: "Fetch" };
-  let target = args.query ?? args.pattern ?? args.path ?? args.url ?? ".";
+  const verb: Record<string, string> = { bash: "Run", edit: "Edit", write: "Write", read: "Read", ls: "List", grep: "Search", find: "Find", websearch: "Search web", webfetch: "Fetch" };
+  let target = args.command ?? args.action ?? args.query ?? args.pattern ?? args.path ?? args.url ?? args.agent ?? "";
   if (name === "webfetch") {
     try { const url = new URL(String(target)); url.username = ""; url.password = ""; target = url.toString(); } catch { target = "URL"; }
   }
@@ -33,7 +33,7 @@ export function callLabel(name: string, args: Record<string, unknown>): string {
 export function resultStatus(result: Result, cancelled = false): Status {
   if (!result.isError) return "success";
   const text = result.content.filter(p => p.type === "text").map(p => p.text ?? "").join("\n");
-  return cancelled || /^(Operation aborted|Tool execution aborted|Web (fetch|search) cancelled)[.!]?$/i.test(text.trim())
+  return cancelled || /(?:^|\n)(Operation aborted|Tool execution aborted|Command aborted|Web (fetch|search) cancelled)[.!]?$/i.test(text.trim())
     ? "cancelled" : "error";
 }
 
@@ -127,7 +127,12 @@ export function summary(calls: readonly Call[]): string {
   const failed = calls.filter(c => c.status === "error").length;
   const cancelled = calls.filter(c => c.status === "cancelled").length;
   const interrupted = calls.filter(c => c.status === "interrupted").length;
-  const parts = [running || queued ? "Exploring" : "Explored", ...[...counts].map(([kind, n]) => `${n} ${kind}${n === 1 ? "" : kind.endsWith("search") ? "es" : "s"}`)];
+  const onlyShell = calls.every(c => c.name === "bash");
+  const exploration = calls.every(c => Object.hasOwn(kinds, c.name));
+  const parts = onlyShell
+    ? [`${running || queued ? "Running" : "Ran"} ${calls.length} command${calls.length === 1 ? "" : "s"}`]
+    : [exploration ? running || queued ? "Exploring" : "Explored" : "Activity", ...[...counts].map(([kind, n]) => `${n} ${kind}${n === 1 ? "" : kind.endsWith("search") ? "es" : "s"}`)];
+  if (calls.every(c => c.status === "success")) parts.push("completed");
   for (const [n, label] of [[running, "running"], [queued, "queued"], [failed, "FAILED"], [cancelled, "cancelled"], [interrupted, "interrupted"]] as const) if (n) parts.push(`${n} ${label}`);
   return parts.join(" · ");
 }

@@ -6,7 +6,7 @@ import { detailPreview } from "./preview.ts";
 
 export async function showDetails(ctx: ExtensionContext, activity: Activity, groupId?: string): Promise<void> {
   let groups = activity.groups.filter(g => g.calls.length);
-  if (!groups.length) { ctx.ui.notify("No exploration activity in this branch.", "info"); return; }
+  if (!groups.length) { ctx.ui.notify("No supported tool activity in this branch.", "info"); return; }
   let groupIndex = groupId ? groups.findIndex(g => g.id === groupId) : groups.length - 1;
   if (groupIndex < 0) { ctx.ui.notify("Activity group not found.", "warning"); return; }
   let callIndex = 0;
