@@ -375,8 +375,8 @@
   "theme.bar.buttons.modules.microphone.text": "#161616",
   "theme.bar.buttons.modules.microphone.icon": "#161616",
   "theme.bar.buttons.modules.microphone.icon_background": "#F1F1F1",
-  "wallpaper.image": "",
-  "wallpaper.enable": false,
+  "wallpaper.image": "/home/thxgg/Pictures/Wallpapers/porsche-white.jpg",
+  "wallpaper.enable": true,
   "theme.font.name": "SF Pro Display",
   "theme.font.label": "SF Pro Display",
   "bar.layouts": {
