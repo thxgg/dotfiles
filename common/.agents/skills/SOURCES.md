@@ -30,17 +30,31 @@ Dillon Mulroy:
 
 - `install-anti-slop`
 
-Emil Kowalski:
+## Emil Kowalski
 
+The following skills match
+[`emilkowalski/skills@d23d7f8`](https://github.com/emilkowalski/skills/commit/d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7):
+
+- `animate`
+- `animate-expo`
 - `animation-vocabulary`
+- `apple-design`
+- `ask-sonner`
 - `emil-design-eng`
+- `find-animation-opportunities`
+- `improve-animations`
+- `prototype`
 - `review-animations`
+- `write-swift`
+
+The trailing blank line in `write-swift/SKILL.md` is removed for whitespace checks.
+
+`pick-ui-library` is intentionally excluded by owner decision.
 
 ## No upstream
 
 The owner confirmed that these skills have no upstream:
 
-- `apple-design`
 - `herdr`
 - `postgres`
 - `shadcn-vue`
