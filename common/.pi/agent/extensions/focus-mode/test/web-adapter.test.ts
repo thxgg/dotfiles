@@ -2,6 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { withFocusRendering } from "../adapter.ts";
+import webToolsExtension from "../../../extensions/web-tools/index.ts";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
+
+test("web registration groups by default and supports explicit opt-out", async () => {
+  const previous = process.env.PI_VERBOSITY_WEB;
+  try {
+    for (const enabled of [false, true]) {
+      if (enabled) delete process.env.PI_VERBOSITY_WEB;
+      else process.env.PI_VERBOSITY_WEB = "0";
+      const tools: ToolDefinition[] = [];
+      const subscriptions: string[] = [];
+      const api = {
+        registerTool(tool: ToolDefinition) { tools.push(tool); },
+        events: { on(name: string) { subscriptions.push(name); return () => {}; }, emit() {} },
+        on() {},
+      };
+      // SAFETY: registration uses only the narrow methods supplied above.
+      await webToolsExtension(api as unknown as ExtensionAPI);
+      assert.deepEqual(tools.map(tool => tool.name), ["webfetch", "websearch"]);
+      assert.equal(subscriptions.length, enabled ? 1 : 0);
+      for (const tool of tools) assert.equal(tool.renderShell === "self", enabled);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.PI_VERBOSITY_WEB;
+    else process.env.PI_VERBOSITY_WEB = previous;
+  }
+});
 import { createWebFetchTool } from "../../../extensions/web-tools/webfetch.ts";
 import { createWebSearchTool } from "../../../extensions/web-tools/websearch.ts";
 

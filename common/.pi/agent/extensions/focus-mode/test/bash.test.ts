@@ -43,7 +43,7 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
     }
     assert.equal(await readFile(join(dir, "changed.txt"), "utf8"), "changed");
     const render = () => plain(rows.flatMap(row => row.render(100)).join("\n"));
-    assert.match(render(), /Ran 2 commands · completed/);
+    assert.match(render(), /Ran 2 commands/);
     assert.match(render(), /FAILED.*Ran 1 command.*1 FAILED/);
     assert.doesNotMatch(render(), /Explor|status-output|validation-output/);
     assert.equal(rows[1]!.render(100).length, 0);
@@ -51,6 +51,8 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
     assert.match(render(), /status-output/); assert.match(render(), /validation-output/); assert.match(render(), /failure-output/);
     const click = { type: "click", button: "left", x: 2, y: 0, screenX: 2, screenY: 0, width: 100, height: 10, shift: false, alt: false, ctrl: false } as const;
     assert.equal(activityComponent(activity, requests.get("shell1")!, () => true).handleMouse?.(click)?.handled, true);
+    assert.equal(activity.groups[0]!.expanded, true); // Member clicks affect output, not the group.
+    assert.equal(activityComponent(activity, requests.get("shell0")!, () => true).handleMouse?.(click)?.handled, true);
     assert.equal(activity.groups[0]!.expanded, false);
     for (const request of requests.values()) request.context.invalidate();
     for (const row of rows) row.setExpanded(false);

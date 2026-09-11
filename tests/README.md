@@ -1,3 +1,14 @@
+# Pi verbosity lab
+
+```sh
+./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/check.sh
+```
+
+These offline checks use the installed Pi renderer and temporary agent state.
+They do not execute fixture tools or make model requests. See
+[`common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/README.md`](../common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/README.md)
+for the CLI-only comparison viewer and its limits.
+
 # Shared configuration checks
 
 ```sh

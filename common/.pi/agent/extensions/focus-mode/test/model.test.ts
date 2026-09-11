@@ -15,10 +15,10 @@ test("twenty calls and tool-only messages form one stable source-ordered group",
   for (let i = 0; i < 20; i++) a.start(`${i}`, "read", {});
   assert.equal(a.groups.length, 1);
   assert.equal(a.groups[0]!.id, "0");
-  assert.match(summary(a.groups[0]!.calls), /20 reads · 20 running/);
+  assert.match(summary(a.groups[0]!.calls), /Exploring 20 reads/);
   for (let i = 19; i >= 0; i--) a.finish(`${i}`, ok);
   assert.deepEqual(a.groups[0]!.calls.map(c => c.id), Array.from({ length: 20 }, (_, i) => `${i}`));
-  assert.equal(summary(a.groups[0]!.calls), "Explored · 20 reads · completed");
+  assert.equal(summary(a.groups[0]!.calls), "Explored 20 reads");
 });
 test("assistant text, user, unsupported tools, and visible custom messages split groups", () => {
   const a = new Activity(supported());

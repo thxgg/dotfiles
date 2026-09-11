@@ -3,20 +3,32 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "./adapter.ts";
 import { registerLocalTools } from "./builtins.ts";
-import { loadEnabled, persistEnabled } from "./config.ts";
+import { InvalidVerbosityError, parseVerbosity, type Verbosity } from "./config.ts";
 import { showDetails } from "./details.ts";
 import { Activity, type Content } from "./model.ts";
 import { BOUNDARY_ENTRY, OUTSIDE_ENTRY, reconstruct } from "./rebuild.ts";
 import { activityComponent } from "./render.ts";
 
+type ModeState =
+  | { readonly kind: "inactive" }
+  | { readonly kind: "invalid"; readonly error: InvalidVerbosityError }
+  | { readonly kind: "ready"; readonly verbosity: Verbosity; readonly persistence: "session" };
+
+/** Register the default low-verbosity renderer. Resolve CLI selection only at session_start. */
 export default function focusMode(pi: ExtensionAPI): void {
+  pi.registerFlag("verbosity", {
+    description: "Tool display: low (grouped) or normal (native), session-only",
+    type: "string",
+  });
   // CLI extension flags are applied after factories run. An explicit process option
   // is needed here because Pi also rebuilds historical rows before session_start.
-  const eager = process.env.PI_FOCUS_BUILTINS === "1";
+  const eager = process.env.PI_FOCUS_BUILTINS !== "0";
   const supported = new Set<string>();
   let activity = new Activity(supported);
-  let enabled = false;
+  let mode: ModeState = { kind: "inactive" };
+  const isEnabled = () => mode.kind === "ready" && mode.verbosity === "low";
   let terminal = false;
+  let animation: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
   let inspectingDetails = false;
   let lastEntry: string | undefined;
@@ -53,9 +65,9 @@ export default function focusMode(pi: ExtensionAPI): void {
     // Resolve the current model on render: /reload constructs rows before session_start.
     request.component = {
       invalidate() {},
-      render(width) { return activityComponent(activity, request, () => terminal && enabled && supported.has(request.name), id => invalidators.has(id)).render(width); },
+      render(width) { return activityComponent(activity, request, () => terminal && isEnabled() && supported.has(request.name), id => invalidators.has(id)).render(width); },
       handleMouse(event) {
-        const result = activityComponent(activity, request, () => terminal && enabled && supported.has(request.name), id => invalidators.has(id)).handleMouse?.(event);
+        const result = activityComponent(activity, request, () => terminal && isEnabled() && supported.has(request.name), id => invalidators.has(id)).handleMouse?.(event);
         if (result?.handled) redraw();
         return result;
       },
@@ -78,9 +90,26 @@ export default function focusMode(pi: ExtensionAPI): void {
   };
   const localNames = eager ? registerLocalTools(pi) : [];
   pi.on("session_start", async (_event, ctx) => {
-    terminal = ctx.mode === "tui";
-    if (!terminal) return; // No registration, terminal UI, or state writes in RPC/print/JSON.
-    enabled = await loadEnabled();
+    terminal = false;
+    mode = { kind: "inactive" };
+    const selection = parseVerbosity(pi.getFlag("verbosity"));
+    if (selection instanceof InvalidVerbosityError) {
+      mode = { kind: "invalid", error: selection };
+      if (ctx.hasUI) ctx.ui.notify(selection.message, "error");
+      else console.error(selection.message);
+      redraw();
+      return;
+    }
+    if (ctx.mode !== "tui") return; // No terminal UI or state I/O in RPC/print/JSON.
+    mode = selection === undefined
+      ? { kind: "ready", verbosity: "low", persistence: "session" }
+      : { kind: "ready", verbosity: selection, persistence: "session" };
+    terminal = true;
+    if (animation) clearInterval(animation);
+    animation = setInterval(() => {
+      if (isEnabled() && [...activity.calls.values()].some(call => call.status === "running" || call.status === "queued")) redraw();
+    }, 80);
+    animation.unref();
     supported.clear();
     for (const tool of pi.getAllTools()) {
       if (!localNames.includes(tool.name)) continue;
@@ -144,9 +173,41 @@ export default function focusMode(pi: ExtensionAPI): void {
   pi.on("agent_settled", () => { if (terminal) { activity.settle(); redraw(); } });
   pi.on("session_shutdown", () => {
     disposed = true;
+    if (animation) clearInterval(animation);
+    animation = undefined;
+    terminal = false;
+    mode = { kind: "inactive" };
     disposeRender();
     invalidators.clear();
     activity = new Activity(supported);
+  });
+  const changeVerbosity = async (verbosity: Verbosity, ctx: ExtensionContext) => {
+    if (mode.kind !== "ready") return;
+    mode = { ...mode, verbosity };
+    redraw();
+  };
+  const scopeDescription = () => "Session only. Commands do not change saved settings.";
+  const commandReady = (ctx: ExtensionContext) => {
+    if (ctx.mode !== "tui") return false;
+    if (mode.kind === "ready") return true;
+    ctx.ui.notify(mode.kind === "invalid" ? mode.error.message : "Focus is not active. Wait for session_start.", "error");
+    return false;
+  };
+  pi.registerCommand("verbosity", {
+    description: "Set supported tool display: low, normal, status (CLI selection makes changes session-only)",
+    getArgumentCompletions(prefix) {
+      return ["low", "normal", "status"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
+    },
+    async handler(args, ctx) {
+      if (!commandReady(ctx)) return;
+      const action = args.trim() || "status";
+      if (action === "low" || action === "normal") await changeVerbosity(action, ctx);
+      else if (action !== "status") {
+        ctx.ui.notify("Use /verbosity low|normal|status", "error");
+        return;
+      }
+      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "normal"}. ${scopeDescription()}\nSupported: ${[...supported].join(", ") || "none"}. Standard-local tools only. Set PI_FOCUS_BUILTINS=0 with remote or SDK overrides.`, "info");
+    },
   });
   pi.registerCommand("focus", {
     description: "Group inline tool activity: on, off, status, details [group-id]",
@@ -154,20 +215,21 @@ export default function focusMode(pi: ExtensionAPI): void {
       return ["on", "off", "status", "details"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
     },
     async handler(args, ctx) {
-      if (ctx.mode !== "tui") return;
-      const [action = "status", id] = args.trim().split(/\s+/).filter(Boolean);
+      if (!commandReady(ctx)) return;
+      const [action = "status", id, extra] = args.trim().split(/\s+/).filter(Boolean);
+      if (extra !== undefined || (id !== undefined && action !== "details")) {
+        ctx.ui.notify("Use /focus on|off|status|details [group-id]", "warning");
+        return;
+      }
       if (action === "on" || action === "off") {
-        enabled = action === "on";
-        try { await persistEnabled(enabled); }
-        catch { ctx.ui.notify("Focus mode changed, but the saved setting could not be written.", "warning"); }
-        redraw();
-        ctx.ui.notify(`Focus ${enabled ? "on" : "off"}. Inline tools: ${[...supported].join(", ") || "none"}. Ctrl+O or fullscreen click expands original rows. /focus details opens the secondary viewer. ${eager ? "" : "Built-in grouping requires PI_FOCUS_BUILTINS=1 in a new standard-local Pi process."}`, "info");
+        await changeVerbosity(action === "on" ? "low" : "normal", ctx);
+        ctx.ui.notify(`Focus ${isEnabled() ? "on" : "off"}. ${scopeDescription()} Inline tools: ${[...supported].join(", ") || "none"}. Ctrl+O or fullscreen click expands original rows. /focus details opens the secondary viewer. ${eager ? "" : "Built-in grouping requires PI_FOCUS_BUILTINS=1 in a new standard-local Pi process."}`, "info");
       } else if (action === "details") {
         inspectingDetails = true;
         try { await showDetails(ctx, activity, id); }
         finally { inspectingDetails = false; redraw(); }
       } else if (action === "status") {
-        ctx.ui.notify(`Focus ${enabled ? "on" : "off"}\nSupported: ${[...supported].join(", ") || "none"}\nImages, input requests, user ! commands, and unadapted tools keep normal rows and separate groups. Only the listed tools are grouped.\nRegular terminal scrollback may retain old rendering. Historical built-in grouping after /reload requires PI_FOCUS_BUILTINS=1 (standard local tools only).`, "info");
+        ctx.ui.notify(`Focus ${isEnabled() ? "on" : "off"}. ${scopeDescription()}\nSupported: ${[...supported].join(", ") || "none"}\nImages, input requests, user ! commands, and unadapted tools keep normal rows and separate groups. Only the listed tools are grouped.\nRegular terminal scrollback may retain old rendering. Built-in grouping is on by default for standard local tools.`, "info");
       } else ctx.ui.notify("Use /focus on|off|status|details [group-id]", "warning");
     },
   });

@@ -131,8 +131,7 @@ export function summary(calls: readonly Call[]): string {
   const exploration = calls.every(c => Object.hasOwn(kinds, c.name));
   const parts = onlyShell
     ? [`${running || queued ? "Running" : "Ran"} ${calls.length} command${calls.length === 1 ? "" : "s"}`]
-    : [exploration ? running || queued ? "Exploring" : "Explored" : "Activity", ...[...counts].map(([kind, n]) => `${n} ${kind}${n === 1 ? "" : kind.endsWith("search") ? "es" : "s"}`)];
-  if (calls.every(c => c.status === "success")) parts.push("completed");
-  for (const [n, label] of [[running, "running"], [queued, "queued"], [failed, "FAILED"], [cancelled, "cancelled"], [interrupted, "interrupted"]] as const) if (n) parts.push(`${n} ${label}`);
+    : [`${exploration ? running || queued ? "Exploring" : "Explored" : "Activity"} ${[...counts].map(([kind, n]) => `${n} ${kind === "bash" ? n === 1 ? "command" : "commands" : kind + (n === 1 ? "" : kind.endsWith("search") ? "es" : "s")}`).join(", ")}`];
+  for (const [n, label] of [[failed, "FAILED"], [cancelled, "cancelled"], [interrupted, "interrupted"]] as const) if (n) parts.push(`${n} ${label}`);
   return parts.join(" · ");
 }

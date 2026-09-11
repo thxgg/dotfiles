@@ -31,7 +31,7 @@ test("vertical slice: twenty read/ls rows, one live group, native restoration, r
   });
   const lines = () => rows.flatMap(r => r.render(100));
   assert.equal(lines().length, 2); // One spacer, one summary. No per-hidden-row spacers.
-  assert.match(lines()[1]!, /20 running/);
+  assert.match(lines()[1]!, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Exploring 10 reads, 10 listings/);
   for (let i = 19; i >= 0; i--) {
     activity.finish(`c${i}`, { content: [{ type: "text", text: "original details" }] });
     rows[i]!.updateResult({ content: [{ type: "text", text: "original details" }], isError: false });
@@ -40,7 +40,8 @@ test("vertical slice: twenty read/ls rows, one live group, native restoration, r
   assert.match(lines()[1]!, /Explored/);
   assert.equal(lines().length, 2);
   activity.groups[0]!.expanded = true;
-  assert.match(lines().join("\n"), /✓ Read/);
+  assert.doesNotMatch(lines().join("\n"), /✓ Read|\/focus details/);
+  assert.match(lines().join("\n"), /▾ Explored/);
   enabled = false;
   for (const request of requests.values()) request.context.invalidate();
   const native = new ToolExecutionComponent("read", "native", { path: "/tmp" }, { showImages: false }, read, ui as never, process.cwd());
@@ -48,6 +49,7 @@ test("vertical slice: twenty read/ls rows, one live group, native restoration, r
   assert.deepEqual(rows[0]!.render(100), native.render(100));
   assert.match(lines().join("\n"), /original details/);
   enabled = true;
+  activity.groups[0]!.expanded = false;
   const replay = new ToolExecutionComponent("read", "c0", { path: "/tmp" }, { showImages: false }, wrapped[0], ui as never, process.cwd());
   replay.updateResult({ content: [{ type: "text", text: "original details" }], isError: false });
   assert.match(replay.render(100).join("\n"), /Explored/);

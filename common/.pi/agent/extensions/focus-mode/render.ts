@@ -12,6 +12,7 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       state.focusGlobalExpanded = request.context.expanded;
     }
   }
+  let headerHeight = 0;
   return {
     invalidate() {},
     render(width) {
@@ -21,18 +22,18 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       const calls = activity.members(group);
       // A competing owner can replace a tool after discovery. Fail open, not invisible.
       if (!adapted(calls[0]!.id)) return request.normal.render(width);
-      if (!activity.host(call)) return group.expanded ? (request.expandedNormal ?? request.normal).render(width) : [];
+      if (!activity.host(call)) return group.expanded ? request.normal.render(width) : [];
       const failed = calls.some(c => c.status === "error");
-      const expanded = group.expanded;
-      const lines = [request.theme.fg(failed ? "error" : "accent", `${expanded ? "▾" : "▸"} ${failed ? "FAILED · " : ""}${summary(calls)}`)];
-      if (expanded) {
-        const icons = { queued: "○", running: "…", success: "✓", error: "✗", cancelled: "⊘", interrupted: "?" };
-        for (const item of calls.slice(0, 20)) lines.push(request.theme.fg(item.status === "error" ? "error" : "muted", `  ${icons[item.status]} ${item.label}`));
-        if (calls.length > 20) lines.push(`  … ${calls.length - 20} more calls`);
-      }
-      if (expanded || failed) lines.push(request.theme.fg("dim", `/focus details ${group.id}`));
+      const busy = calls.some(c => c.status === "running" || c.status === "queued");
+      const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+      const arrow = group.expanded ? "▾" : "▸";
+      const indicator = busy ? `${arrow} ${frames[Math.floor(Date.now() / 80) % frames.length]}` : arrow;
+      const lines = [request.theme.fg(failed ? "error" : "accent", `${indicator} ${failed ? "FAILED · " : ""}${summary(calls)}`)];
+      if (request.showDetailsHint !== false && failed) lines.push(request.theme.fg("dim", `/focus details ${group.id}`));
       const header = lines.map(line => truncateToWidth(line, Math.max(0, width)));
-      return expanded ? [...header, ...(request.expandedNormal ?? request.normal).render(width)] : header;
+      const spaced = request.standaloneSpacing ? ["", ...header] : header;
+      headerHeight = spaced.length;
+      return group.expanded ? [...spaced, ...request.normal.render(width)] : spaced;
     },
     handleMouse(event) {
       const call = activity.calls.get(request.context.toolCallId);
@@ -40,6 +41,13 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       const group = activity.group(call.group)!;
       if (!adapted(activity.members(group)[0]!.id)) return;
       if (!activity.host(call) && !group.expanded) return;
+      const host = activity.host(call);
+      const failed = activity.members(group).some(member => member.status === "error");
+      const offset = host ? (headerHeight || 1 + (request.standaloneSpacing ? 1 : 0) + (request.showDetailsHint !== false && failed ? 1 : 0)) : 0;
+      if (group.expanded && (!host || event.y >= offset)) {
+        return request.normal.handleMouse?.({ ...event, y: event.y - offset, height: Math.max(0, event.height - offset) });
+      }
+      if (!host || (request.standaloneSpacing && event.y === 0)) return;
       if (event.type !== "click" || event.button !== "left") return;
       group.expanded = !group.expanded;
       request.context.invalidate();

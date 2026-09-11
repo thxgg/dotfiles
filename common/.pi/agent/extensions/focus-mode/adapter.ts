@@ -13,6 +13,10 @@ export interface RenderRequest {
   theme: RenderTheme;
   normal: Component;
   expandedNormal?: Component;
+  /** False for viewers that do not register the archived details command. */
+  showDetailsHint?: boolean;
+  /** Add Pi's outer row spacer when rendering outside ToolExecutionComponent. */
+  standaloneSpacing?: boolean;
   component?: Component;
 }
 export const RENDER_EVENT = "dotfiles:focus:render:v1";
@@ -24,7 +28,7 @@ export function withFocusRendering<P extends TSchema, D>(
   pi: Pick<ExtensionAPI, "events">,
   tool: ToolDefinition<P, D>,
 ): ToolDefinition<P, D> {
-  const rows = new WeakMap<object, { call?: Component; result?: Component; expandResult?: () => void }>();
+  const rows = new WeakMap<object, { call?: Component; result?: Component; expandResult?: (expanded: boolean) => void }>();
   const row = (state: object) => {
     let value = rows.get(state);
     if (!value) { value = {}; rows.set(state, value); }
@@ -40,8 +44,17 @@ export function withFocusRendering<P extends TSchema, D>(
         catch { return new Text(theme.fg("toolTitle", tool.name), 0, 0); }
       };
       current.call = renderCall();
+      let outputExpanded = context.expanded;
       const normal: Component = {
         invalidate() {},
+        handleMouse(event) {
+          if (event.type !== "click" || event.button !== "left") return;
+          outputExpanded = !outputExpanded;
+          current.call = renderCall(outputExpanded);
+          current.expandResult?.(outputExpanded);
+          context.invalidate();
+          return { handled: true };
+        },
         render(width) {
           const box = tool.renderShell === "self" ? new Container() : new Box(1, 1, text => theme.bg(
             context.isPartial ? "toolPendingBg" : context.isError ? "toolErrorBg" : "toolSuccessBg", text,
@@ -57,7 +70,7 @@ export function withFocusRendering<P extends TSchema, D>(
         render(width) {
           if (!expanded) {
             current.call = renderCall(true);
-            current.expandResult?.();
+            current.expandResult?.(true);
             expanded = true;
           }
           return normal.render(width);
@@ -76,7 +89,7 @@ export function withFocusRendering<P extends TSchema, D>(
         return new Text(result.content.filter(p => p.type === "text").map(p => p.text).join("\n"), 0, 0);
       };
       current.result = renderResult();
-      current.expandResult = () => { current.result = renderResult(true); };
+      current.expandResult = expanded => { current.result = renderResult(expanded); };
       // Both native slots live in the call component so normal mode has one unchanged box.
       return new Container();
     },
