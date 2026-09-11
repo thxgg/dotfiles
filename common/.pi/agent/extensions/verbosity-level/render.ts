@@ -28,7 +28,7 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
       const arrow = group.expanded ? "▾" : "▸";
       const indicator = busy ? `${arrow} ${frames[Math.floor(Date.now() / 80) % frames.length]}` : arrow;
-      const lines = [request.theme.fg(failed ? "error" : "accent", `${indicator} ${failed ? "FAILED · " : ""}${summary(calls)}`)];
+      const lines = [request.theme.fg(failed ? "error" : "accent", `${indicator} ${summary(calls)}`)];
       const header = lines.map(line => truncateToWidth(line, Math.max(0, width)));
       const spaced = request.standaloneSpacing ? ["", ...header] : header;
       headerHeight = spaced.length;
