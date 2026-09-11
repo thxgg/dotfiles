@@ -2,7 +2,7 @@
 Name=Linear
 GenericName=Issue Tracker
 Comment=Use Linear in a dedicated web app window
-Exec=/usr/bin/google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1 --class=Linear --app=https://linear.app/
+Exec=/usr/bin/helium-browser --ozone-platform=x11 --force-device-scale-factor=1 --class=Linear --app=https://linear.app/
 Icon=linear-pwa
 Terminal=false
 Type=Application
