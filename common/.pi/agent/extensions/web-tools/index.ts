@@ -11,9 +11,9 @@ export default async function webToolsExtension(pi: ExtensionAPI): Promise<void>
 		pi.registerTool(search);
 		return;
 	}
-	const { withFocusRendering, announceFocusTools } = await import("../focus-mode/adapter.ts");
-	pi.registerTool(withFocusRendering(pi, fetch));
-	pi.registerTool(withFocusRendering(pi, search));
-	const dispose = announceFocusTools(pi, [fetch.name, search.name], import.meta.url);
+	const { withVerbosityRendering, announceVerbosityTools } = await import("../verbosity-level/adapter.ts");
+	pi.registerTool(withVerbosityRendering(pi, fetch));
+	pi.registerTool(withVerbosityRendering(pi, search));
+	const dispose = announceVerbosityTools(pi, [fetch.name, search.name], import.meta.url);
 	pi.on("session_shutdown", dispose);
 }

@@ -6,7 +6,7 @@ trap 'rm -rf -- "$state"' EXIT
 mkdir "$state/agent" "$state/cwd"
 cd "$state/cwd"
 PI_CODING_AGENT_DIR="$state/agent" PI_OFFLINE=1 PI_TELEMETRY=0 \
-  pi --no-extensions -e "$root/common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/test.ts" \
+  pi --no-extensions -e "$root/common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/test.ts" \
   --no-skills --no-prompt-templates --no-context-files --no-themes \
   --no-session --no-tools --no-approve -p /test-verbosity-lab > "$state/output" 2>&1
 # Pi can return zero after an extension command fails. Require the completion marker.

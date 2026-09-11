@@ -19,12 +19,12 @@ export interface RenderRequest {
   standaloneSpacing?: boolean;
   component?: Component;
 }
-export const RENDER_EVENT = "dotfiles:focus:render:v1";
-export const DISCOVER_EVENT = "dotfiles:focus:discover:v1";
+export const RENDER_EVENT = "dotfiles:verbosity:render:v1";
+export const DISCOVER_EVENT = "dotfiles:verbosity:discover:v1";
 export interface Discovery { names: Set<string> }
 
 /** Explicit opt-in. Only rendering changes; execute and all metadata keep their identity. */
-export function withFocusRendering<P extends TSchema, D>(
+export function withVerbosityRendering<P extends TSchema, D>(
   pi: Pick<ExtensionAPI, "events">,
   tool: ToolDefinition<P, D>,
 ): ToolDefinition<P, D> {
@@ -97,7 +97,7 @@ export function withFocusRendering<P extends TSchema, D>(
 }
 
 /** Register once in an owning extension, and dispose on shutdown. */
-export function announceFocusTools(pi: Pick<ExtensionAPI, "events" | "getAllTools">, names: readonly string[], ownerUrl: string): () => void {
+export function announceVerbosityTools(pi: Pick<ExtensionAPI, "events" | "getAllTools">, names: readonly string[], ownerUrl: string): () => void {
   return pi.events.on(DISCOVER_EVENT, (value: unknown) => {
     const request = value as Discovery;
     if (!(request?.names instanceof Set)) return;

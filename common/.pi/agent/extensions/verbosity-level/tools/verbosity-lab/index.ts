@@ -7,7 +7,7 @@ import { columns, renderRows, transcript, type Verbosity } from "./view.ts";
 /** Explicit CLI-only render lab. It registers no tools and never starts an agent turn. */
 export default function verbosityLab(pi: ExtensionAPI): void {
   pi.registerCommand("verbosity-lab", {
-    description: "Compare low and normal native Pi rendering. Optional JSON fixture path.",
+    description: "Compare low and default native Pi rendering. Optional JSON fixture path.",
     async handler(args, ctx) {
       if (ctx.mode !== "tui") return;
       let scenarios: readonly Fixture[] = fixtures;
@@ -65,7 +65,7 @@ export default function verbosityLab(pi: ExtensionAPI): void {
             else if (data === "f") { step = fixture.events.length; scroll = 0; }
             else if (data === "e" || matchesKey(data, "ctrl+o")) expanded = !expanded;
             else if (data === "1") { layout = "low"; scroll = 0; }
-            else if (data === "2") { layout = "normal"; scroll = 0; }
+            else if (data === "2") { layout = "default"; scroll = 0; }
             else if (data === "c") { layout = "compare"; scroll = 0; }
             else if (data === "w") { previewWidth = previewWidth === 0 ? 38 : previewWidth === 38 ? 80 : 0; scroll = 0; }
             else if (matchesKey(data, "down") || data === "j") scroll += 1;
@@ -84,7 +84,7 @@ export default function verbosityLab(pi: ExtensionAPI): void {
             if (cached?.key !== key) cached = {
               key, low: [], normal: [],
               lowRows: transcript(fixture, step, "low", expanded, theme, tui),
-              normalRows: transcript(fixture, step, "normal", expanded, theme, tui),
+              normalRows: transcript(fixture, step, "default", expanded, theme, tui),
             };
             hitRows = [];
             cached.low = cached.lowRows.flatMap(component => {
@@ -95,20 +95,20 @@ export default function verbosityLab(pi: ExtensionAPI): void {
             });
             cached.normal = renderRows(cached.normalRows, contentWidth);
             lowWidth = contentWidth;
-            showLow = compare || layout !== "normal";
-            const body = compare ? columns(cached.low, cached.normal, width) : layout === "normal" ? cached.normal : cached.low;
+            showLow = compare || layout !== "default";
+            const body = compare ? columns(cached.low, cached.normal, width) : layout === "default" ? cached.normal : cached.low;
             const height = Math.max(1, tui.terminal.rows - 7);
             bodyHeight = height;
             scroll = Math.min(scroll, Math.max(0, body.length - height));
-            const title = compare ? columns([theme.fg("accent", "LOW · grouped activity")], [theme.fg("accent", "NORMAL · native Pi")], width)[0] ?? "" : theme.fg("accent", layout === "normal" ? "NORMAL · native Pi" : "LOW · grouped activity");
+            const title = compare ? columns([theme.fg("accent", "LOW · grouped activity")], [theme.fg("accent", "DEFAULT · native Pi")], width)[0] ?? "" : theme.fg("accent", layout === "default" ? "DEFAULT · native Pi" : "LOW · grouped activity");
             return [
               theme.fg("accent", theme.bold(`π Verbosity lab · ${fixture.name}`)),
-              theme.fg("muted", `Event ${step}/${fixture.events.length} · ${contentWidth} cols · low ${cached.low.length} lines / normal ${cached.normal.length} lines · ${expanded ? "expanded" : "collapsed"}`),
+              theme.fg("muted", `Event ${step}/${fixture.events.length} · ${contentWidth} cols · low ${cached.low.length} lines / default ${cached.normal.length} lines · ${expanded ? "expanded" : "collapsed"}`),
               title,
               ...body.slice(scroll, scroll + height),
               ...Array.from({ length: Math.max(0, height - Math.min(height, body.length - scroll)) }, () => ""),
               theme.fg("dim", "n/p case · ←/→ event · r reset · f finish · e expand · 1/2 level · c compare"),
-              theme.fg("dim", `↑/↓ scroll · w width · q close · offline, render-only${layout === "compare" && !compare ? " · narrow: press 2 for normal" : ""}`),
+              theme.fg("dim", `↑/↓ scroll · w width · q close · offline, render-only${layout === "compare" && !compare ? " · narrow: press 2 for default" : ""}`),
             ].map(line => truncateToWidth(line, width));
           },
         };

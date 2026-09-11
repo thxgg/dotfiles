@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "./adapter.ts";
 import { registerLocalTools } from "./builtins.ts";
 import { InvalidVerbosityError, parseVerbosity, type Verbosity } from "./config.ts";
-import { showDetails } from "./details.ts";
 import { Activity, type Content } from "./model.ts";
 import { BOUNDARY_ENTRY, OUTSIDE_ENTRY, reconstruct } from "./rebuild.ts";
 import { activityComponent } from "./render.ts";
@@ -15,14 +14,14 @@ type ModeState =
   | { readonly kind: "ready"; readonly verbosity: Verbosity; readonly persistence: "session" };
 
 /** Register the default low-verbosity renderer. Resolve CLI selection only at session_start. */
-export default function focusMode(pi: ExtensionAPI): void {
+export default function verbosityLevel(pi: ExtensionAPI): void {
   pi.registerFlag("verbosity", {
-    description: "Tool display: low (grouped) or normal (native), session-only",
+    description: "Tool display: low (grouped) or default (native), session-only",
     type: "string",
   });
   // CLI extension flags are applied after factories run. An explicit process option
   // is needed here because Pi also rebuilds historical rows before session_start.
-  const eager = process.env.PI_FOCUS_BUILTINS !== "0";
+  const eager = process.env.PI_VERBOSITY_BUILTINS !== "0";
   const supported = new Set<string>();
   let activity = new Activity(supported);
   let mode: ModeState = { kind: "inactive" };
@@ -30,7 +29,6 @@ export default function focusMode(pi: ExtensionAPI): void {
   let terminal = false;
   let animation: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
-  let inspectingDetails = false;
   let lastEntry: string | undefined;
   const invalidators = new Map<string, () => void>();
   let streamedParts: Set<number> | undefined;
@@ -162,7 +160,6 @@ export default function focusMode(pi: ExtensionAPI): void {
   });
   pi.on("ui_prompt_start", () => {
     if (!terminal) return;
-    if (inspectingDetails) { inspectingDetails = false; return; }
     const ids = activity.prompt();
     // One display-only entry per prompt boundary, never per progress update.
     if (ids.length) pi.appendEntry(OUTSIDE_ENTRY, ids);
@@ -190,47 +187,23 @@ export default function focusMode(pi: ExtensionAPI): void {
   const commandReady = (ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return false;
     if (mode.kind === "ready") return true;
-    ctx.ui.notify(mode.kind === "invalid" ? mode.error.message : "Focus is not active. Wait for session_start.", "error");
+    ctx.ui.notify(mode.kind === "invalid" ? mode.error.message : "Verbosity is not active. Wait for session_start.", "error");
     return false;
   };
   pi.registerCommand("verbosity", {
-    description: "Set supported tool display: low, normal, status (CLI selection makes changes session-only)",
+    description: "Set supported tool display: low, default, status (CLI selection makes changes session-only)",
     getArgumentCompletions(prefix) {
-      return ["low", "normal", "status"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
+      return ["low", "default"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
     },
     async handler(args, ctx) {
       if (!commandReady(ctx)) return;
       const action = args.trim() || "status";
-      if (action === "low" || action === "normal") await changeVerbosity(action, ctx);
+      if (action === "low" || action === "default") await changeVerbosity(action, ctx);
       else if (action !== "status") {
-        ctx.ui.notify("Use /verbosity low|normal|status", "error");
+        ctx.ui.notify("Use /verbosity low|default|status", "error");
         return;
       }
-      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "normal"}. ${scopeDescription()}\nSupported: ${[...supported].join(", ") || "none"}. Standard-local tools only. Set PI_FOCUS_BUILTINS=0 with remote or SDK overrides.`, "info");
-    },
-  });
-  pi.registerCommand("focus", {
-    description: "Group inline tool activity: on, off, status, details [group-id]",
-    getArgumentCompletions(prefix) {
-      return ["on", "off", "status", "details"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
-    },
-    async handler(args, ctx) {
-      if (!commandReady(ctx)) return;
-      const [action = "status", id, extra] = args.trim().split(/\s+/).filter(Boolean);
-      if (extra !== undefined || (id !== undefined && action !== "details")) {
-        ctx.ui.notify("Use /focus on|off|status|details [group-id]", "warning");
-        return;
-      }
-      if (action === "on" || action === "off") {
-        await changeVerbosity(action === "on" ? "low" : "normal", ctx);
-        ctx.ui.notify(`Focus ${isEnabled() ? "on" : "off"}. ${scopeDescription()} Inline tools: ${[...supported].join(", ") || "none"}. Ctrl+O or fullscreen click expands original rows. /focus details opens the secondary viewer. ${eager ? "" : "Built-in grouping requires PI_FOCUS_BUILTINS=1 in a new standard-local Pi process."}`, "info");
-      } else if (action === "details") {
-        inspectingDetails = true;
-        try { await showDetails(ctx, activity, id); }
-        finally { inspectingDetails = false; redraw(); }
-      } else if (action === "status") {
-        ctx.ui.notify(`Focus ${isEnabled() ? "on" : "off"}. ${scopeDescription()}\nSupported: ${[...supported].join(", ") || "none"}\nImages, input requests, user ! commands, and unadapted tools keep normal rows and separate groups. Only the listed tools are grouped.\nRegular terminal scrollback may retain old rendering. Built-in grouping is on by default for standard local tools.`, "info");
-      } else ctx.ui.notify("Use /focus on|off|status|details [group-id]", "warning");
+      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "default"}. ${scopeDescription()}\nSupported: ${[...supported].join(", ") || "none"}. Standard-local tools only. Set PI_VERBOSITY_BUILTINS=0 with remote or SDK overrides.`, "info");
     },
   });
 }

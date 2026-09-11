@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripVTControlCharacters as plain } from "node:util";
 import { createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition, initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { withFocusRendering, type RenderRequest } from "../adapter.ts";
+import { withVerbosityRendering, type RenderRequest } from "../adapter.ts";
 import { Activity, resultStatus, summary } from "../model.ts";
 import { activityComponent } from "../render.ts";
 import { registerLocalTools } from "../builtins.ts";
@@ -19,7 +19,7 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
     const activity = new Activity(new Set(["bash"]));
     let enabled = true;
     const requests = new Map<string, RenderRequest>();
-    const wrapped = withFocusRendering({ events: { emit(_event: string, request: RenderRequest) {
+    const wrapped = withVerbosityRendering({ events: { emit(_event: string, request: RenderRequest) {
       requests.set(request.context.toolCallId, request);
       request.component = activityComponent(activity, request, () => enabled);
     } } } as never, original);
@@ -94,7 +94,7 @@ test("edit and write retain native details, preparation and file execution", asy
     const write = createWriteToolDefinition(dir);
     const edit = createEditToolDefinition(dir);
     for (const [original, args] of [[write, { path: "文.txt", content: "before\n" }], [edit, { path: "文.txt", edits: [{ oldText: "before", newText: "after" }] }]] as const) {
-      const adapted = withFocusRendering({ events: { emit() {} } } as never, original as any);
+      const adapted = withVerbosityRendering({ events: { emit() {} } } as never, original as any);
       assert.equal(adapted.execute, original.execute);
       assert.equal(adapted.prepareArguments, original.prepareArguments);
       const result = { ...await adapted.execute("mutation", args, undefined, undefined, undefined as never), isError: false };

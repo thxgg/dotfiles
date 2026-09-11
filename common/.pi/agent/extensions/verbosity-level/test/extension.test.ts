@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 import { initTheme, ToolExecutionComponent, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
-import focusMode from "../index.ts";
+import verbosityLevel from "../index.ts";
 import { InvalidVerbosityError, loadEnabled, parseVerbosity, persistEnabled, statePath } from "../config.ts";
 
 function harness(mode = "tui", owner = "builtin") {
@@ -38,7 +38,7 @@ function harness(mode = "tui", owner = "builtin") {
     getFlag() { flagReads++; return flagValue; },
     appendEntry() {},
   };
-  focusMode(pi as unknown as ExtensionAPI);
+  verbosityLevel(pi as unknown as ExtensionAPI);
   return { ctx, definitions, notifications, commands, listeners, flags,
     setFlag(value: string | boolean | undefined) { flagValue = value; }, flagReads: () => flagReads,
     renders: () => renders,
@@ -46,7 +46,7 @@ function harness(mode = "tui", owner = "builtin") {
 }
 
 test("verbosity parser accepts only exact CLI choices", () => {
-  for (const value of [undefined, "low", "normal"]) assert.equal(parseVerbosity(value), value);
+  for (const value of [undefined, "low", "default"]) assert.equal(parseVerbosity(value), value);
   for (const value of ["", "LOW", " low", "low ", "high", "low normal", true, false, null, 1, {}, []]) {
     assert.ok(parseVerbosity(value) instanceof InvalidVerbosityError);
   }
@@ -55,13 +55,13 @@ test("verbosity parser accepts only exact CLI choices", () => {
 test("CLI verbosity overrides saved state, applies late, and never persists commands", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-cli-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_FOCUS_BUILTINS;
+  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
   process.env.PI_CODING_AGENT_DIR = dir;
-  process.env.PI_FOCUS_BUILTINS = "1";
+  process.env.PI_VERBOSITY_BUILTINS = "1";
   initTheme("dark", false);
   try {
-    for (const verbosity of ["low", "normal"]) {
-      await persistEnabled(verbosity === "normal"); // Deliberately contradict the CLI.
+    for (const verbosity of ["low", "default"]) {
+      await persistEnabled(verbosity === "default"); // Deliberately contradict the CLI.
       const before = await readFile(statePath(), "utf8");
       const h = harness();
       assert.equal(h.flags.get("verbosity")?.type, "string");
@@ -80,8 +80,8 @@ test("CLI verbosity overrides saved state, applies late, and never persists comm
       await h.commands.get("verbosity").handler("status", h.ctx);
       assert.match(h.notifications.at(-1) ?? "", new RegExp(`Verbosity ${verbosity}\\. Session only`));
       for (const [command, action, grouped] of [
-        ["verbosity", "normal", false], ["verbosity", "low", true],
-        ["focus", "off", false], ["focus", "on", true],
+        ["verbosity", "default", false], ["verbosity", "low", true],
+        ["verbosity", "default", false], ["verbosity", "low", true],
       ] as const) {
         await h.commands.get(command).handler(action, h.ctx);
         if (grouped) assert.match(lines(), /Running \d+ command/);
@@ -98,7 +98,7 @@ test("CLI verbosity overrides saved state, applies late, and never persists comm
     }
   } finally {
     if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_FOCUS_BUILTINS; else process.env.PI_FOCUS_BUILTINS = oldEager;
+    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -106,17 +106,17 @@ test("CLI verbosity overrides saved state, applies late, and never persists comm
 test("explicit local opt-out is preserved without creating state, and rejects invalid commands", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-cli-empty-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_FOCUS_BUILTINS;
+  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
   process.env.PI_CODING_AGENT_DIR = dir;
-  process.env.PI_FOCUS_BUILTINS = "0";
+  process.env.PI_VERBOSITY_BUILTINS = "0";
   try {
     for (const mode of ["tui", "rpc", "json", "print"]) {
       const h = harness(mode);
       h.setFlag("low");
       await h.event("session_start");
-      await h.commands.get("verbosity").handler("normal", h.ctx);
-      await h.commands.get("focus").handler("on", h.ctx);
-      assert.equal(h.definitions.size, process.env.PI_FOCUS_BUILTINS === "0" ? 0 : 7);
+      await h.commands.get("verbosity").handler("default", h.ctx);
+      await h.commands.get("verbosity").handler("low", h.ctx);
+      assert.equal(h.definitions.size, process.env.PI_VERBOSITY_BUILTINS === "0" ? 0 : 7);
       for (const action of ["HIGH", "low normal", "low extra", "status extra"]) {
         await h.commands.get("verbosity").handler(action, h.ctx);
         if (mode === "tui") assert.match(h.notifications.at(-1) ?? "", /Use \/verbosity/);
@@ -133,12 +133,12 @@ test("explicit local opt-out is preserved without creating state, and rejects in
     assert.match(legacy.notifications.at(-1) ?? "", /Verbosity low\. Session only/);
     await legacy.commands.get("verbosity").handler("low", legacy.ctx);
     assert.deepEqual(await readdir(dir), []);
-    await legacy.commands.get("verbosity").handler("normal", legacy.ctx);
+    await legacy.commands.get("verbosity").handler("default", legacy.ctx);
     assert.equal(await loadEnabled(), false);
     await legacy.event("session_shutdown");
   } finally {
     if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_FOCUS_BUILTINS; else process.env.PI_FOCUS_BUILTINS = oldEager;
+    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -146,9 +146,9 @@ test("explicit local opt-out is preserved without creating state, and rejects in
 test("invalid CLI selection stays disabled despite saved state and commands", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-cli-invalid-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_FOCUS_BUILTINS;
+  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
   process.env.PI_CODING_AGENT_DIR = dir;
-  process.env.PI_FOCUS_BUILTINS = "1";
+  process.env.PI_VERBOSITY_BUILTINS = "1";
   initTheme("dark", false);
   try {
     await persistEnabled(true);
@@ -159,7 +159,7 @@ test("invalid CLI selection stays disabled despite saved state and commands", as
       await h.event("session_start");
       assert.match(h.notifications.at(-1) ?? "", /Invalid --verbosity/);
       await h.commands.get("verbosity").handler("low", h.ctx);
-      await h.commands.get("focus").handler("on", h.ctx);
+      await h.commands.get("verbosity").handler("low", h.ctx);
       assert.ok(h.notifications.every(message => message.includes("Invalid --verbosity")));
       await h.event("tool_execution_start", { toolCallId: "invalid", toolName: "bash", args: { command: "git status" } });
       const row = new ToolExecutionComponent("bash", "invalid", { command: "git status" }, { showImages: false }, h.definitions.get("bash"), h.ctx.ui as never, tmpdir());
@@ -173,7 +173,7 @@ test("invalid CLI selection stays disabled despite saved state and commands", as
     assert.equal(await loadEnabled(), false);
   } finally {
     if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_FOCUS_BUILTINS; else process.env.PI_FOCUS_BUILTINS = oldEager;
+    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -194,12 +194,12 @@ test("live extension events keep source order, progress, mode switching, and dis
   process.env.PI_CODING_AGENT_DIR = dir;
   initTheme("dark", false);
   try {
-    process.env.PI_FOCUS_BUILTINS = "1";
+    process.env.PI_VERBOSITY_BUILTINS = "1";
     const h = harness();
-    delete process.env.PI_FOCUS_BUILTINS;
+    delete process.env.PI_VERBOSITY_BUILTINS;
     await h.event("session_start");
     assert.equal(h.definitions.size, 7);
-    await h.commands.get("focus").handler("on", h.ctx);
+    await h.commands.get("verbosity").handler("low", h.ctx);
     const tools = Array.from({ length: 20 }, (_, i) => ({ type: "toolCall", id: `c${i}`, name: "read", arguments: { path: `${i}.ts` } }));
     const message = { role: "assistant", content: [{ type: "text", text: "Checking files." }, ...tools] };
     await h.event("message_start", { message: { role: "assistant", content: [] } });
@@ -217,13 +217,14 @@ test("live extension events keep source order, progress, mode switching, and dis
       await h.event("message_end", { message: { role: "toolResult", toolCallId: `c${i}`, ...result, isError: i === 5 } });
     }
     assert.match(lines().join("\n"), /1 FAILED/);
-    assert.match(lines().join("\n"), /\/focus details c0/);
-    await h.commands.get("focus").handler("off", h.ctx);
+    assert.doesNotMatch(lines().join("\n"), /\/focus/);
+    assert.equal(h.commands.has("focus"), false);
+    await h.commands.get("verbosity").handler("default", h.ctx);
     for (const row of rows) row.setExpanded(true);
     assert.match(stripVTControlCharacters(lines().join("\n")), /result 19/);
     for (const row of rows) row.setExpanded(false);
-    await h.commands.get("focus").handler("on", h.ctx);
-    assert.equal(lines().length, 3); // Failure summary + direct details command.
+    await h.commands.get("verbosity").handler("low", h.ctx);
+    assert.equal(lines().length, 2); // Spacer and failure summary, no legacy command.
     await h.event("session_shutdown");
     assert.ok([...h.listeners.values()].every(set => set.size === 0));
   } finally {
@@ -235,9 +236,9 @@ test("live extension events keep source order, progress, mode switching, and dis
 test("eager adapters survive rows constructed before session_start on reload", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-reload-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_FOCUS_BUILTINS;
+  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
   process.env.PI_CODING_AGENT_DIR = dir;
-  process.env.PI_FOCUS_BUILTINS = "1";
+  process.env.PI_VERBOSITY_BUILTINS = "1";
   initTheme("dark", false);
   try {
     await persistEnabled(true);
@@ -253,7 +254,7 @@ test("eager adapters survive rows constructed before session_start on reload", a
     await h.event("session_shutdown");
   } finally {
     if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_FOCUS_BUILTINS; else process.env.PI_FOCUS_BUILTINS = oldEager;
+    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -262,31 +263,31 @@ test("non-TUI modes do not register overrides or emit UI; extension-owned tools 
   for (const mode of ["rpc", "json", "print"]) {
     const h = harness(mode);
     await h.event("session_start");
-    await h.commands.get("focus").handler("on", h.ctx);
+    await h.commands.get("verbosity").handler("low", h.ctx);
     await h.event("tool_execution_start", { toolCallId: "c", toolName: "read", args: {} });
-    assert.equal(h.definitions.size, process.env.PI_FOCUS_BUILTINS === "0" ? 0 : 7);
+    assert.equal(h.definitions.size, process.env.PI_VERBOSITY_BUILTINS === "0" ? 0 : 7);
     assert.equal(h.notifications.length, 0);
   }
   const h = harness("tui", "sdk");
   await h.event("session_start");
-  assert.equal(h.definitions.size, process.env.PI_FOCUS_BUILTINS === "0" ? 0 : 7);
+  assert.equal(h.definitions.size, process.env.PI_VERBOSITY_BUILTINS === "0" ? 0 : 7);
 });
 
 test("eager registration does not group competing owners or use UI in non-TUI modes", async () => {
-  process.env.PI_FOCUS_BUILTINS = "1";
+  process.env.PI_VERBOSITY_BUILTINS = "1";
   try {
     for (const mode of ["rpc", "json", "print"]) {
       const h = harness(mode);
       assert.equal(h.definitions.size, 7);
       await h.event("session_start");
-      await h.commands.get("focus").handler("on", h.ctx);
+      await h.commands.get("verbosity").handler("low", h.ctx);
       assert.equal(h.notifications.length, 0);
       await h.event("session_shutdown");
     }
     const h = harness("tui", "sdk");
     await h.event("session_start");
-    await h.commands.get("focus").handler("status", h.ctx);
+    await h.commands.get("verbosity").handler("status", h.ctx);
     assert.match(h.notifications[0]!, /Supported: none/);
     await h.event("session_shutdown");
-  } finally { delete process.env.PI_FOCUS_BUILTINS; }
+  } finally { delete process.env.PI_VERBOSITY_BUILTINS; }
 });

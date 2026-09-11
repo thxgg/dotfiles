@@ -1,4 +1,4 @@
-# Tool verbosity
+# Verbosity level
 
 Active Pi extension. Low verbosity is the default for each session. It groups
 standard local built-ins and opted-in repository web tools without changing model
@@ -7,12 +7,12 @@ Focus version are ignored. Mode changes are session-local.
 
 ```text
 /verbosity low
-/verbosity normal
+/verbosity default
 /verbosity status
 ```
 
-`pi --verbosity normal` starts with native rows. `/focus on|off|status|details`
-remains available for compatibility. Invalid CLI values disable grouping and show
+`pi --verbosity default` starts with native rows. `/focus` is removed.
+The two display choices are `low` and `default`. Invalid CLI values disable grouping and show
 an error; they do not terminate Pi.
 
 ## Interaction
@@ -31,7 +31,7 @@ an error; they do not terminate Pi.
 
 Built-in delegates use Pi's public standard-local factories. Do not use these
 with remote/sandbox execution, SDK base overrides, or competing built-in execution
-extensions. Set `PI_FOCUS_BUILTINS=0` before starting those processes to disable
+extensions. Set `PI_VERBOSITY_BUILTINS=0` before starting those processes to disable
 local delegate registration. This guard must be set before extension loading.
 Ownership checks fail open to normal rows when another owner replaces a tool.
 
@@ -47,9 +47,9 @@ synthetic events, with no model requests or tool execution.
 From the repository root:
 
 ```sh
-./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/run.sh
-./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/check.sh
-npm run check --prefix common/.pi/agent/extensions/focus-mode
+./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh
+./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/check.sh
+npm run check --prefix common/.pi/agent/extensions/verbosity-level
 npm run check --prefix common/.pi/agent/extensions/web-tools
 ```
 

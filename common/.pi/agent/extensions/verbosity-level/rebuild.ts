@@ -7,8 +7,8 @@ export function retainedMessages(entry: SessionEntry): Extract<SessionEntry, { t
   return entry.retainedTail.filter(message => message && typeof message === "object" && typeof message.role === "string");
 }
 
-export const BOUNDARY_ENTRY = "dotfiles:focus:boundary:v1";
-export const OUTSIDE_ENTRY = "dotfiles:focus:outside:v1";
+export const BOUNDARY_ENTRY = "dotfiles:verbosity:boundary:v1";
+export const OUTSIDE_ENTRY = "dotfiles:verbosity:outside:v1";
 
 /** Pass buildContextEntries(), never getEntries(): match the visible active branch. */
 export function reconstruct(entries: readonly SessionEntry[], supported: Set<string>): Activity {

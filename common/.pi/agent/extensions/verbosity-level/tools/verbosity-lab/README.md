@@ -1,6 +1,6 @@
 # Pi verbosity lab
 
-Compare **low** (Focus grouping) and **normal** (native Pi tool rows).
+Compare **low** (grouped activity) and **default** (native Pi tool rows).
 There is no third level. Expansion is a separate inspection control.
 
 Inspired by [James Long's verbosity iteration tool](https://x.com/jlongster/status/2098150852112359801).
@@ -11,7 +11,7 @@ This version uses the installed Pi renderer, not a web imitation.
 From this worktree:
 
 ```sh
-./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/run.sh
+./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh
 ```
 
 Requires the installed `pi` CLI (tested with 0.85.1). No npm install is needed to
@@ -38,7 +38,7 @@ Ghostty config uses Berkeley Mono Variable Nerd Font).
 | `n` / `p` | Next / previous fixture |
 | Left / Right | Previous / next event, including pending tool states |
 | `r` / `f` | Reset / finish replay |
-| `1` / `2` | Low / normal at full width |
+| `1` / `2` | Low / default at full width |
 | `c` | Side-by-side comparison (81+ terminal columns) |
 | Click a low-mode summary | Expand / collapse that group; summary stays visible |
 | Click a tool inside an open group | Expand / collapse that tool's output |
@@ -58,12 +58,12 @@ Edit `fixtures.ts`, restart, and use the same controls to inspect changes. Edit 
 From a **standard-local** Pi CLI environment:
 
 ```sh
-./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/run.sh low
-./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/run.sh normal
+./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh low
+./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh default
 ```
 
 These commands load the extension and worktree web tools with `-e`, set
-`PI_FOCUS_BUILTINS=1` and `PI_VERBOSITY_WEB=1`, and pass `--verbosity low` or `--verbosity normal`. They use your normal Pi
+`PI_VERBOSITY_BUILTINS=1` and `PI_VERBOSITY_WEB=1`, and pass `--verbosity low` or `--verbosity default`. They use your normal Pi
 configuration and can execute tools when you submit prompts. Do not use them with
 remote execution, sandbox delegates, SDK base-tool overrides, or competing built-in
 execution extensions. See the extension's README for its ownership limits.
@@ -81,7 +81,7 @@ The built-in cases cover exploration, editing, shell commands, failures,
 cancellation, unsupported tools, long output, and out-of-order completion.
 Three `WIP` cases stay unfinished: batch edits, mixed actions, and web searches.
 Use `n`/`p` to select them. Edits and actions show an animated group spinner.
-Web searches and fetches use their real web-tool renderers in normal mode and
+Web searches and fetches use their real web-tool renderers in default mode and
 join exploration groups in low mode. No network requests run in the lab.
 
 In the isolated viewer process, load an explicit JSON file:
@@ -111,7 +111,7 @@ sanitized session excerpts into fixtures. It does not scan private session stora
 ## Checks
 
 ```sh
-./common/.pi/agent/extensions/focus-mode/tools/verbosity-lab/check.sh
+./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/check.sh
 ```
 
 Checks render every built-in event prefix at 20, 38, 80, and 120 columns in both
@@ -127,8 +127,7 @@ extension does. No generated dependency tree belongs in Git.
 
 - The comparison toolbar and viewport are lab UI. Transcript rows use Pi components.
 - This is a rendering simulation, not an end-to-end provider/tool-execution test.
-- The lab hides the archived `/focus details` command hint. Click a summary or
-  use `e` and scrolling. Real extension sessions retain the working command.
+- Click a summary or use `e` and scrolling. No legacy command hints are shown.
 - Unsupported tools use Pi's generic fallback. Owner extensions are not loaded.
 - Images, custom owner renderers, session-tree import, and automatic timed playback
   are not implemented. Right-arrow advances deterministic replay.

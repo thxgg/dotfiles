@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createReadToolDefinition, createLsToolDefinition, initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { withFocusRendering, type RenderRequest } from "../adapter.ts";
+import { withVerbosityRendering, type RenderRequest } from "../adapter.ts";
 import { Activity } from "../model.ts";
 import { activityComponent } from "../render.ts";
 
@@ -19,7 +19,7 @@ test("vertical slice: twenty read/ls rows, one live group, native restoration, r
   const ls = createLsToolDefinition(process.cwd());
   assert.equal(typeof read.renderCall, "function");
   assert.equal(typeof read.renderResult, "function");
-  const wrapped = [withFocusRendering({ events: bus } as never, read), withFocusRendering({ events: bus } as never, ls)];
+  const wrapped = [withVerbosityRendering({ events: bus } as never, read), withVerbosityRendering({ events: bus } as never, ls)];
   assert.equal(wrapped[0]!.execute, read.execute);
   assert.equal(wrapped[0]!.parameters, read.parameters);
   assert.equal(wrapped[0]!.promptGuidelines, read.promptGuidelines);

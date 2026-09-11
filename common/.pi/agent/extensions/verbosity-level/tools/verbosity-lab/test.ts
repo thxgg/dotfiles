@@ -18,7 +18,7 @@ export default function tests(pi: ExtensionAPI): void {
         for (const width of [20, 38, 80, 120]) {
           for (let step = 0; step <= fixture.events.length; step++) {
             for (const expanded of [false, true]) {
-              for (const level of ["low", "normal"] as const) {
+              for (const level of ["low", "default"] as const) {
                 const lines = renderRows(transcript(fixture, step, level, expanded, theme, tui), width);
                 assert(lines.every(line => visibleWidth(line) <= width), `${fixture.name}: ${level} exceeds ${width}`);
               }
@@ -29,7 +29,7 @@ export default function tests(pi: ExtensionAPI): void {
       const first = fixtures[0];
       assert(first);
       const low = renderRows(transcript(first, first.events.length, "low", false, theme, tui), 80);
-      const normal = renderRows(transcript(first, first.events.length, "normal", false, theme, tui), 80);
+      const normal = renderRows(transcript(first, first.events.length, "default", false, theme, tui), 80);
       assert(low.length < normal.length);
       const clickable = transcript(first, first.events.length, "low", false, theme, tui);
       const header = clickable.find(row => row.render(80).some(line => line.includes("Explored")));

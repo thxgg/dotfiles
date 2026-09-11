@@ -12,7 +12,7 @@ import { createWebFetchTool } from "../../../web-tools/webfetch.ts";
 import { createWebSearchTool } from "../../../web-tools/websearch.ts";
 
 /** The two display levels. Expansion is a separate inspection control. */
-export type Verbosity = "low" | "normal";
+export type Verbosity = "low" | "default";
 /** Replay the same event prefix through native Pi rows and the archived grouping renderer. Never execute tools. */
 export function transcript(fixture: Fixture, step: number, mode: Verbosity, expanded: boolean, theme: Theme, tui: TUI): Component[] {
   const definitions = [createBashToolDefinition("/fixture"), createReadToolDefinition("/fixture"), createEditToolDefinition("/fixture"), createWriteToolDefinition("/fixture"), createGrepToolDefinition("/fixture"), createFindToolDefinition("/fixture"), createLsToolDefinition("/fixture"), createWebFetchTool(), createWebSearchTool()];
@@ -43,7 +43,7 @@ export function transcript(fixture: Fixture, step: number, mode: Verbosity, expa
         // Do not start execution clocks or their refresh timers during render-only replay.
         native.setExpanded(expanded);
         tools.set(event.id, native);
-        if (mode === "normal" || !definition) rows.push(native);
+        if (mode === "default" || !definition) rows.push(native);
         else rows.push(activityComponent(activity, {
           name: event.name, theme, normal: native, showDetailsHint: false, standaloneSpacing: true,
           expandedNormal: { invalidate() { native.invalidate(); }, render(width) { native.setExpanded(true); return native.render(width); } },

@@ -6,10 +6,10 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
   const call = activity.calls.get(request.context.toolCallId);
   if (call && activity.host(call)) {
     const group = activity.group(call.group)!;
-    const state = request.context.state as { focusGlobalExpanded?: boolean };
-    if (state.focusGlobalExpanded !== request.context.expanded) {
-      if (state.focusGlobalExpanded !== undefined || request.context.expanded) group.expanded = request.context.expanded;
-      state.focusGlobalExpanded = request.context.expanded;
+    const state = request.context.state as { verbosityGlobalExpanded?: boolean };
+    if (state.verbosityGlobalExpanded !== request.context.expanded) {
+      if (state.verbosityGlobalExpanded !== undefined || request.context.expanded) group.expanded = request.context.expanded;
+      state.verbosityGlobalExpanded = request.context.expanded;
     }
   }
   let headerHeight = 0;
@@ -29,7 +29,6 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       const arrow = group.expanded ? "▾" : "▸";
       const indicator = busy ? `${arrow} ${frames[Math.floor(Date.now() / 80) % frames.length]}` : arrow;
       const lines = [request.theme.fg(failed ? "error" : "accent", `${indicator} ${failed ? "FAILED · " : ""}${summary(calls)}`)];
-      if (request.showDetailsHint !== false && failed) lines.push(request.theme.fg("dim", `/focus details ${group.id}`));
       const header = lines.map(line => truncateToWidth(line, Math.max(0, width)));
       const spaced = request.standaloneSpacing ? ["", ...header] : header;
       headerHeight = spaced.length;
@@ -43,7 +42,7 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       if (!activity.host(call) && !group.expanded) return;
       const host = activity.host(call);
       const failed = activity.members(group).some(member => member.status === "error");
-      const offset = host ? (headerHeight || 1 + (request.standaloneSpacing ? 1 : 0) + (request.showDetailsHint !== false && failed ? 1 : 0)) : 0;
+      const offset = host ? (headerHeight || 1 + (request.standaloneSpacing ? 1 : 0)) : 0;
       if (group.expanded && (!host || event.y >= offset)) {
         return request.normal.handleMouse?.({ ...event, y: event.y - offset, height: Math.max(0, event.height - offset) });
       }

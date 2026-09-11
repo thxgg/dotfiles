@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import subagents from "../../../extensions/subagents/index.ts";
 import workflows from "../../../extensions/workflows/index.ts";
-import { announceFocusTools, withFocusRendering, DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "../adapter.ts";
+import { announceVerbosityTools, withVerbosityRendering, DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "../adapter.ts";
 import { Activity } from "../model.ts";
 import { activityComponent } from "../render.ts";
 
@@ -28,8 +28,8 @@ test("explicit archived adapters group Agent and workflow and dispose discovery"
     await factory(pi as never);
     const original = definitions.get(name);
     assert.notEqual(original.renderShell, "self");
-    definitions.set(name, withFocusRendering(pi as never, original));
-    const dispose = announceFocusTools(pi as never, [name], new URL(`../../../extensions/${owner}/index.ts`, import.meta.url).href);
+    definitions.set(name, withVerbosityRendering(pi as never, original));
+    const dispose = announceVerbosityTools(pi as never, [name], new URL(`../../../extensions/${owner}/index.ts`, import.meta.url).href);
     const discovery = { names: new Set<string>() };
     pi.events.emit(DISCOVER_EVENT, discovery);
     assert.deepEqual([...discovery.names], [name]);
@@ -41,7 +41,7 @@ test("explicit archived adapters group Agent and workflow and dispose discovery"
     const ui = { requestRender() {} };
     const args = name === "workflow" ? { script: "const =" } : { action: "list" };
     const result = { content: [{ type: "text" as const, text: "OWNER_ORIGINAL_RESULT" }], details: undefined, isError: false };
-    const normal = new ToolExecutionComponent(name, "normal", args, { showImages: false }, tool, ui as never, tmpdir());
+    const normal = new ToolExecutionComponent(name, "default", args, { showImages: false }, tool, ui as never, tmpdir());
     normal.updateResult(result);
     pi.events.on(RENDER_EVENT, (request: RenderRequest) => { request.component = activityComponent(activity, request, () => true); });
     activity.start("first", name, args); activity.finish("first", result);
