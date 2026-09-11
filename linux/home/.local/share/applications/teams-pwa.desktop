@@ -2,7 +2,7 @@
 Name=Microsoft Teams
 GenericName=Collaboration App
 Comment=Use Microsoft Teams in a dedicated web app window
-Exec=/usr/bin/google-chrome-stable --ozone-platform=x11 --force-device-scale-factor=1 --class=MicrosoftTeams "--app=https://teams.microsoft.com/?clientType=pwa"
+Exec=/usr/bin/helium-browser --ozone-platform=x11 --force-device-scale-factor=1 --class=MicrosoftTeams "--app=https://teams.microsoft.com/?clientType=pwa"
 Icon=teams-pwa
 Terminal=false
 Type=Application
