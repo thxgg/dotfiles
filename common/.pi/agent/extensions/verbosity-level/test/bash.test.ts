@@ -44,7 +44,9 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
     assert.equal(await readFile(join(dir, "changed.txt"), "utf8"), "changed");
     const render = () => plain(rows.flatMap(row => row.render(100)).join("\n"));
     assert.match(render(), /Ran 2 commands/);
-    assert.match(render(), /FAILED.*Ran 1 command.*1 FAILED/);
+    assert.match(render(), /Ran 1 command · 1 FAILED/);
+    assert.doesNotMatch(render(), /FAILED ·/);
+    assert.equal(render().match(/FAILED/g)?.length, 1);
     assert.doesNotMatch(render(), /Explor|status-output|validation-output/);
     assert.equal(rows[1]!.render(100).length, 0);
     for (const row of rows) row.setExpanded(true);
