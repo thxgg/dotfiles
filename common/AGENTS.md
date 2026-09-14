@@ -23,5 +23,6 @@ When config deployment is requested, use the smallest applicable scope. Run from
 - [Root](../AGENTS.md)
 - [Neovim Config](./.config/nvim/AGENTS.md)
 - [Codex Instructions](./.codex/AGENTS.md)
+- [Pi Workspace](./.pi/AGENTS.md)
 - [Pi Global Prompt Notes](./.pi/agent/AGENTS.md)
 - OpenCode MCP/UI configuration and Herdr integration: `.config/opencode/`

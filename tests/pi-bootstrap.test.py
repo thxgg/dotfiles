@@ -11,6 +11,42 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "https://github.com/earendil-works/pi-transcribe@"
 
 
+class PiWorkspaceLockTests(unittest.TestCase):
+    def test_workspace_manifests_and_links_match_lockfile(self):
+        workspace = ROOT / "common/.pi"
+        manifest = json.loads((workspace / "package.json").read_text())
+        packages = json.loads((workspace / "package-lock.json").read_text())["packages"]
+        expected_links = {}
+        manifests = {"": manifest}
+        for pattern in manifest["workspaces"]:
+            for directory in workspace.glob(pattern):
+                path = directory / "package.json"
+                if path.is_file():
+                    relative = directory.relative_to(workspace).as_posix()
+                    data = json.loads(path.read_text())
+                    manifests[relative] = data
+                    expected_links[f"node_modules/{data['name']}"] = relative
+
+        actual_links = {path: data["resolved"] for path, data in packages.items()
+                        if data.get("link") is True}
+        self.assertEqual(actual_links, expected_links,
+                         "Regenerate common/.pi/package-lock.json after workspace changes")
+        self.assertEqual({path for path in packages
+                          if path and not path.startswith("node_modules/")
+                          and "/node_modules/" not in path},
+                         set(manifests) - {""})
+        for path, data in manifests.items():
+            with self.subTest(workspace=path):
+                self.assertIn(path, packages)
+                locked = packages[path]
+                # npm can omit a name when it matches the directory basename.
+                self.assertEqual(locked.get("name", Path(path).name), data["name"])
+                for field in ("version", "dependencies", "devDependencies",
+                              "optionalDependencies", "peerDependencies",
+                              "peerDependenciesMeta", "workspaces"):
+                    self.assertEqual(locked.get(field), data.get(field), field)
+
+
 class PiBootstrapTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="pi bootstrap ")

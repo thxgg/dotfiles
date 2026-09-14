@@ -87,7 +87,9 @@ Those checks still require a Linux desktop with HyprPanel and the target apps.
 # Pi bootstrap checks
 
 Run `python3 tests/pi-bootstrap.test.py` from the repository root. These offline tests use temporary
-files and mock commands. They check package manifest parsing, the Vite+ fallback, install failure
+files and mock commands. They compare Pi workspace paths, package names, dependency declarations,
+and links with `common/.pi/package-lock.json`. This static check does not replace a clean frozen
+install or validate transitive dependency resolution. They also check package manifest parsing, the Vite+ fallback, install failure
 handling, Stow runtime exclusions, and Pi Transcribe health reports. They do not install packages,
 change live Pi settings, or download models. They require Python 3, zsh, and jq.
 Shell subprocesses use `zsh -f`, a temporary `HOME`, and a minimal environment.
