@@ -27,6 +27,21 @@ On Linux, record a short video, stop it, and test file paste in a file manager
 and Copy Path in a text editor. Repeat after starting another recording to check
 that the earlier notification still opens the original file.
 
+# Network icon recovery
+
+`start-hyprpanel.sh` patches the generated network helper in the private session
+runtime. It watches wired and Wi-Fi device changes, drops old subscriptions, and
+uses symbolic fallback icons when a device or icon name is absent. Unknown
+primary connections show an offline icon. It does not poll or restart the panel.
+The patch requires each original target to occur exactly once. A package update
+that changes these targets causes the launcher to warn and use unmodified
+HyprPanel, as with the other compatibility patches.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-panel-launcher.test.py`.
+The lifecycle checks use Node.js and mock signals. On Linux, restart the panel
+and check Ethernet/Wi-Fi switching and reconnects separately. Do not disconnect
+a working network merely to run the offline suite.
+
 # Teams PWA tray item
 
 `teams-tray.py` publishes a real StatusNotifierItem beside Slack and the other

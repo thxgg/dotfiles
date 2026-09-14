@@ -87,11 +87,35 @@ const commands = [
   "$HOME/.local/bin/hyprpanel-screen-record --audio"
 ];
 '''
+        network = (ROOT / 'tests/fixtures/hyprpanel-network.js').read_text()
+        source += network
+        # Apply the production patch dictionary independently to the fixture.
+        patcher = SOURCE.split("<<'PY' || return 1\n", 1)[1].split('\nPY', 1)[0]
+        import ast
+        tree = ast.parse(patcher)
+        replacements = next(ast.literal_eval(n.value) for n in tree.body
+                            if isinstance(n, ast.Assign)
+                            and any(isinstance(t, ast.Name) and t.id == 'replacements' for t in n.targets))
+        patched_network = network
+        for old, new in replacements.items():
+            patched_network = patched_network.replace(old, new)
+        expected += patched_network
         launcher = self.encoded_launcher(source)
         runtime = self.root / 'hyprpanel-ags.js'
         self.check_launcher(launcher, f'PATCHED\n{runtime}')
         self.assertEqual(runtime.read_text(), expected)
         self.assertEqual((self.root / 'launcher').read_text(), launcher)
+        harness = (ROOT / 'tests/fixtures/hyprpanel-network-harness.js').read_text()
+        result = subprocess.run(['node', '-e', harness.replace('/* NETWORK_SOURCE */', patched_network)],
+                                capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # The same lifecycle test must expose the original bug.
+        original = subprocess.run(['node', '-e', harness.replace('/* NETWORK_SOURCE */', network)],
+                                  capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(original.returncode, 0)
+        # A changed or duplicated target must not generate a partial patch.
+        self.check_launcher(self.encoded_launcher(source.replace('    wiredIcon.set(icon14);', '    wiredIcon.set(newIcon);')))
+        self.check_launcher(self.encoded_launcher(source + '\nvar wiredIcon = Variable("");'))
 
 
 if __name__ == '__main__':

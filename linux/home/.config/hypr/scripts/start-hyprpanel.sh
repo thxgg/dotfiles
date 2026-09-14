@@ -100,6 +100,36 @@ import sys
 runtime_path = Path(sys.argv[1])
 source = runtime_path.read_text()
 replacements = {
+    # Device objects can appear or be replaced without a connectivity change.
+    # Reset removed devices and never pass an empty icon to Gtk.Image.
+    'var wiredIcon = Variable("");':
+        'var wiredIcon = Variable("network-wired-disconnected-symbolic");',
+    'var wirelessIcon = Variable("");':
+        'var wirelessIcon = Variable("network-wireless-offline-symbolic");',
+    '''  if (networkService2.wired === null) {
+    return;
+  }''':
+        '''  if (networkService2.wired === null) {
+    wiredIcon.set("network-wired-disconnected-symbolic");
+    return;
+  }''',
+    '''  if (networkService2.wifi === null) {
+    return;
+  }''':
+        '''  if (networkService2.wifi === null) {
+    wirelessIcon.set("network-wireless-offline-symbolic");
+    return;
+  }''',
+    '    wiredIcon.set(icon14);':
+        '    wiredIcon.set(icon14 || "network-wired-symbolic");',
+    '    wirelessIcon.set(icon14);':
+        '    wirelessIcon.set(icon14 || "network-wireless-offline-symbolic");',
+    'Variable.derive([bind(networkService2, "state"), bind(networkService2, "connectivity")], () => {':
+        'Variable.derive([bind(networkService2, "state"), bind(networkService2, "connectivity"), bind(networkService2, "wired"), bind(networkService2, "wifi")], () => {',
+    '      return primaryNetwork === AstalNetwork3.Primary.WIRED ? wiredIcon2 : wifiIcon;':
+        '''      if (primaryNetwork === AstalNetwork3.Primary.WIRED) return wiredIcon2;
+      if (primaryNetwork === AstalNetwork3.Primary.WIFI) return wifiIcon;
+      return "network-offline-symbolic";''',
     'hyprlandService9.dispatch("workspace", targetWorkspaceNumber.toString());':
         'hyprlandService9.message(`dispatch hl.dsp.focus({ workspace = ${targetWorkspaceNumber} })`);',
     'hyprlandService12.dispatch("workspace", wsId.toString());':
@@ -125,7 +155,7 @@ replacements = {
 for old, new in replacements.items():
     count = source.count(old)
     if count != 1:
-        raise SystemExit(f"Expected one HyprPanel workspace dispatcher, found {count}: {old}")
+        raise SystemExit(f"Expected one HyprPanel compatibility patch target, found {count}: {old}")
     source = source.replace(old, new)
 
 recorder_command = '${SRC_DIR}/scripts/screen_record.sh'
@@ -143,7 +173,7 @@ PY
 # Upstream builds can change their generated symbols. Keep the bar available
 # instead of aborting login when an optional compatibility patch no longer fits.
 if ! runtime_file="$(prepare_lua_compatible_runtime)"; then
-    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions may be unavailable.\n' >&2
+    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions and network icon recovery may be unavailable.\n' >&2
     exec /usr/share/hyprpanel/hyprpanel-app
 fi
 

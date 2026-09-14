@@ -48,11 +48,15 @@ services, or the clipboard. Actual Wayland file paste, notifications, GTK/Qt
 appearance, and HyprPanel startup still require a Linux desktop check.
 
 The recording and panel launcher tests require Python 3, Bash, and standard Unix
-commands. The panel launcher tests also require `awk` and `base64 --decode`.
+commands. The panel launcher tests also require `awk`, `base64 --decode`, and Node.js.
 Their shell subprocesses use a temporary `HOME` and a minimal environment. They
 do not inherit `BASH_ENV`, exported shell functions, or desktop session variables.
 The recording tests use a temporary recording state file and a mock action helper.
 The panel tests check both fallback failures and the complete generated patch.
+They run the patched network helper in a mock reactive runtime. This checks late
+device arrival, replacement, removal, empty icon names, connection switching,
+and stale subscription cleanup. The same test must fail on the unpatched helper.
+It does not verify real Astal signal timing or GTK rendering.
 
 # HyprPanel tray checks
 
