@@ -31,7 +31,7 @@ test("buildImageRequestBody declares Codex Responses image_generation tool", () 
 	assert.equal(body.model, "gpt-5.6-sol");
 	assert.equal(body.store, false);
 	assert.equal(body.stream, true);
-	assert.deepEqual(body.tools, [{ type: "image_generation", model: "gpt-image-2", quality: "auto", size: "auto" }]);
+	assert.deepEqual(body.tools, [{ type: "image_generation", model: "gpt-image-2.5-sunburst", quality: "auto", size: "auto" }]);
 	assert.equal(body.input[0]!.role, "user");
 	assert.deepEqual(body.input[0]!.content[0], { type: "input_text", text: "p" });
 	assert.equal(body.tool_choice, "auto");
@@ -46,6 +46,7 @@ test("buildImageRequestBody declares Codex Responses image_generation tool", () 
 		imageUrls: ["data:image/png;base64,abc"],
 	});
 	assert.equal(editBody.model, "gpt-5.6-sol");
+	assert.equal(editBody.tools[0]?.model, "gpt-image-2.5-sunburst");
 	assert.deepEqual(editBody.input[0]!.content[1], { type: "input_image", image_url: "data:image/png;base64,abc", detail: "auto" });
 });
 
@@ -146,6 +147,6 @@ test("callDirectImageEndpoint posts Codex Responses requests and parses SSE imag
 	const body = JSON.parse(String(calls[0]!.init.body));
 	assert.equal(body.model, "gpt-5.6-sol");
 	assert.equal(body.tools[0].type, "image_generation");
-	assert.equal(body.tools[0].model, "gpt-image-2");
+	assert.equal(body.tools[0].model, "gpt-image-2.5-sunburst");
 	assert.equal(body.input[0].content[0].text, "draw a small icon");
 });

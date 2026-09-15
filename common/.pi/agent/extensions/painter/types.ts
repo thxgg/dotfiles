@@ -1,4 +1,5 @@
-export const IMAGE_MODEL = "gpt-image-2";
+/** OpenAI's quality-focused image model, selected on the Responses image tool. */
+export const IMAGE_MODEL = "gpt-image-2.5-sunburst";
 export const CODEX_PROVIDER = "openai-codex";
 export const CODEX_RESPONSES_BASE_URL = "https://chatgpt.com/backend-api/codex/responses";
 export const DIRECT_IMAGE_TIMEOUT_MS = 180_000;

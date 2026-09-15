@@ -161,7 +161,7 @@ export async function callDirectImageEndpoint(request: DirectImageClientRequest)
 	}
 
 	if (images.length === 0) {
-		throw new DirectImageEndpointError("GPT Image 2 response did not contain any valid images.", {
+		throw new DirectImageEndpointError("GPT Image 2.5 Sunburst response did not contain any valid images.", {
 			endpointType,
 			requestId: firstRequestId,
 			responseId: lastResponseId,
@@ -169,7 +169,7 @@ export async function callDirectImageEndpoint(request: DirectImageClientRequest)
 		});
 	}
 	if (images.length < request.count) {
-		warnings.push(`Requested ${request.count} image(s), but GPT Image 2 returned ${images.length}.`);
+		warnings.push(`Requested ${request.count} image(s), but GPT Image 2.5 Sunburst returned ${images.length}.`);
 	}
 
 	return {
@@ -235,7 +235,7 @@ export function parseDirectImageResponse(json: unknown, context: {
 	}
 
 	if (images.length === 0) {
-		throw new DirectImageEndpointError("GPT Image 2 response did not contain any valid images.", {
+		throw new DirectImageEndpointError("GPT Image 2.5 Sunburst response did not contain any valid images.", {
 			endpointType: context.endpointType,
 			requestId: context.requestId,
 			responseId: context.responseId,
@@ -243,7 +243,7 @@ export function parseDirectImageResponse(json: unknown, context: {
 		});
 	}
 	if (images.length < context.requestedCount) {
-		warnings.push(`Requested ${context.requestedCount} image(s), but GPT Image 2 returned ${images.length}.`);
+		warnings.push(`Requested ${context.requestedCount} image(s), but GPT Image 2.5 Sunburst returned ${images.length}.`);
 	}
 
 	return {
@@ -347,10 +347,10 @@ async function callSingleResponsesImage(request: DirectImageClientRequest & {
 			});
 		} catch (error) {
 			if (request.signal?.aborted) {
-				throw new Error("GPT Image 2 request cancelled.");
+				throw new Error("GPT Image 2.5 Sunburst request cancelled.");
 			}
 			if (attemptSignal.timedOut()) {
-				throw new Error(`GPT Image 2 ${request.endpointType} request timed out after ${Math.round(request.timeoutMs / 1000)}s.`);
+				throw new Error(`GPT Image 2.5 Sunburst ${request.endpointType} request timed out after ${Math.round(request.timeoutMs / 1000)}s.`);
 			}
 			if (error instanceof DirectImageEndpointError) {
 				throw error;
@@ -362,7 +362,7 @@ async function callSingleResponsesImage(request: DirectImageClientRequest & {
 			}
 			const message = sanitizeErrorText(error instanceof Error ? error.message : String(error));
 			throw new DirectImageEndpointError(
-				`GPT Image 2 ${request.endpointType} request failed after ${attempt} ${attempt === 1 ? "retry" : "retries"}: ${message}`,
+				`GPT Image 2.5 Sunburst ${request.endpointType} request failed after ${attempt} ${attempt === 1 ? "retry" : "retries"}: ${message}`,
 				{ endpointType: request.endpointType, requestId, retryCount: attempt, body: message },
 			);
 		} finally {
@@ -371,7 +371,7 @@ async function callSingleResponsesImage(request: DirectImageClientRequest & {
 	}
 
 	const message = sanitizeErrorText(lastTransportError instanceof Error ? lastTransportError.message : String(lastTransportError ?? "unknown error"));
-	throw new DirectImageEndpointError(`GPT Image 2 ${request.endpointType} request failed: ${message}`, {
+	throw new DirectImageEndpointError(`GPT Image 2.5 Sunburst ${request.endpointType} request failed: ${message}`, {
 		endpointType: request.endpointType,
 		requestId,
 		retryCount: request.maxRetries,
@@ -520,7 +520,7 @@ function isRetryableTransportError(error: unknown): boolean {
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
-	if (signal?.aborted) throw new Error("GPT Image 2 request cancelled.");
+	if (signal?.aborted) throw new Error("GPT Image 2.5 Sunburst request cancelled.");
 }
 
 function createAttemptSignal(parent: AbortSignal | undefined, timeoutMs: number): {
@@ -592,7 +592,7 @@ function buildEndpointError(params: {
 		? " Refresh/open openai-codex/ChatGPT OAuth credentials outside the tool."
 		: "";
 	return new DirectImageEndpointError(
-		`GPT Image 2 ${params.endpointType} request failed (${params.status} ${params.statusText || "HTTP error"}, ${params.retryCount} ${params.retryCount === 1 ? "retry" : "retries"}${idText})${bodyText}${authHint}`,
+		`GPT Image 2.5 Sunburst ${params.endpointType} request failed (${params.status} ${params.statusText || "HTTP error"}, ${params.retryCount} ${params.retryCount === 1 ? "retry" : "retries"}${idText})${bodyText}${authHint}`,
 		params,
 	);
 }

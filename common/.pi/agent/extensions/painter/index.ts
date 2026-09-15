@@ -16,13 +16,13 @@ import { normalizeImageOptions, readAndValidateInputImages, type GenerateImagePa
 
 const TOOL_NAME = "generate_image";
 const CODEX_PROVIDER = "openai-codex";
-const CODEX_MODEL_PREFERENCES = ["gpt-5.6-sol"] as const;
+const CODEX_MODEL_PREFERENCES = ["gpt-6-astra"] as const;
 const ASPECT_RATIO_VALUES = ["square", "1:1", "portrait", "2:3", "landscape", "3:2", "16:9", "9:16"] as const;
 const QUALITY_VALUES = ["auto", "low", "medium", "high"] as const;
 
 const GenerateImageSchema = Type.Object({
 	prompt: Type.String({
-		description: "Exact image generation/editing prompt to send to GPT Image 2.",
+		description: "Exact image generation/editing prompt to send to GPT Image 2.5 Sunburst.",
 	}),
 	inputImages: Type.Optional(Type.Array(Type.String({
 		description: "Local PNG, JPEG, or WebP file path. Relative paths resolve against the current working directory; ~ and absolute paths are supported.",
@@ -34,7 +34,7 @@ const GenerateImageSchema = Type.Object({
 		description: "Optional aspect-ratio shorthand. Do not provide together with size.",
 	})),
 	size: Type.Optional(Type.String({
-		description: "Optional GPT Image 2 size: auto or WIDTHxHEIGHT. Dimensions must be multiples of 16, max edge <= 3840, ratio <= 3:1, and 655,360–8,294,400 total pixels. Do not provide together with aspectRatio.",
+		description: "Optional image size: auto or WIDTHxHEIGHT. Dimensions must be multiples of 16, max edge <= 3840, ratio <= 3:1, and 655,360–8,294,400 total pixels. Do not provide together with aspectRatio.",
 	})),
 	quality: Type.Optional(StringEnum([...QUALITY_VALUES], {
 		description: "Optional quality. Defaults to auto; use low for drafts and high for final/text-heavy/identity-sensitive images.",
@@ -55,8 +55,8 @@ export default function painterExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: TOOL_NAME,
 		label: "Generate Image",
-		description: "Generate or edit images with GPT Image 2 using existing openai-codex/ChatGPT OAuth credentials. Returns inline images and saves artifacts globally.",
-		promptSnippet: "Generate or edit images with GPT Image 2; returns inline images and saves them globally",
+		description: "Generate or edit images with GPT Image 2.5 Sunburst using existing openai-codex/ChatGPT OAuth credentials. Returns inline images and saves artifacts globally.",
+		promptSnippet: "Generate or edit images with GPT Image 2.5 Sunburst; returns inline images and saves them globally",
 		promptGuidelines: [
 			"Use generate_image when the user explicitly asks to generate, create, paint, edit, or transform an image.",
 			"Ask a clarifying question only when necessary visual details or edit intent are missing.",
@@ -77,7 +77,7 @@ export default function painterExtension(pi: ExtensionAPI) {
 				const endpointType = inputImages.length > 0 ? "edit" : "generation";
 
 				onUpdate?.({
-					content: [textContent("Requesting GPT Image 2...")],
+					content: [textContent("Requesting GPT Image 2.5 Sunburst...")],
 					details: {
 						status: "requesting",
 						endpointType,
@@ -276,7 +276,7 @@ function formatSafeError(error: unknown): string {
 function progressLabel(status: GenerateImageDetails["status"]): string {
 	switch (status) {
 		case "validating": return "Validating image inputs...";
-		case "requesting": return "Requesting GPT Image 2...";
+		case "requesting": return "Requesting GPT Image 2.5 Sunburst...";
 		case "saving": return "Saving generated image artifacts...";
 		case "done": return "Image generation complete.";
 		case "error": return "Image generation failed.";
