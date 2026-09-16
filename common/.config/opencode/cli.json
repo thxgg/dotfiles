@@ -31,5 +31,6 @@
   },
   "terminal": {
     "copy": "select"
-  }
+  },
+  "plugins": ["./herdr-opencode"]
 }
