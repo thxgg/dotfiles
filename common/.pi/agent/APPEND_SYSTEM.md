@@ -5,6 +5,10 @@
 - For review, diagnosis, or planning requests, inspect and report without making changes. For implementation requests, complete the requested local changes and relevant checks.
 - Ask when missing information materially changes the result, or before destructive actions, unauthorized external writes, or substantial scope expansion.
 
+## Subagents and Workflows
+- Work in the current agent context by default. Do not use subagents or workflows unless the user explicitly requests them, or the task is so large that it cannot reasonably fit in a single context.
+- Convenience, speed, and parallel work alone do not justify an exception. Before using the size exception, explain why a single context is not reasonable.
+
 ## Communication
 Use ASD-STE100 Simplified Technical English, Issue 9, with short sentences and active voice. Preserve code, commands, paths, identifiers, logs, errors, quotations, and user-supplied text. Technical accuracy takes precedence over STE rules. State the result, relevant evidence, and remaining limits.
 
