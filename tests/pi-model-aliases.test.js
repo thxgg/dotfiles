@@ -3,14 +3,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { zstdDecompressSync } from "node:zlib";
-import aliases from "../common/.pi/agent/extensions/gpt56-sol-aliases.ts";
+import aliases from "../common/.pi/agent/extensions/gpt6-sol-aliases.ts";
 
 // Synthetic, unsigned JWT for the local serializer test. This is not a credential.
 const probeClaims = Buffer.from(JSON.stringify({
   "https://api.openai.com/auth": { chatgpt_account_id: "acct_pi_extension_probe" },
 })).toString("base64url");
 const PROBE_TOKEN = `e30.${probeClaims}.sig`;
-const context = { systemPrompt: "Test", messages: [{ role: "user", content: "Say OK", timestamp: 0 }] };
+const context = { messages: [{ role: "system", content: "Test", timestamp: 0 }, { role: "user", content: "Say OK", timestamp: 0 }] };
 
 /** Run offline checks through the extension factory, hooks, and real provider serializers. */
 export default async function (pi) {
@@ -36,7 +36,7 @@ export default async function (pi) {
     for (const [id, upstream, tier] of [
       ["gpt-6-astra-fast", "gpt-6-astra", "priority"],
       ["gpt-6-astra", "gpt-6-astra", undefined],
-      ["gpt-5.6-sol-fast", "gpt-5.6-sol", "priority"],
+      ["gpt-6-sol-fast", "gpt-6-sol", "priority"],
     ]) {
       const model = id === "gpt-6-astra" ? { ...astra, id } : models.find((model) => model.id === id);
       assert.ok(model);
@@ -53,7 +53,7 @@ export default async function (pi) {
       }
       const cases = [[false, "low"], [true, "low"], [false, "minimal"], [false, "xhigh"]];
       if (id.startsWith("gpt-6-astra")) cases.push([false, "max"]);
-      else cases.push([false, undefined]); // Pi represents disabled thinking by omitting reasoning.
+      else cases.push([false, undefined]); // The raw Codex adapter now sends the model's Off mapping.
       for (const [withCallback, reasoning] of cases) {
         let sent;
         const stream = providers.get(model.provider).streamSimple(model, context, {
@@ -86,7 +86,7 @@ export default async function (pi) {
         assert.equal(sent.model, upstream);
         assert.equal(sent.service_tier, tier);
         const expectedEffort = reasoning === undefined
-          ? model.provider === "openai" ? "none" : undefined
+          ? model.thinkingLevelMap?.off ?? undefined
           : model.thinkingLevelMap?.[reasoning] ?? reasoning;
         assert.equal(sent.reasoning?.effort, expectedEffort, `${id}: ${reasoning}`);
         if (withCallback) assert.deepEqual(sent.metadata, { test: "preserved" });
@@ -105,12 +105,12 @@ export default async function (pi) {
       assert.equal(hook({ payload }, { model }), payload);
       checks++;
     }
-    const otherMessage = { role: "assistant", provider: "openai-codex", model: "gpt-5.6-sol" };
+    const otherMessage = { role: "assistant", provider: "openai-codex", model: "gpt-6-sol" };
     hooks.get("message_end")({ message: otherMessage }, { model: astra });
-    assert.equal(otherMessage.model, "gpt-5.6-sol");
+    assert.equal(otherMessage.model, "gpt-6-sol");
     checks++;
 
-    assert.equal(models.some((model) => model.id === "gpt-5.6-sol-1m"), false);
+    assert.equal(models.some((model) => /gpt-5\.6|-(?:pro|1m)$/.test(model.id)), false);
     assert.equal(hooks.has("session_before_compact"), false);
     checks += 2;
     console.log(`PASS: ${checks} alias checks (offline; includes compaction's direct streamSimple path)`);

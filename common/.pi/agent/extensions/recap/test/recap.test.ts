@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { SessionEntry } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
 import { applySettings, DEFAULT_CONFIG } from "../config.ts";
 import { TerminalFocusParser } from "../focus.ts";
 import { latestUserTurn } from "../index.ts";
-import { normalizeSummary, selectRecapEntries, serializeRecapEntries, truncateTranscript } from "../summary.ts";
+import { buildBoundedTranscript, normalizeSummary, selectRecapEntries, serializeRecapEntries, truncateTranscript } from "../summary.ts";
 
 function entry(id: string, type: SessionEntry["type"], role?: "user" | "assistant"): SessionEntry {
   return {
@@ -17,6 +17,18 @@ function entry(id: string, type: SessionEntry["type"], role?: "user" | "assistan
     } : {}),
   } as SessionEntry;
 }
+
+test("recap uses replacements and omits recovery attempts and system messages", () => {
+  const sessionManager = SessionManager.inMemory();
+  sessionManager.appendMessage({ role: "system", content: "PRIVATE_SYSTEM", timestamp: 0 });
+  const omitted = sessionManager.appendMessage({ role: "user", content: "ABANDONED_ATTEMPT", timestamp: 1 });
+  const changed = sessionManager.appendMessage({ role: "user", content: "OLD_CONTENT", timestamp: 2 });
+  sessionManager.appendContextEdit(omitted, null);
+  sessionManager.appendContextEdit(changed, { content: "CURRENT_CONTENT" });
+  const transcript = buildBoundedTranscript({ sessionManager }, 4_000);
+  assert.match(transcript, /CURRENT_CONTENT/);
+  assert.doesNotMatch(transcript, /PRIVATE_SYSTEM|ABANDONED_ATTEMPT|OLD_CONTENT/);
+});
 
 test("terminal parser preserves keys surrounding focus reports", () => {
   const parser = new TerminalFocusParser();

@@ -1,8 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { convertToLlm, SessionManager } from "@earendil-works/pi-coding-agent";
 import { buildParentMessages } from "../context.ts";
 import { resolveSideModel } from "../model.ts";
 import { filterProcessRows, parsePositivePid, textFromContent } from "../observation.ts";
+
+test("parent snapshot restores projected history through the session manager", () => {
+  const parent = SessionManager.inMemory();
+  parent.appendMessage({ role: "system", content: "PARENT_SYSTEM", timestamp: 0 });
+  const omitted = parent.appendMessage({ role: "user", content: "OMITTED", timestamp: 1 });
+  const replaced = parent.appendMessage({ role: "user", content: "OLD", timestamp: 2 });
+  parent.appendContextEdit(omitted, null);
+  parent.appendContextEdit(replaced, { content: "CURRENT" });
+  const child = SessionManager.inMemory();
+  for (const message of convertToLlm(buildParentMessages(parent.buildSessionProjection().messages))) {
+    child.appendMessage(message);
+  }
+  assert.equal(child.buildSessionContext().messages.length, 1);
+  assert.match(JSON.stringify(child.buildSessionContext().messages), /CURRENT/);
+  assert.doesNotMatch(JSON.stringify(child.buildSessionContext().messages), /OMITTED|PARENT_SYSTEM|OLD/);
+});
 
 test("parsePositivePid accepts only positive integers", () => {
   assert.equal(parsePositivePid(42), 42);
@@ -16,10 +33,10 @@ test("textFromContent joins text blocks", () => {
 });
 
 test("resolveSideModel rewrites the fast Sol alias", () => {
-  const resolution = resolveSideModel({ provider: "openai-codex", id: "gpt-5.6-sol-fast" } as never);
-  assert.equal(resolution.model.id, "gpt-5.6-sol");
-  assert.deepEqual(resolution.rewritePayload({ model: "gpt-5.6-sol-fast", input: [] }), {
-    model: "gpt-5.6-sol",
+  const resolution = resolveSideModel({ provider: "openai-codex", id: "gpt-6-sol-fast" } as never);
+  assert.equal(resolution.model.id, "gpt-6-sol");
+  assert.deepEqual(resolution.rewritePayload({ model: "gpt-6-sol-fast", input: [] }), {
+    model: "gpt-6-sol",
     input: [],
     service_tier: "priority",
   });
@@ -45,7 +62,7 @@ test("buildParentMessages excludes an unfinished trailing assistant message", ()
     userEntry(),
     { type: "message", id: "a", parentId: "u", timestamp: new Date().toISOString(), message: { role: "assistant", content: [{ type: "text", text: "partial" }], api: "x", provider: "x", model: "x", usage, stopReason: undefined, timestamp: 2 } },
   ];
-  const result = buildParentMessages(entries as never);
+  const result = buildParentMessages(entries.map(entry => entry.message) as never);
   assert.equal(result.length, 1);
   assert.equal(result[0]?.role, "user");
 });
@@ -55,7 +72,7 @@ test("buildParentMessages excludes a dangling completed tool call", () => {
     userEntry(),
     { type: "message", id: "a", parentId: "u", timestamp: new Date().toISOString(), message: { role: "assistant", content: [{ type: "toolCall", id: "call-1", name: "bash", arguments: { command: "sleep 10" } }], api: "x", provider: "x", model: "x", usage, stopReason: "toolUse", timestamp: 2 } },
   ];
-  const result = buildParentMessages(entries as never);
+  const result = buildParentMessages(entries.map(entry => entry.message) as never);
   assert.equal(result.length, 1);
   assert.equal(result[0]?.role, "user");
 });

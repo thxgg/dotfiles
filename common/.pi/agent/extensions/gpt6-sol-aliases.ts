@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessageEventStream, Context, Model, SimpleStreamOptions, StreamOptions } from "@earendil-works/pi-ai";
+import type { AssistantMessageEventStream, Model, SimpleStreamOptions, StreamOptions } from "@earendil-works/pi-ai";
+import { normalizeContext } from "@earendil-works/pi-ai";
 import { getApiProvider } from "@earendil-works/pi-ai/compat";
 
 type PiModel = NonNullable<ExtensionContext["model"]>;
@@ -8,17 +9,17 @@ type CodexProvider = NonNullable<ReturnType<typeof getApiProvider>>;
 
 const PROVIDER = "openai-codex";
 const CODEX_API = "openai-codex-responses";
-const UPSTREAM_MODEL = "gpt-5.6-sol";
-const FAST_MODEL = "gpt-5.6-sol-fast";
+const UPSTREAM_MODEL = "gpt-6-sol";
+const FAST_MODEL = "gpt-6-sol-fast";
 const ASTRA_MODEL = "gpt-6-astra";
 const ASTRA_FAST_MODEL = "gpt-6-astra-fast";
 type Alias = typeof FAST_MODEL | typeof ASTRA_FAST_MODEL;
 const FAST_SERVICE_TIER = "priority";
 const UPSTREAM_COST = {
-  input: 5,
-  output: 30,
-  cacheRead: 0.5,
-  cacheWrite: 0,
+  input: 2,
+  output: 10,
+  cacheRead: 0.2,
+  cacheWrite: 2.5,
 };
 const PROVIDER_PROBE_JWT =
   "e30.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF9waV9leHRlbnNpb25fcHJvYmUifX0.sig";
@@ -48,7 +49,7 @@ function toUpstreamModel(model: Model<any>): Model<any> {
   return {
     ...model,
     id: upstreamModelId(alias),
-    cost: alias === ASTRA_FAST_MODEL ? model.cost : UPSTREAM_COST,
+    cost: model.cost,
   };
 }
 
@@ -91,7 +92,7 @@ function createCodexOptions(model: Model<any>, options?: SimpleStreamOptions): C
 function probeModel(): Model<"openai-codex-responses"> {
   return {
     id: UPSTREAM_MODEL,
-    name: "GPT-5.6 Sol",
+    name: "GPT-6 Sol",
     api: CODEX_API,
     provider: PROVIDER,
     baseUrl: "https://chatgpt.com/backend-api",
@@ -117,7 +118,7 @@ async function loadApiProvider(api: string, model: Model<any>, apiKey: string): 
   controller.abort();
 
   await drain(
-    lazyProvider.stream(model, { systemPrompt: "", messages: [] } satisfies Context, {
+    lazyProvider.stream(model, normalizeContext({ messages: [] }), {
       apiKey,
       signal: controller.signal,
       transport: "sse",

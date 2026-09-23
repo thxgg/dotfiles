@@ -1,5 +1,6 @@
 import {
   createAgentSession,
+  convertToLlm,
   DefaultResourceLoader,
   getAgentDir,
   getMarkdownTheme,
@@ -10,7 +11,7 @@ import {
   type ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { Key, Markdown, matchesKey, Text, type Component, type TUI } from "@earendil-works/pi-tui";
-import { createChildModelRuntime } from "../subagents/model-runtime.ts";
+import { createChildModelRuntime } from "../../extensions/subagents/model-runtime.ts";
 import { buildParentMessages } from "./context.ts";
 import { resolveSideModel } from "./model.ts";
 import {
@@ -79,6 +80,10 @@ async function createSideSession(question: string, ctx: ExtensionCommandContext,
   await loader.reload();
 
   const modelRuntime = await createChildModelRuntime(ctx.modelRegistry);
+  const sessionManager = SessionManager.inMemory(ctx.cwd);
+  for (const message of convertToLlm(buildParentMessages(ctx.sessionManager.buildSessionProjection().messages))) {
+    sessionManager.appendMessage(message);
+  }
   const { session } = await createAgentSession({
     cwd: ctx.cwd,
     agentDir: getAgentDir(),
@@ -87,12 +92,11 @@ async function createSideSession(question: string, ctx: ExtensionCommandContext,
     thinkingLevel: "off",
     resourceLoader: loader,
     settingsManager,
-    sessionManager: SessionManager.inMemory(ctx.cwd),
+    sessionManager,
     tools: ["read", "get_main_thread_activity", "inspect_processes"],
     customTools: [createActivityTool(getActivity), createProcessTool()],
   });
 
-  session.agent.state.messages = buildParentMessages(ctx.sessionManager.buildContextEntries());
   let turns = 0;
   const unsubscribe = session.subscribe((event) => {
     if (event.type !== "turn_end") return;

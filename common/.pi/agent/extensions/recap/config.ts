@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG: RecapConfig = {
   minTurns: 1,
   maxChars: 140,
   maxInputChars: 20_000,
-  model: "openai-codex/gpt-5.6-luna",
+  model: "openai-codex/gpt-6-luna",
 };
 
 type JsonObject = Record<string, unknown>;

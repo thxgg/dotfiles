@@ -31,7 +31,9 @@ function harness() {
 test('every standalone extension imports and registers without starting a session', async () => {
   const root = new URL('../agent/extensions/', import.meta.url);
   const files = readdirSync(root).filter((name) => /\.(ts|js)$/.test(name));
-  assert.ok(files.length >= 8);
+  assert.ok(files.includes('gpt6-sol-aliases.ts'));
+  assert.ok(!files.includes('gpt56-pro-alias.ts'));
+  assert.ok(!files.includes('gpt56-sol-aliases.ts'));
   for (const file of [...files, 'pi-cloak/index.ts']) {
     const extension = await import(new URL(file, root));
     assert.equal(typeof extension.default, 'function', file);

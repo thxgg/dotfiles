@@ -1,4 +1,4 @@
-import { completeSimple, type Api, type Model, type UserMessage } from "@earendil-works/pi-ai/compat";
+import { type Api, type Model, type UserMessage } from "@earendil-works/pi-ai/compat";
 import {
   convertToLlm,
   serializeConversation,
@@ -17,9 +17,10 @@ export function truncateTranscript(text: string, maxChars: number): string {
   return `${text.slice(0, head)}${OMITTED}${text.slice(-(maxChars - head - OMITTED.length))}`.trim();
 }
 
-function serializeEntries(entries: SessionEntry[]): string {
-  const messages = entries.flatMap(sessionEntryToContextMessages);
-  return serializeConversation(convertToLlm(messages));
+type ContextMessages = ReturnType<typeof sessionEntryToContextMessages>;
+
+function serializeEntries(entries: SessionEntry[], messagesForEntry: (entry: SessionEntry) => ContextMessages): string {
+  return serializeConversation(convertToLlm(entries.flatMap(messagesForEntry)));
 }
 
 export function selectRecapEntries(entries: SessionEntry[]): SessionEntry[] {
@@ -34,7 +35,11 @@ export function selectRecapEntries(entries: SessionEntry[]): SessionEntry[] {
   return entries.filter((entry) => selectedIds.has(entry.id));
 }
 
-export function serializeRecapEntries(entries: SessionEntry[], maxChars: number): string {
+export function serializeRecapEntries(
+  entries: SessionEntry[],
+  maxChars: number,
+  messagesForEntry: (entry: SessionEntry) => ContextMessages = sessionEntryToContextMessages,
+): string {
   if (entries.length === 0) return "";
 
   const memory = entries.find((entry) => entry.type === "compaction" || entry.type === "branch_summary");
@@ -50,17 +55,23 @@ export function serializeRecapEntries(entries: SessionEntry[], maxChars: number)
     : 0;
   const sections: string[] = [];
 
-  if (memory) sections.push(`[Session memory]\n${truncateTranscript(serializeEntries([memory]), memoryBudget)}`);
+  if (memory) sections.push(`[Session memory]\n${truncateTranscript(serializeEntries([memory], messagesForEntry), memoryBudget)}`);
   if (messages.length > 0) {
     sections.push(`[Recent conversation]\n${messages
-      .map((entry) => truncateTranscript(serializeEntries([entry]), messageBudget))
+      .map((entry) => truncateTranscript(serializeEntries([entry], messagesForEntry), messageBudget))
       .join("\n")}`);
   }
   return sections.join("\n\n");
 }
 
-export function buildBoundedTranscript(ctx: ExtensionContext, maxChars: number): string {
-  return serializeRecapEntries(selectRecapEntries(ctx.sessionManager.getBranch()), maxChars);
+/** Summarize only active, projected context; omit system prompts and recovery attempts. */
+export function buildBoundedTranscript(ctx: Pick<ExtensionContext, "sessionManager">, maxChars: number): string {
+  const projected = ctx.sessionManager.buildSessionProjection().entries
+    .map(({ sourceEntry, messages }) => ({ sourceEntry, messages: messages.filter(message => message.role !== "system") }))
+    .filter(({ messages }) => messages.length > 0);
+  const messagesById = new Map(projected.map(({ sourceEntry, messages }) => [sourceEntry.id, messages]));
+  const selected = selectRecapEntries(projected.map(({ sourceEntry }) => sourceEntry));
+  return serializeRecapEntries(selected, maxChars, entry => messagesById.get(entry.id) ?? []);
 }
 
 export function normalizeSummary(text: string, maxChars: number): string {
@@ -97,15 +108,12 @@ export async function generateSummary(
   const transcript = buildBoundedTranscript(ctx, config.maxInputChars);
   if (!transcript) throw new Error("No conversation to recap");
   const model = resolveModel(ctx, config.model);
-  const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-  if (!auth.ok) throw new Error(auth.error);
-
   const message: UserMessage = {
     role: "user",
     content: [{ type: "text", text: `Summarize this coding session for a returning user:\n\n<transcript>\n${transcript}\n</transcript>` }],
     timestamp: Date.now(),
   };
-  const response = await completeSimple(model, {
+  const stream = ctx.modelRegistry.streamSimple(model, {
     systemPrompt: [
       `Write one recap line of at most ${config.maxChars} characters.`,
       "State exactly two things: the high-level task, then the concrete next action.",
@@ -114,14 +122,12 @@ export async function generateSummary(
     ].join("\n"),
     messages: [message],
   }, {
-    apiKey: auth.apiKey,
-    headers: auth.headers,
-    env: auth.env,
     signal,
     maxTokens: Math.max(64, Math.ceil(config.maxChars / 2)),
     cacheRetention: "short",
   });
 
+  const response = await stream.result();
   if (response.stopReason === "aborted") throw new DOMException("Aborted", "AbortError");
   if (response.stopReason === "error") throw new Error(response.errorMessage || "Recap generation failed");
   const text = response.content

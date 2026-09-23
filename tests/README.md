@@ -122,7 +122,7 @@ Do not use `--list-models` to run these tests. Pi can hide extension-load errors
 
 ## Astra Fast usage
 
-The existing `common/.pi/agent/extensions/gpt56-sol-aliases.ts` extension handles both Sol and Astra. Do not load a second copy of its provider wrappers.
+The existing `common/.pi/agent/extensions/gpt6-sol-aliases.ts` extension handles both Sol and Astra. Do not load a second copy of its provider wrappers.
 
 After `/reload`, select:
 
