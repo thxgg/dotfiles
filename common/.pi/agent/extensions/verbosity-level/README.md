@@ -24,8 +24,9 @@ an error; they do not terminate Pi.
 - Ctrl+O controls global expansion.
 - Pending summaries show an arrow followed by Pi's animated braille spinner.
 - Settled success has no `completed` label. Errors and cancellations stay explicit.
-- Images and input requests stay normal. Assistant/user text and unsupported tools
-  separate groups. Agent, workflow, and MCP tools are not adapted.
+- Images and input requests stay normal. Thinking blocks, assistant/user text, and
+  unsupported tools separate groups. Tool groups stay in transcript order, even
+  when thinking is hidden. Agent, workflow, and MCP tools are not adapted.
 
 ## Execution scope
 

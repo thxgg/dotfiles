@@ -233,6 +233,46 @@ test("live extension events keep source order, progress, mode switching, and dis
   }
 });
 
+test("streamed thinking keeps each tool batch at its own transcript position", async () => {
+  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
+  process.env.PI_VERBOSITY_BUILTINS = "1";
+  initTheme("dark", false);
+  const h = harness();
+  try {
+    await h.event("session_start");
+    const rows: ToolExecutionComponent[] = [];
+    for (let batch = 0; batch < 3; batch++) {
+      const thinking = { type: "thinking", thinking: "" };
+      const tools = [0, 1].map(index => ({ type: "toolCall", id: `${batch}-${index}`, name: "read", arguments: { path: `${batch}-${index}.ts` } }));
+      await h.event("message_start", { message: { role: "assistant", content: [] } });
+      // Empty thinking starts a boundary. Repeated deltas must not split siblings.
+      await h.event("message_update", { message: { role: "assistant", content: [thinking] } });
+      thinking.thinking = "Check another pair.";
+      await h.event("message_update", { message: { role: "assistant", content: [thinking, tools[0]] } });
+      const message = { role: "assistant", content: [thinking, ...tools] };
+      await h.event("message_update", { message });
+      await h.event("message_update", { message });
+      await h.event("message_end", { message });
+      for (const tool of tools) {
+        const row = new ToolExecutionComponent(tool.name, tool.id, tool.arguments, { showImages: false }, h.definitions.get(tool.name), h.ctx.ui as never, tmpdir());
+        rows.push(row);
+        await h.event("tool_execution_start", { toolName: tool.name, toolCallId: tool.id, args: tool.arguments });
+        const result = { content: [{ type: "text", text: "ok" }], isError: false };
+        await h.event("tool_execution_end", { toolCallId: tool.id, result, isError: false });
+        row.updateResult(result);
+      }
+    }
+    for (const [index, row] of rows.entries()) {
+      const lines = stripVTControlCharacters(row.render(80).join("\n"));
+      if (index % 2 === 0) assert.match(lines, /Explored 2 reads/);
+      else assert.equal(lines, "");
+    }
+  } finally {
+    await h.event("session_shutdown");
+    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
+  }
+});
+
 test("eager adapters survive rows constructed before session_start on reload", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-reload-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;

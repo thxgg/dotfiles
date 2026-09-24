@@ -35,7 +35,7 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
   const streamAssistant = (message: { content: readonly { type: string; text?: string; id?: string; name?: string; arguments?: Record<string, unknown> }[] }, ctx: ExtensionContext) => {
     message.content.forEach((part, index) => {
       if (streamedParts?.has(index)) return;
-      if (part.type === "text" && part.text?.trim()) {
+      if (part.type === "thinking" || (part.type === "text" && part.text?.trim())) {
         activity.boundary();
         streamedParts?.add(index);
       } else if (part.type === "toolCall" && part.id && part.name) {

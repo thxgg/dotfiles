@@ -30,6 +30,23 @@ test("assistant text, user, unsupported tools, and visible custom messages split
   a.message(assistant(tool("5")));
   assert.deepEqual(a.groups.map(g => g.calls.map(c => c.id)), [["1"], ["2"], ["3"], ["4"], ["5"]]);
 });
+test("thinking separates tool batches in live messages and reconstructed history", () => {
+  const messages = [
+    assistant(tool("1"), tool("2")),
+    { role: "toolResult", toolCallId: "2", ...ok },
+    { role: "assistant", content: [{ type: "thinking", thinking: "Check the next files." }, tool("3"), tool("4")] },
+    { role: "assistant", content: [{ type: "thinking", thinking: "" }] },
+    assistant(tool("5"), tool("6")),
+    { role: "assistant", content: [{ type: "text", text: "Done." }] },
+  ];
+  const live = new Activity(supported());
+  for (const message of messages) live.message(message);
+  const history = reconstruct(messages.map(entry), supported());
+  const compacted = reconstruct([{ type: "compaction", retainedTail: messages } as unknown as SessionEntry], supported());
+  for (const activity of [live, history, compacted]) {
+    assert.deepEqual(activity.groups.map(group => group.calls.map(call => call.id)), [["1", "2"], ["3", "4"], ["5", "6"]]);
+  }
+});
 test("duplicate starts, final results, and delayed unsupported preflight do not reorder", () => {
   const a = new Activity(supported());
   const message = assistant(tool("1"), tool("shell", "bash"), tool("2"));

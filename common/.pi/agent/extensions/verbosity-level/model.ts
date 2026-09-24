@@ -73,7 +73,7 @@ export class Activity {
     if (!Array.isArray(message.content)) return;
     for (const part of message.content) {
       if (part.type === "toolCall" && part.id && part.name) this.add(part.id, part.name, part.arguments ?? {});
-      else if (part.type === "text" && part.text?.trim()) this.boundary();
+      else if (part.type === "thinking" || (part.type === "text" && part.text?.trim())) this.boundary();
     }
   }
   start(id: string, name: string, args: Record<string, unknown>): void {
