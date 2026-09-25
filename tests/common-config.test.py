@@ -11,6 +11,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CommonConfigTests(unittest.TestCase):
+    def test_claude_links_cover_shared_skills(self):
+        shared = ROOT / 'common/.agents/skills'
+        claude = ROOT / 'common/.claude/skills'
+        skills = sorted(shared.glob('*/SKILL.md'))
+        self.assertTrue(skills)
+        for skill in skills:
+            with self.subTest(skill=skill.parent.name):
+                link = claude / skill.parent.name
+                self.assertTrue(link.is_symlink())
+                self.assertFalse(Path(os.readlink(link)).is_absolute())
+                self.assertEqual(link.resolve(strict=True), skill.parent.resolve())
+
     def test_retired_configuration_is_absent(self):
         self.assertFalse((ROOT / 'common/.config/amp').exists())
         self.assertFalse((ROOT / 'common/.config/fish/conf.d/theme.fish').exists())
