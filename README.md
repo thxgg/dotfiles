@@ -42,6 +42,10 @@ If you only want specific app config components under `~/.config`, you can use s
 
 This is useful for sharing one part of your setup (for example just Neovim) without installing shell/system dotfiles. Empty or unknown selections are rejected. List-only commands do not deploy or migrate files. Config-only commands do not migrate Pi state, change Codex instructions, or require Pi health checks.
 
+Use `./safe-stow.sh --only-skills` to link shared `~/.agents/skills` files and
+their `~/.claude/skills` aliases. This mode preserves unrelated configuration and
+Pi runtime state. It does not run package installers or require GNU Stow.
+
 Themes are static application assets. There are no theme-changing wrappers, shared theme-state readers, or setup/update hooks. Native Ghostty and Herdr appearance settings remain available. See [theme assets](docs/catppuccin-latte-mocha-theme.md).
 
 This repository does not install or configure the Amp CLI. The current macOS

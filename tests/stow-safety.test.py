@@ -174,6 +174,46 @@ class StowSafety(unittest.TestCase):
         self.assertEqual(self.snapshot(self.base), before)
         self.assert_no_tools()
 
+    def test_skills_only_links_shared_resources_and_claude_aliases(self):
+        source = self.repo / 'common/.agents/skills/example'
+        self.put(source / 'SKILL.md', 'skill instructions\n')
+        self.put(source / 'references/example.md', 'reference\n')
+        self.link(self.repo / 'common/.claude/skills/example',
+                  '../../.agents/skills/example')
+        self.folded_pi()
+        runtime_before = self.snapshot(self.repo / 'common/.pi')
+        unrelated = self.put(self.home / '.config/nvim/init.lua', 'local editor')
+        old_skill = self.put(self.home / '.agents/skills/example/SKILL.md', 'old skill')
+        self.run_script('safe-stow.sh', '--only-skills')
+        self.assertEqual(old_skill.resolve(), source / 'SKILL.md')
+        self.assertEqual(self.backup('.agents/skills/example/SKILL.md').read_text(), 'old skill')
+        self.assertEqual((self.home / '.agents/skills/example/references/example.md').resolve(),
+                         source / 'references/example.md')
+        self.assertEqual((self.home / '.claude/skills/example').resolve(), source)
+        self.assertEqual(self.snapshot(self.repo / 'common/.pi'), runtime_before)
+        self.assertTrue((self.home / '.pi').is_symlink())
+        self.assertEqual(unrelated.read_text(), 'local editor')
+        self.assertFalse((self.home / '.codex').exists())
+        self.assertFalse((self.home / '.local/bin/dot').exists())
+        before = self.snapshot(self.base)
+        self.run_script('safe-stow.sh', '--only-skills')
+        self.assertEqual(self.snapshot(self.base), before)
+        self.assert_no_tools()
+
+    def test_skills_only_rejects_invalid_scope_and_foreign_ancestor(self):
+        self.put(self.repo / 'common/.agents/skills/example/SKILL.md', 'instructions')
+        foreign = self.base / 'foreign-agents'
+        self.put(foreign / 'skills/private/SKILL.md', 'private skill')
+        self.link(self.home / '.agents', foreign)
+        before = self.snapshot(self.base)
+        for args in (('--only-skills',), ('--only-skills', '--only-pi'),
+                     ('--only-skills', '--only-config', 'nvim'),
+                     ('--only-skills', '--list-config')):
+            with self.subTest(args=args):
+                self.run_script('safe-stow.sh', *args, expected=1)
+                self.assertEqual(self.snapshot(self.base), before)
+        self.assert_no_tools()
+
     def test_config_only_leaves_codex_and_pi_unchanged(self):
         self.folded_pi()
         self.put(self.home / '.codex/AGENTS.md', 'local instructions\n')

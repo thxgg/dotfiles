@@ -73,3 +73,10 @@ The owner confirmed that these skills have no upstream:
 - `postgres`
 - `shadcn-vue`
 - `ui-evidence`
+
+`maintaining-agent-integrations` is owner-maintained. It was copied with its
+references from the personal Amp skills repository
+(`https://ampcode.com/git/@thxgg/-/skills`). The local copy makes Amp built-in
+skill loading and session reload conditional so other agents can use it.
+Keep its source records and maintenance decisions aligned with the account copy
+when updating both destinations; neither copy is an external upstream.

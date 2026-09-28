@@ -13,6 +13,7 @@ LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
 CONFIG_ONLY_MODE=0
 PI_ONLY_MODE=0
+SKILLS_ONLY_MODE=0
 
 typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children special_leaf_paths
 typeset -a ssh_source_dirs config_source_dirs requested_config_children invalid_config_children
@@ -27,6 +28,7 @@ Usage: ./safe-stow.sh [options]
 Options:
   --only-config <csv>  Link only selected ~/.config children (e.g. nvim,ghostty)
   --only-pi           Link only the Pi workspace without migrating runtime state
+  --only-skills       Link shared skills and Claude aliases without runtime changes
   --list-config        List available ~/.config components and exit
   --help               Show this help
 EOF
@@ -48,6 +50,10 @@ while [[ $# -gt 0 ]]; do
             PI_ONLY_MODE=1
             shift
             ;;
+        --only-skills)
+            SKILLS_ONLY_MODE=1
+            shift
+            ;;
         --list-config)
             LIST_CONFIG_ONLY=1
             shift
@@ -64,8 +70,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if (( LIST_CONFIG_ONLY + CONFIG_ONLY_MODE + PI_ONLY_MODE > 1 )); then
-    echo "Error: --list-config, --only-config, and --only-pi cannot be combined"
+if (( LIST_CONFIG_ONLY + CONFIG_ONLY_MODE + PI_ONLY_MODE + SKILLS_ONLY_MODE > 1 )); then
+    echo "Error: --list-config, --only-config, --only-pi, and --only-skills cannot be combined"
     exit 1
 fi
 
@@ -73,7 +79,7 @@ if [[ $CONFIG_ONLY_MODE -eq 1 || $LIST_CONFIG_ONLY -eq 1 ]]; then
     include_deploy_paths=0
 fi
 
-if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 && $PI_ONLY_MODE -eq 0 ]] && ! command -v stow >/dev/null 2>&1; then
+if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 && $PI_ONLY_MODE -eq 0 && $SKILLS_ONLY_MODE -eq 0 ]] && ! command -v stow >/dev/null 2>&1; then
     echo "Error: stow is required but not installed."
     exit 1
 fi
@@ -748,14 +754,18 @@ fi
 
 collect_special_source_dirs
 
-if [[ $PI_ONLY_MODE -eq 1 ]]; then
-    deploy_paths=("${(@M)deploy_paths:#.pi/*}")
-    [[ ${#deploy_paths[@]} -gt 0 ]] || { echo "Error: no Pi workspace files found"; exit 1; }
+if [[ $PI_ONLY_MODE -eq 1 || $SKILLS_ONLY_MODE -eq 1 ]]; then
+    if [[ $PI_ONLY_MODE -eq 1 ]]; then
+        deploy_paths=("${(@M)deploy_paths:#.pi/*}")
+    else
+        deploy_paths=("${(@M)deploy_paths:#.agents/skills/*}" "${(@M)deploy_paths:#.claude/skills/*}")
+    fi
+    [[ ${#deploy_paths[@]} -gt 0 ]] || { echo "Error: no files found for selected scope"; exit 1; }
     special_leaf_paths=("${deploy_paths[@]}")
     config_children=()
     config_source_dirs=()
     ssh_source_dirs=()
-    # Scoped Pi deployment must not migrate runtime state or link other roots.
+    # Scoped leaf deployment must not migrate runtime state or link other roots.
     include_deploy_paths=0
 fi
 
@@ -793,8 +803,8 @@ for item in "${deploy_paths[@]}"; do
 
     ancestor_conflict="$(find_ancestor_symlink_conflict "$target_path" "$source_path" || true)"
     if [[ -n "$ancestor_conflict" ]]; then
-        if [[ $PI_ONLY_MODE -eq 1 ]]; then
-            echo "Error: Pi-only deployment cannot replace ancestor symlink: $ancestor_conflict"
+        if [[ $PI_ONLY_MODE -eq 1 || $SKILLS_ONLY_MODE -eq 1 ]]; then
+            echo "Error: scoped deployment cannot replace ancestor symlink: $ancestor_conflict"
             exit 1
         fi
         if record_conflict_path "$ancestor_conflict"; then
@@ -878,7 +888,7 @@ if [[ $include_deploy_paths -eq 1 ]]; then
     link_dot_command
 fi
 
-if [[ $PI_ONLY_MODE -eq 1 ]]; then
+if [[ $PI_ONLY_MODE -eq 1 || $SKILLS_ONLY_MODE -eq 1 ]]; then
     link_special_leaf_paths
 fi
 link_config_children
