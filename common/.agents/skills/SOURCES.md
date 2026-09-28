@@ -1,18 +1,26 @@
 # Vendored Skill Sources
 
-The following shared skills are sourced from the Dillon Mulroy skill suite at
+## Dillon Mulroy
+
+`coding-standards` matches
+[`dmmulroy/skills@8603380`](https://github.com/dmmulroy/skills/commit/8603380821fee6a77c82639f364ce8fe4f5a92be).
+
+The following skills retain their baseline from
 [`dmmulroy/skills@8a10f56`](https://github.com/dmmulroy/skills/commit/8a10f56abf86dc52e8209e5f61fffa6951402974):
 
-- `coding-standards`
-- `improve-codebase-architecture`
-- `tech-spec`
+- `improve-codebase-architecture`: retained despite its deletion upstream.
+- `tech-spec`: retains local portable skill invocation and delegation instructions.
 
-The suite's Matt Pocock-derived skills were refreshed from
+## Matt Pocock
+
+`domain-modeling` matches `skills/engineering/domain-modeling` at
+[`mattpocock/skills@c55ee46`](https://github.com/mattpocock/skills/commit/c55ee46073ed923f86ce59a5eb3b6d895095d1b7).
+
+The remaining Matt Pocock-derived skills retain their baseline from
 [`mattpocock/skills@d574778`](https://github.com/mattpocock/skills/commit/d574778f94cf620fcc8ce741584093bc650a61d3)
 through Dillon's `scripts/sync-matt-skills.sh`:
 
 - `code-review`
-- `domain-modeling`
 - `grilling`
 - `grill-me`
 - `grill-with-docs`
@@ -21,19 +29,21 @@ through Dillon's `scripts/sync-matt-skills.sh`:
 Dillon's TDD override is retained. Local cross-harness patches make skill-to-skill
 invocation and parallel review delegation portable between Pi and Claude, and
 make `code-review` infer an issue tracker without `setup-matt-pocock-skills`.
+`grilling` retains one-question-at-a-time interviews rather than upstream's
+batched questions. Do not replace these customizations during an upstream sync.
 
-## Additional upstream attribution
+## Anti-slop
 
-The owner confirmed these sources. Exact upstream revisions are not recorded.
-
-Dillon Mulroy:
-
-- `install-anti-slop`
+`install-anti-slop` matches `skills/install-anti-slop` at
+[`dmmulroy/anti-slop@c44ef22`](https://github.com/dmmulroy/anti-slop/commit/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b),
+except for the retained `disable-model-invocation: true` frontmatter flag.
+Its previous baseline was reconstructed as
+[`446268e`](https://github.com/dmmulroy/anti-slop/commit/446268e5d15baa968eaec669ff65358d36ae6259).
 
 ## Emil Kowalski
 
 The following skills match
-[`emilkowalski/skills@d23d7f8`](https://github.com/emilkowalski/skills/commit/d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7):
+[`emilkowalski/skills@d16ebe6`](https://github.com/emilkowalski/skills/commit/d16ebe60d09a5ba2afcb7054ede9d0a10c9f6128):
 
 - `animate`
 - `animate-expo`
