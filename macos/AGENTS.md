@@ -7,6 +7,7 @@ Homebrew bootstrap with post-install runtime and service setup. Entrypoint: `mac
 - Current service formulae are `postgresql@18` and `redis`; the registered Homebrew JDK is version 21.
 - Vite+ manages Node.js and global JavaScript packages. Bootstrap installs LTS and attempts Node 14 installation for legacy deployment parity; a Node 14 failure does not stop setup. Project `.node-version` files control local selection.
 - Setup makes Fish the login shell when permitted and assigns text/code file types to VS Code when installed.
+- Amp and OpenCode are not Homebrew dependencies. Amp is installed separately under `~/.amp/bin/amp`. Vite+ manages `@opencode-ai/cli`, which provides `opencode2`; bootstrap does not install it.
 
 ## Bootstrap Contracts
 - Keep package choices in `Brewfile` and `setup.sh` focused on orchestration and post-install initialization.

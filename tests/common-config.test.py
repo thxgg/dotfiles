@@ -100,6 +100,26 @@ class CommonConfigTests(unittest.TestCase):
             self.assertEqual(result.stdout.splitlines(),
                              ['cdd6f4', 'b4befe', '--background=45475a'])
 
+    def test_opencode_alias_prefers_vite_plus_command(self):
+        fish = shutil.which('fish')
+        if not fish:
+            self.skipTest('fish unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            bin_dir = home / 'bin'
+            bin_dir.mkdir()
+            env = {'HOME': directory, 'PATH': str(bin_dir),
+                   'XDG_CONFIG_HOME': directory + '/config'}
+            source = ROOT / 'common/.config/fish/conf.d/aliases.fish'
+            for name in ('opencode', 'opencode2'):
+                executable = bin_dir / name
+                executable.write_text(f'#!/bin/sh\nprintf "%s\\n" {name}\n')
+                executable.chmod(0o755)
+                result = subprocess.run([fish, '--no-config', '-c', f'source "{source}"; oc'],
+                                        env=env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), name)
+
     def test_browser_themes_use_mocha_with_lavender(self):
         for name in ('soft-lavender', 'soft-lavender-helium'):
             path = ROOT / 'common/.local/share/browser-themes' / name / 'manifest.json'

@@ -29,7 +29,7 @@ Current configuration and architecture sections describe the implementation, not
 - Keep secrets in untracked `~/.env.secrets`; tracked configuration may reference them. Do not commit credentials or token-bearing auth files.
 - Keep hooks enabled with `git config core.hooksPath .githooks`. Fix gitleaks detections instead of bypassing them with `SKIP_GITLEAKS=1`.
 - Keep static Catppuccin Latte/Mocha assets with Lavender accents. Do not restore repository-wide theme automation or controls that rewrite other applications' settings. Native per-application theme controls are allowed.
-- Local Amp configuration is retired; Amp runs remotely through Orbs.
+- Local Amp configuration is retired. Any local Amp CLI installation is managed outside this repository; the Linux web-app launcher supports remote Orbs.
 
 ## Commands
 Run from the repository root. Bootstrap and deployment change the machine; use them only when deployment is requested.

@@ -1,5 +1,9 @@
 alias fishrc '$EDITOR $HOME/.config/fish/config.fish'
-alias oc 'opencode'
+if type -q opencode2
+    alias oc 'opencode2'
+else
+    alias oc 'opencode'
+end
 alias lg 'lazygit'
 alias ldc 'lazydocker'
 alias gs 'git status'

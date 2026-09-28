@@ -44,7 +44,9 @@ This is useful for sharing one part of your setup (for example just Neovim) with
 
 Themes are static application assets. There are no theme-changing wrappers, shared theme-state readers, or setup/update hooks. Native Ghostty and Herdr appearance settings remain available. See [theme assets](docs/catppuccin-latte-mocha-theme.md).
 
-Local Amp configuration and CLI installation are retired. Amp runs remotely through Orbs; the Linux web-app launcher remains available.
+This repository does not install or configure the Amp CLI. The current macOS
+installation uses `~/.local/bin/amp` linked to `~/.amp/bin/amp`, outside Homebrew.
+The Linux web-app launcher remains available for remote Orbs.
 
 Validate key symlinks and stow setup health:
 
@@ -90,6 +92,12 @@ Optional bypass for emergency local commits:
   - VS Code file associations when the application is installed
 
 The GUI PATH LaunchAgent includes `~/.local/bin` and `~/.vite-plus/bin`.
+
+OpenCode 2 is managed separately by Vite+ as `@opencode-ai/cli`, which provides
+`opencode2`. It is not a Homebrew dependency or installed by bootstrap. Install
+it manually with `vp install -g @opencode-ai/cli`; `dot update` updates existing
+Vite+ global packages. The Fish `oc` alias prefers `opencode2` and falls back to
+`opencode` for installations that still use the original command.
 
 Useful commands:
 
