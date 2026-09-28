@@ -76,7 +76,7 @@ function getRemovalConflict(entry: ManifestEntry, state: ProjectState): string |
     return `managed extension '${entry.label}' cannot be removed because .pi/settings.json is invalid`;
   }
   if (entry.type === "mcp" && state.mcpError) {
-    return `managed mcp server '${entry.label}' cannot be removed because .pi/mcp.json is invalid`;
+    return `managed mcp server '${entry.label}' cannot be removed because .pi/mcp-adapter.json is invalid`;
   }
   return undefined;
 }
@@ -219,7 +219,7 @@ async function removeManagedEntry(entry: ManifestEntry, state: ProjectState): Pr
     }
     case "mcp": {
       if (state.mcpError) {
-        throw new Error(`Cannot remove managed MCP server '${entry.id}' because .pi/mcp.json is invalid`);
+        throw new Error(`Cannot remove managed MCP server '${entry.id}' because .pi/mcp-adapter.json is invalid`);
       }
 
       const nextMcp = cloneProjectMcp(state.mcpJson);

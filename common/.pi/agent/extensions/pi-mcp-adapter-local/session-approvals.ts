@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { McpExtensionState } from "./state.ts";
 import type { ToolMetadata } from "./types.ts";
 import { logger } from "./logger.ts";
+import { stableStringify } from "./utils.ts";
 
 export const MCP_APPROVAL_CUSTOM_TYPE = "mcp-approval-v1";
 
@@ -35,19 +36,6 @@ const TOOL_APPROVAL_KEYS = [
 ] as const;
 const IFRAME_APPROVAL_KEYS = ["version", "kind", "decision", "serverName"] as const;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
-
-/** Deterministic serialization used for approval identity hashes. */
-export function stableStringify(value: unknown): string {
-  if (value === null || value === undefined || typeof value !== "object") {
-    const serialized = JSON.stringify(value);
-    return serialized === undefined ? "undefined" : serialized;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(item => stableStringify(item)).join(",")}]`;
-  }
-  const object = value as Record<string, unknown>;
-  return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${stableStringify(object[key])}`).join(",")}}`;
-}
 
 export function computeToolArgumentsHash(args: unknown): string {
   return createHash("sha256").update(stableStringify(args ?? {})).digest("hex");
@@ -172,12 +160,26 @@ export function rememberToolApproval(
   }
 }
 
+/** Bind broad consent to this configured server, not a replacement with the same name. */
+export function getServerApprovalIdentity(state: McpExtensionState, serverName: string) {
+  if (!Object.hasOwn(state.config.mcpServers, serverName)) return undefined;
+  const definition = state.config.mcpServers[serverName];
+  if (!definition) return undefined;
+  return {
+    definition,
+    hash: createHash("sha256").update(stableStringify(definition)).digest("hex"),
+  };
+}
+
 export function restoreSessionApprovalState(
   state: McpExtensionState,
   branchEntries: readonly unknown[],
 ): void {
   const approvedToolCalls = state.approvedToolCalls ??= new Map<string, true>();
   approvedToolCalls.clear();
+  // Replace the map so an approval dialog opened on the old branch cannot grant
+  // server-wide authority after navigation, resume, or session replacement.
+  state.approvedServers = new Map();
   state.consentManager.clear();
 
   for (const entry of branchEntries) {

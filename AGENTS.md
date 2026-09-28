@@ -38,6 +38,7 @@ Run from the repository root. Bootstrap and deployment change the machine; use t
 ./setup.sh                              # Full bootstrap
 ./safe-stow.sh                          # Full deployment
 ./safe-stow.sh --only-config nvim        # Scoped deployment example
+./safe-stow.sh --only-pi                 # Pi-only links, no runtime migration
 ./doctor.sh                            # Full deployment health
 ./doctor.sh --only-config nvim          # Scoped health example
 ```

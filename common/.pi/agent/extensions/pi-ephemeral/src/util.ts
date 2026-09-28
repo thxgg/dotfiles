@@ -14,7 +14,7 @@ export function getProjectPaths(cwd: string): ProjectPaths {
   return {
     manifestPath: join(projectPiDir, "ephemeral.json"),
     settingsPath: join(projectPiDir, "settings.json"),
-    projectMcpPath: join(projectPiDir, "mcp.json"),
+    projectMcpPath: join(projectPiDir, "mcp-adapter.json"),
   };
 }
 

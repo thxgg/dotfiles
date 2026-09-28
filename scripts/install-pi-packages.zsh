@@ -31,10 +31,41 @@ sources="$(jq -er '
     end
 ' "$manifest")" || exit 1
 
+voice_version="$(jq -r '.dependencies["@earendil-works/pi-voice"] // empty' "$manifest")"
+
 # Capture sources before Pi updates its npm manifest. Keep unrelated settings.
 while IFS= read -r source; do
     printf '[INFO] Installing declared Pi package: %s\n' "$source"
     GIT_TERMINAL_PROMPT=0 "$pi_bin" install "$source" </dev/null
 done <<< "$sources"
 
-printf '[OK] Declared Pi packages installed. Run /transcribe in Pi to configure a local model.\n'
+# Remove only the retired package registration after its replacement installed.
+# Pi owns the checkout removal. Model settings and downloaded models stay local.
+if [[ -n "$voice_version" ]]; then
+    # npm save-prefix may turn an exact pin into a caret range during pi install.
+    # Restore the declared pin without replacing a Stow symlink.
+    manifest_target="${manifest:A}"
+    manifest_tmp="$(mktemp "${manifest_target}.XXXXXX")"
+    if jq --arg version "$voice_version" '.dependencies["@earendil-works/pi-voice"] = $version' \
+        "$manifest_target" > "$manifest_tmp"; then
+        chmod --reference="$manifest_target" "$manifest_tmp" 2>/dev/null || chmod 644 "$manifest_tmp"
+        mv "$manifest_tmp" "$manifest_target"
+    else
+        rm -f "$manifest_tmp"
+        exit 1
+    fi
+    agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+    [[ "$agent_dir" == '~/'* ]] && agent_dir="$HOME/${agent_dir#\~/}"
+    if [[ -f "$agent_dir/settings.json" ]]; then
+        legacy_sources="$(jq -er '[.packages[]? | if type == "string" then . else .source end |
+            select(test("^(https://github.com/|git:github.com/)earendil-works/pi-transcribe(@|$)"))] | .[]' \
+            "$agent_dir/settings.json" 2>/dev/null || true)"
+        if [[ -n "$legacy_sources" ]]; then
+            while IFS= read -r source; do
+                "$pi_bin" remove "$source" </dev/null
+            done <<< "$legacy_sources"
+        fi
+    fi
+fi
+
+printf '[OK] Declared Pi packages installed. Run /voice-settings in Pi to configure a local model.\n'

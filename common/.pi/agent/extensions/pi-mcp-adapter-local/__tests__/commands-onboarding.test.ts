@@ -106,6 +106,67 @@ describe("commands onboarding", () => {
     expect(loadOnboardingState().sharedConfigHintShown).toBe(true);
   });
 
+  it("reports a direct-tools save failure without claiming a live update", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-panel-write-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-panel-write-project-"));
+    const path = join(project, ".mcp.json");
+    process.env.HOME = home;
+    process.chdir(project);
+    writeJson(path, { mcpServers: { demo: { command: "demo" } } });
+    mocks.createMcpPanel.mockImplementationOnce((_config, _cache, _provenance, _callbacks, _tui, done) => {
+      writeFileSync(path, "{ malformed");
+      done({ cancelled: false, changes: new Map([["demo", true]]), disabledChanges: new Map() });
+      return { dispose() {} };
+    });
+
+    const ui = createUi();
+    const refresh = vi.fn();
+    const { openMcpPanel } = await import("../commands.ts");
+    const result = await openMcpPanel({
+      config: { mcpServers: { demo: { command: "demo" } } },
+      manager: { getConnection: () => null },
+      toolMetadata: new Map(),
+      failureTracker: new Map(),
+    } as any, { getFlag: () => undefined } as any, { hasUI: true, mode: "tui", ui, cwd: project } as any, undefined, refresh);
+
+    expect(result.configChanged).toBe(false);
+    expect(readFileSync(path, "utf-8")).toBe("{ malformed");
+    expect(refresh).not.toHaveBeenCalled();
+    expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("Failed to save direct tools"), "error");
+  });
+
+  it.skipIf(process.platform === "win32")("requests reload after a partial direct-tools save", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pi-mcp-panel-partial-home-"));
+    const project = mkdtempSync(join(tmpdir(), "pi-mcp-panel-partial-project-"));
+    const projectPath = join(project, ".mcp.json");
+    // The existing file is readable, but the writer's temporary suffix exceeds the filename limit.
+    const globalPath = join(home, `${"x".repeat(245)}.json`);
+    process.env.HOME = home;
+    process.chdir(project);
+    writeJson(projectPath, { mcpServers: { first: { command: "first" } } });
+    writeJson(globalPath, { mcpServers: { second: { command: "second" } } });
+    mocks.createMcpPanel.mockImplementationOnce((_config, _cache, _provenance, _callbacks, _tui, done) => {
+      done({ cancelled: false, changes: new Map([["first", true], ["second", true]]), disabledChanges: new Map() });
+      return { dispose() {} };
+    });
+
+    const ui = createUi();
+    const refresh = vi.fn();
+    const { openMcpPanel } = await import("../commands.ts");
+    const result = await openMcpPanel({
+      config: { mcpServers: { first: { command: "first" }, second: { command: "second" } } },
+      manager: { getConnection: () => null },
+      toolMetadata: new Map(),
+      failureTracker: new Map(),
+    } as any, { getFlag: () => undefined } as any, { hasUI: true, mode: "tui", ui, cwd: project } as any, globalPath, refresh);
+
+    expect(result.configChanged).toBe(true);
+    expect(JSON.parse(readFileSync(projectPath, "utf-8")).mcpServers.first.directTools).toBe(true);
+    expect(JSON.parse(readFileSync(globalPath, "utf-8")).mcpServers.second.directTools).toBeUndefined();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(ui.notify).toHaveBeenCalledWith(expect.stringContaining("partially saved"), "error");
+  });
+
   it("passes the active theme into the setup MCP panel", async () => {
     process.env.HOME = mkdtempSync(join(tmpdir(), "pi-mcp-commands-setup-theme-home-"));
     const ui = createUi();
@@ -338,7 +399,9 @@ describe("commands onboarding", () => {
     const close = vi.fn(async () => {
       currentConnection = null;
     });
-    const connect = vi.fn(async () => {
+    const connect = vi.fn(async () => currentConnection);
+    const reconnect = vi.fn(async (_name, _definition, staleConnection) => {
+      expect(staleConnection).toBe(currentConnection);
       currentConnection = {
         status: "connected",
         tools: [{ name: "search", description: "Search" }],
@@ -351,6 +414,7 @@ describe("commands onboarding", () => {
       manager: {
         close,
         connect,
+        reconnect,
         getConnection: vi.fn(() => currentConnection),
         getAllConnections: vi.fn(() => new Map(currentConnection?.status === "connected" ? [["notion", currentConnection]] : [])),
       },
@@ -366,8 +430,9 @@ describe("commands onboarding", () => {
     const callbacks = mocks.createMcpPanel.mock.calls[0]?.[3];
     await expect(callbacks.reconnect("notion")).resolves.toBe(true);
 
-    expect(close).toHaveBeenCalledWith("notion");
-    expect(connect).toHaveBeenCalledWith("notion", state.config.mcpServers.notion);
+    expect(close).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+    expect(reconnect).toHaveBeenCalledWith("notion", state.config.mcpServers.notion, expect.any(Object), undefined);
     expect(state.failureTracker.has("notion")).toBe(false);
     expect(state.toolMetadata.get("notion")?.[0]?.name).toBe("notion_search");
     expect(callbacks.getConnectionStatus("notion")).toBe("connected");

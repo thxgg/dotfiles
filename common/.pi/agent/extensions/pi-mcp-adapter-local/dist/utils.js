@@ -1,6 +1,50 @@
 import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { extname, isAbsolute, join } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import stripJsonComments from "strip-json-comments";
+export function stripUtf8Bom(raw) {
+    return raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+}
+export function parseJsonWithComments(raw) {
+    return JSON.parse(stripJsonComments(stripUtf8Bom(raw), { trailingCommas: true }));
+}
+/** Resolve a candidate only when its real path stays within the real root. */
+export function resolveRealContainedPath(root, candidate, allowMissing = false) {
+    const contained = resolveContainedPath(root, candidate);
+    if (!contained)
+        return null;
+    const canonical = (path) => {
+        let existing = path;
+        while (allowMissing && !existsSync(existing)) {
+            const parent = dirname(existing);
+            if (parent === existing)
+                throw new Error("No existing path ancestor");
+            existing = parent;
+        }
+        return resolve(realpathSync(existing), relative(existing, path));
+    };
+    try {
+        return resolveContainedPath(canonical(root), canonical(contained));
+    }
+    catch {
+        return null;
+    }
+}
+export function resolveContainedPath(root, candidate) {
+    const resolved = resolve(root, candidate);
+    const rel = relative(root, resolved);
+    return rel === "" || (!rel.startsWith("..") && !rel.startsWith(sep) && !isAbsolute(rel)) ? resolved : null;
+}
+export function stableStringify(value) {
+    if (value === null || typeof value !== "object")
+        return JSON.stringify(value) ?? "undefined";
+    if (Array.isArray(value)) {
+        return `[${value.map(item => stableStringify(item)).join(",")}]`;
+    }
+    const object = value;
+    return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${stableStringify(object[key])}`).join(",")}}`;
+}
 async function execOpen(pi, target, browser, signal) {
     const os = platform();
     if (os === "darwin") {
@@ -81,7 +125,7 @@ export function interpolateEnvVars(value, environment = process.env) {
         .replace(/\$env:(\w+)/g, (_, name) => environment[name] ?? "")
         .replace(/\{env:(\w+)\}/g, (_, name) => environment[name] ?? "");
 }
-function getMissingEnvVars(value, environment) {
+export function getMissingEnvVars(value, environment = process.env) {
     const missing = new Set();
     for (const match of value.matchAll(/\$\{(\w+)\}|\$env:(\w+)|\{env:(\w+)\}/g)) {
         const name = match[1] ?? match[2] ?? match[3];
@@ -182,11 +226,18 @@ export function resolveServerUrl(definition, environment = process.env) {
 export function resolveConfigPath(value, environment = process.env) {
     if (value === undefined)
         return undefined;
-    const resolved = interpolateEnvVars(value, environment);
+    return expandHomePath(interpolateEnvVars(value, environment));
+}
+/** Expand a leading home-directory marker without interpolating environment variables. */
+export function expandHomePath(value) {
+    if (value === undefined)
+        return undefined;
+    const resolved = value;
     if (resolved === "~")
         return homedir();
-    if (resolved.startsWith("~/") || resolved.startsWith("~\\")) {
-        return join(homedir(), resolved.slice(2));
+    if (resolved.startsWith("~/") || (platform() === "win32" && resolved.startsWith("~\\"))) {
+        const suffix = platform() === "win32" ? resolved.slice(2).replace(/[\\/]/g, sep) : resolved.slice(2);
+        return join(homedir(), suffix);
     }
     return resolved;
 }
@@ -267,6 +318,13 @@ export function truncateAtWord(text, target) {
     }
     return truncated + "...";
 }
+/** Request `_meta` key that lets MCP servers correlate a call with the Pi tool call that made it. */
+export const TOOL_CALL_ID_REQUEST_META_KEY = "pi-mcp-adapter/toolCallId";
+export function withToolCallIdMeta(meta, toolCallId) {
+    if (!toolCallId)
+        return meta;
+    return { ...meta, [TOOL_CALL_ID_REQUEST_META_KEY]: toolCallId };
+}
 export function normalizeDirectToolInputSchema(schema) {
     const inputSchema = schema && typeof schema === "object" && !Array.isArray(schema)
         ? schema
@@ -342,6 +400,19 @@ export function formatMcpStatus(config, message) {
     if (config.settings?.mcpFooterStatus === "off")
         return undefined;
     return `${config.settings?.showStatusIcon === false ? "MCP: " : "🔌 MCP: "}${message}`;
+}
+export function formatMcpFooterStatus(config, enabledCount, disabledCount, connectedCount) {
+    if (enabledCount + disabledCount === 0 || config.settings?.mcpFooterStatus === "off")
+        return undefined;
+    const footerStatus = config.settings?.mcpFooterStatus ?? "full";
+    if (footerStatus === "compact")
+        return `MCP ${connectedCount}/${enabledCount}`;
+    let status = `${enabledCount} ${enabledCount === 1 ? "server" : "servers"} enabled`;
+    if (connectedCount > 0)
+        status += ` (${connectedCount} connected)`;
+    if (disabledCount > 0)
+        status += ` (${disabledCount} disabled)`;
+    return formatMcpStatus(config, status);
 }
 /**
  * Extract the adapter-owned UI stream mode from tool metadata.

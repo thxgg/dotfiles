@@ -7,6 +7,8 @@ export interface FileSystem {
   writeFileAtomic(path: string, content: string): Promise<void>;
   access(path: string, mode?: number): Promise<boolean>;
   readdir(path: string): Promise<Array<{ name: string; isDirectory: boolean; isFile: boolean; isSymbolicLink: boolean }>>;
+  /** Resolve a skill root to its canonical directory for deduplication. */
+  realpath(path: string): Promise<string>;
   stat(path: string): Promise<{ isDirectory: boolean; isFile: boolean; mode: number }>;
 }
 
@@ -55,6 +57,11 @@ export class NodeFileSystem implements FileSystem {
       isFile: entry.isFile(),
       isSymbolicLink: entry.isSymbolicLink(),
     }));
+  }
+
+  /** Resolve symlinks without changing the directory. */
+  async realpath(path: string): Promise<string> {
+    return fs.realpath(path);
   }
 
   async stat(path: string): Promise<{ isDirectory: boolean; isFile: boolean; mode: number }> {

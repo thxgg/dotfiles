@@ -12,6 +12,7 @@ SPECIAL_LEAF_TARGETS=(.codex/AGENTS.md)
 LIST_CONFIG_ONLY=0
 ONLY_CONFIG_CSV=""
 CONFIG_ONLY_MODE=0
+PI_ONLY_MODE=0
 
 typeset -a package_roots deploy_paths conflict_paths backup_ok backup_failed config_children special_leaf_paths
 typeset -a ssh_source_dirs config_source_dirs requested_config_children invalid_config_children
@@ -25,6 +26,7 @@ Usage: ./safe-stow.sh [options]
 
 Options:
   --only-config <csv>  Link only selected ~/.config children (e.g. nvim,ghostty)
+  --only-pi           Link only the Pi workspace without migrating runtime state
   --list-config        List available ~/.config components and exit
   --help               Show this help
 EOF
@@ -42,6 +44,10 @@ while [[ $# -gt 0 ]]; do
             ONLY_CONFIG_CSV="$2"
             shift 2
             ;;
+        --only-pi)
+            PI_ONLY_MODE=1
+            shift
+            ;;
         --list-config)
             LIST_CONFIG_ONLY=1
             shift
@@ -58,8 +64,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ $LIST_CONFIG_ONLY -eq 1 && $CONFIG_ONLY_MODE -eq 1 ]]; then
-    echo "Error: --list-config cannot be combined with --only-config"
+if (( LIST_CONFIG_ONLY + CONFIG_ONLY_MODE + PI_ONLY_MODE > 1 )); then
+    echo "Error: --list-config, --only-config, and --only-pi cannot be combined"
     exit 1
 fi
 
@@ -67,7 +73,7 @@ if [[ $CONFIG_ONLY_MODE -eq 1 || $LIST_CONFIG_ONLY -eq 1 ]]; then
     include_deploy_paths=0
 fi
 
-if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 ]] && ! command -v stow >/dev/null 2>&1; then
+if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 && $PI_ONLY_MODE -eq 0 ]] && ! command -v stow >/dev/null 2>&1; then
     echo "Error: stow is required but not installed."
     exit 1
 fi
@@ -742,6 +748,17 @@ fi
 
 collect_special_source_dirs
 
+if [[ $PI_ONLY_MODE -eq 1 ]]; then
+    deploy_paths=("${(@M)deploy_paths:#.pi/*}")
+    [[ ${#deploy_paths[@]} -gt 0 ]] || { echo "Error: no Pi workspace files found"; exit 1; }
+    special_leaf_paths=("${deploy_paths[@]}")
+    config_children=()
+    config_source_dirs=()
+    ssh_source_dirs=()
+    # Scoped Pi deployment must not migrate runtime state or link other roots.
+    include_deploy_paths=0
+fi
+
 if [[ $LIST_CONFIG_ONLY -eq 1 ]]; then
     print_available_config_children
     exit 0
@@ -776,6 +793,10 @@ for item in "${deploy_paths[@]}"; do
 
     ancestor_conflict="$(find_ancestor_symlink_conflict "$target_path" "$source_path" || true)"
     if [[ -n "$ancestor_conflict" ]]; then
+        if [[ $PI_ONLY_MODE -eq 1 ]]; then
+            echo "Error: Pi-only deployment cannot replace ancestor symlink: $ancestor_conflict"
+            exit 1
+        fi
         if record_conflict_path "$ancestor_conflict"; then
             echo "Found conflict: $ancestor_conflict"
         fi
@@ -857,6 +878,9 @@ if [[ $include_deploy_paths -eq 1 ]]; then
     link_dot_command
 fi
 
+if [[ $PI_ONLY_MODE -eq 1 ]]; then
+    link_special_leaf_paths
+fi
 link_config_children
 
 echo "Stow completed successfully"

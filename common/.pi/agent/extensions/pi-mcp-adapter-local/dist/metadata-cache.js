@@ -3,10 +3,11 @@ import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "
 import { dirname } from "node:path";
 import { getAgentPath } from "./agent-dir.js";
 import { createHash } from "node:crypto";
+import { isBuiltInAgentPlugin } from "./agent-plugin-provenance.js";
 import { getToolUiResourceUri } from "./ui-app-bridge-helpers.js";
-import { createToolSelectorCandidateIndex, formatPromptCommandName, formatToolName, getToolNameCandidates, isServerDisabled, isToolAllowed, resolveToolPrefix } from "./types.js";
+import { createToolSelectorCandidateIndex, formatPromptCommandName, formatToolName, getToolNameCandidates, isServerDisabled, isToolAllowed, resolveToolPrefix, resolveUniqueNameOwnership } from "./types.js";
 import { resourceNameToToolName } from "./resource-tools.js";
-import { extractToolUiStreamMode, interpolateEnvRecord, interpolateEnvVars, resolveBearerToken, resolveConfigPath, resolveServerUrl, } from "./utils.js";
+import { extractToolUiStreamMode, interpolateEnvRecord, interpolateEnvVars, resolveBearerToken, resolveConfigPath, resolveServerUrl, stableStringify, } from "./utils.js";
 import { extractUiToolVisibility, isUiToolVisibleToModel } from "./ui-tool-visibility.js";
 const CACHE_VERSION = 1;
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -57,14 +58,17 @@ export function computeServerHash(definition, environment = process.env) {
     // Hash only fields that affect server identity and tool/resource output.
     // Exclude lifecycle, idleTimeout, requestTimeoutMs, debug — those are runtime behavior settings
     // that don't change which tools a server exposes.
+    const isStdio = !!definition.command;
+    const literalEnv = isBuiltInAgentPlugin(definition, "env") || (isStdio && definition.literalEnv === true);
     const identity = {
-        command: definition.command,
+        command: resolveConfigPath(definition.command, environment),
         args: definition.args,
         socket: resolveConfigPath(definition.socket, environment),
-        env: interpolateEnvRecord(definition.env, environment),
-        cwd: resolveConfigPath(definition.cwd, environment),
+        env: literalEnv ? definition.env : interpolateEnvRecord(definition.env, environment),
+        ...(isStdio ? { inheritEnv: definition.inheritEnv !== false, literalEnv } : {}),
+        cwd: isBuiltInAgentPlugin(definition, "cwd") ? definition.cwd : resolveConfigPath(definition.cwd, environment),
         url: resolveServerUrl(definition, environment),
-        headers: interpolateEnvRecord(definition.headers, environment),
+        headers: isBuiltInAgentPlugin(definition, "headers") ? definition.headers : interpolateEnvRecord(definition.headers, environment),
         requestHeadersCommand: definition.requestHeadersCommand
             ? {
                 command: interpolateEnvVars(definition.requestHeadersCommand.command, environment),
@@ -153,7 +157,6 @@ export function getMissingConfiguredDirectToolServers(config, cache, envOverride
 }
 export function reconstructToolMetadata(serverName, entry, prefix, definition, configuredServers, cache, sharedSelectorCandidateIndex) {
     const metadata = [];
-    const seenNames = new Set();
     const effectivePrefix = resolveToolPrefix(definition, prefix);
     const hasToolFilters = (Array.isArray(definition.includeTools) && definition.includeTools.length > 0) ||
         (Array.isArray(definition.excludeTools) && definition.excludeTools.length > 0);
@@ -172,10 +175,6 @@ export function reconstructToolMetadata(serverName, entry, prefix, definition, c
             continue;
         }
         const name = formatToolName(tool.name, serverName, effectivePrefix);
-        if (seenNames.has(name)) {
-            continue;
-        }
-        seenNames.add(name);
         metadata.push({
             name,
             originalName: tool.name,
@@ -196,10 +195,6 @@ export function reconstructToolMetadata(serverName, entry, prefix, definition, c
                 continue;
             }
             const name = formatToolName(baseName, serverName, effectivePrefix);
-            if (seenNames.has(name)) {
-                continue;
-            }
-            seenNames.add(name);
             metadata.push({
                 name,
                 originalName: baseName,
@@ -208,7 +203,7 @@ export function reconstructToolMetadata(serverName, entry, prefix, definition, c
             });
         }
     }
-    return metadata;
+    return resolveUniqueNameOwnership(metadata, (tool) => tool.name).unique;
 }
 export function createCachedToolSelectorCandidateIndex(configuredServers, cache, prefix) {
     const candidates = new Set();
@@ -297,18 +292,6 @@ export function reconstructPromptMetadata(serverName, prompts, prefix, definitio
             arguments: args,
         };
     });
-}
-function stableStringify(value) {
-    if (value === null || value === undefined || typeof value !== "object") {
-        const serialized = JSON.stringify(value);
-        return serialized === undefined ? "undefined" : serialized;
-    }
-    if (Array.isArray(value)) {
-        return `[${value.map(v => stableStringify(v)).join(",")}]`;
-    }
-    const obj = value;
-    const keys = Object.keys(obj).sort();
-    return `{${keys.map(k => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
 }
 function tryGetToolUiResourceUri(tool) {
     try {

@@ -38,8 +38,8 @@ class StowSafety(unittest.TestCase):
         self.put(self.repo / 'common/.pi/package-lock.json', '{}\n')
         (self.repo / 'common/.pi/node_modules').mkdir()
         # Keep full doctor runs isolated from all optional dependency probes.
-        self.put(self.repo / 'scripts/lib/pi-transcribe.zsh',
-                 'dotfiles_check_pi_transcribe() { print -r -- transcribe >> "$TOOL_LOG"; }\n')
+        self.put(self.repo / 'scripts/lib/pi-voice.zsh',
+                 'dotfiles_check_pi_voice() { print -r -- transcribe >> "$TOOL_LOG"; }\n')
         for name in ('stow', 'pi', 'vp', 'npm', 'amp', 'jq', 'git', 'ffmpeg'):
             tool = self.bin / name
             self.put(tool, '#!/bin/sh\n'
@@ -146,6 +146,33 @@ class StowSafety(unittest.TestCase):
         before = self.snapshot(self.base)
         self.run_script('safe-stow.sh', '--list-config')
         self.assertEqual(self.snapshot(self.base), before)
+
+    def test_pi_only_links_workspace_and_preserves_runtime_and_other_files(self):
+        self.put(self.repo / 'common/.pi/agent/settings.json', '{"do-not-deploy":true}')
+        runtime = self.put(self.home / '.pi/agent/settings.json', '{"local":true}')
+        unrelated = self.put(self.home / '.config/nvim/init.lua', 'local editor')
+        self.put(self.home / '.pi/agent/theme.json', 'old theme')
+        self.run_script('safe-stow.sh', '--only-pi')
+        self.assertEqual((self.home / '.pi/agent/theme.json').resolve(),
+                         self.repo / 'common/.pi/agent/theme.json')
+        self.assertEqual(self.backup('.pi/agent/theme.json').read_text(), 'old theme')
+        self.assertEqual(runtime.read_text(), '{"local":true}')
+        self.assertEqual(unrelated.read_text(), 'local editor')
+        self.assertFalse((self.home / '.codex').exists())
+        self.assertFalse((self.home / '.local/bin/dot').exists())
+        self.assert_no_tools()
+        before = self.snapshot(self.base)
+        self.run_script('safe-stow.sh', '--only-pi', '--only-config', 'nvim', expected=1)
+        self.assertEqual(self.snapshot(self.base), before)
+
+    def test_pi_only_rejects_foreign_ancestor_without_moving_runtime(self):
+        foreign = self.base / 'foreign-pi'
+        self.put(foreign / 'agent/settings.json', 'private runtime')
+        self.link(self.home / '.pi', foreign)
+        before = self.snapshot(self.base)
+        self.run_script('safe-stow.sh', '--only-pi', expected=1)
+        self.assertEqual(self.snapshot(self.base), before)
+        self.assert_no_tools()
 
     def test_config_only_leaves_codex_and_pi_unchanged(self):
         self.folded_pi()

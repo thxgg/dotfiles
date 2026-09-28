@@ -28,7 +28,7 @@ The root `dot` CLI wraps the repo scripts for day-to-day use:
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health plus the Pi runtime, extension workspace, and Pi Transcribe setup via `doctor.sh`
-- External Pi packages are declared in `common/.pi/agent/npm/package.json`. Pi Transcribe model setup remains manual through `/transcribe`; see [Pi setup](common/.pi/README.md#external-packages-and-pi-transcribe).
+- External Pi packages are declared in `common/.pi/agent/npm/package.json`. Pi Voice model setup remains manual through `/voice-settings`; see [Pi setup](common/.pi/README.md#external-packages-and-pi-voice).
 - `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
 
 After setup, use `dot` from anywhere in a new shell. If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`; both also refresh the `~/.local/bin/dot` symlink.

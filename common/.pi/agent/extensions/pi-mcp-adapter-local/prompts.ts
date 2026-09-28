@@ -6,7 +6,6 @@ import type {
 import type { McpExtensionState } from "./state.ts";
 import { isServerDisabled, type McpConfig, type PromptMetadata } from "./types.ts";
 import { formatPromptCommandName } from "./types.ts";
-import { lazyConnect } from "./init.ts";
 import { isServerCacheValid, loadMetadataCache, reconstructPromptMetadata } from "./metadata-cache.ts";
 import { logger } from "./logger.ts";
 import { truncateAtWord } from "./utils.ts";
@@ -226,17 +225,41 @@ function extractMessageText(message: PromptMessage): string {
  * per prompt at extension load time from the metadata cache; the same
  * factory is reused by tests to invoke the handler without a running pi.
  */
+export interface PromptRuntimeDependencies {
+  ensureState?: (ctx: ExtensionCommandContext) => Promise<McpExtensionState | null>;
+  lazyConnect?: (state: McpExtensionState, serverName: string, signal?: AbortSignal) => Promise<boolean>;
+  isStateCurrent?: (state: McpExtensionState) => boolean;
+}
+
+let defaultRuntimePromise: Promise<typeof import("./init.ts")> | null = null;
+function loadDefaultRuntime(): Promise<typeof import("./init.ts")> {
+  return defaultRuntimePromise ??= import("./init.ts").catch((error) => {
+    defaultRuntimePromise = null;
+    throw error;
+  });
+}
+
 export function createPromptCommand(
   pi: ExtensionAPI,
   getState: () => McpExtensionState | null,
   metadata: PromptMetadata,
+  runtime: PromptRuntimeDependencies = {},
 ) {
   const description = buildCommandDescription(metadata);
 
   return {
     description,
     handler: async (args: string, ctx: ExtensionCommandContext) => {
-      const state = getState();
+      let state = getState();
+      if (!state && runtime.ensureState) {
+        try {
+          state = await runtime.ensureState(ctx);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (ctx.hasUI) ctx.ui.notify(`MCP initialization failed: ${message}`, "error");
+          return;
+        }
+      }
       if (!state) {
         if (ctx.hasUI) ctx.ui.notify("MCP not initialized", "error");
         return;
@@ -246,7 +269,7 @@ export function createPromptCommand(
       if (state.promptMetadataLive?.has(metadata.serverName) && !liveMetadata) {
         if (ctx.hasUI) {
           ctx.ui.notify(
-            `MCP prompt "${metadata.originalName}" is no longer advertised by server "${metadata.serverName}". Run /mcp reconnect to refresh.`,
+            `MCP prompt "${metadata.originalName}" is no longer advertised by server "${metadata.serverName}". Run /mcp-adapter reconnect to refresh.`,
             "error",
           );
         }
@@ -264,20 +287,27 @@ export function createPromptCommand(
       if (!state.config.mcpServers[metadata.serverName]) {
         if (ctx.hasUI) {
           ctx.ui.notify(
-            `MCP prompt "${live.originalName}" is no longer configured. Run /mcp reconnect to refresh.`,
+            `MCP prompt "${live.originalName}" is no longer configured. Run /mcp-adapter reconnect to refresh.`,
             "error",
           );
         }
         return;
       }
 
-      const connected = await lazyConnect(state, metadata.serverName, ctx.signal);
+      const expectedState = state;
+      const isStateCurrent = () => runtime.isStateCurrent
+        ? runtime.isStateCurrent(expectedState)
+        : getState() === expectedState;
+      const lazyConnect = runtime.lazyConnect ?? (await loadDefaultRuntime()).lazyConnect;
+      if (!isStateCurrent()) return;
+      const connected = await lazyConnect(expectedState, metadata.serverName, ctx.signal);
+      if (!isStateCurrent()) return;
       if (!connected) {
         if (ctx.hasUI) {
           const conn = state.manager.getConnection(metadata.serverName);
           const message = conn?.status === "needs-auth"
             ? `MCP server "${metadata.serverName}" needs authentication. Run /mcp-auth ${metadata.serverName}.`
-            : `MCP server "${metadata.serverName}" is not available. Run /mcp reconnect ${metadata.serverName}.`;
+            : `MCP server "${metadata.serverName}" is not available. Run /mcp-adapter reconnect ${metadata.serverName}.`;
           ctx.ui.notify(message, "error");
         }
         return;
@@ -287,7 +317,7 @@ export function createPromptCommand(
       if (state.promptMetadataLive?.has(metadata.serverName) && !refreshed) {
         if (ctx.hasUI) {
           ctx.ui.notify(
-            `MCP prompt "${metadata.originalName}" is no longer advertised by server "${metadata.serverName}". Run /mcp reconnect to refresh.`,
+            `MCP prompt "${metadata.originalName}" is no longer advertised by server "${metadata.serverName}". Run /mcp-adapter reconnect to refresh.`,
             "error",
           );
         }
@@ -305,12 +335,14 @@ export function createPromptCommand(
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.debug(`MCP prompt "${live.originalName}" on ${metadata.serverName} failed: ${message}`);
+        if (!isStateCurrent()) return;
         if (ctx.hasUI) {
           ctx.ui.notify(`MCP prompt "${live.originalName}" failed: ${message}`, "error");
         }
         return;
       }
 
+      if (!isStateCurrent()) return;
       const text = formatPromptResult(result);
       if (!text) {
         if (ctx.hasUI) {
@@ -338,7 +370,7 @@ function buildCommandDescription(metadata: PromptMetadata): string {
 }
 
 /**
- * Public helper used by `/mcp prompts` to render the list of prompts known
+ * Public helper used by `/mcp-adapter prompts` to render the list of prompts known
  * to the adapter, whether from a live connection or the metadata cache.
  */
 export function listAllPromptMetadata(state: McpExtensionState): PromptMetadata[] {

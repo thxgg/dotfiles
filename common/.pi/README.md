@@ -2,6 +2,8 @@
 
 This directory is the npm workspace for package-style global Pi extensions under `agent/extensions/`.
 Pi auto-discovers those extensions after `common/` is stowed into `$HOME`.
+Use `./safe-stow.sh --only-pi` from the repository root to deploy only Pi files.
+This mode backs up conflicts and does not migrate runtime state or touch other dotfiles.
 
 ## Install exact dependencies
 
@@ -14,11 +16,11 @@ Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot updat
 
 The workspace targets Pi `0.87.1`. Pi now declares its own `@earendil-works/pi-server` dependency; the workspace no longer pins that transitive dependency directly.
 
-## External packages and Pi Transcribe
+## External packages and Pi Voice
 
 `agent/npm/package.json` is the single external package declaration. Its standard `dependencies`
 map declares npm packages. Its repository-specific `piPackages` array declares pinned HTTPS Git
-sources such as Pi Transcribe. This custom field is consumed by our setup helper, not by npm or Pi.
+sources when needed. This custom field is consumed by our setup helper, not by npm or Pi.
 
 `setup.sh` and `dot update` register these sources with `pi install`. Registration is necessary:
 installing npm dependencies alone does not make Pi discover their resources. The helper preserves
@@ -31,14 +33,14 @@ To restore declared packages without running the full bootstrap, run from the re
 zsh scripts/install-pi-packages.zsh
 ```
 
-Pi Transcribe uses a public HTTPS source pinned to a tested commit. To update it, change the ref
-in `agent/npm/package.json`, then run the helper. `pi update --extensions` keeps that pin.
-Pi manages the checkout and dependencies under `~/.pi/agent/git/`; do not edit or Stow that directory.
-Pi can reset and clean this checkout when it changes the pinned ref.
+Pi Voice is pinned to `@earendil-works/pi-voice@0.1.0`. Change the dependency in
+`agent/npm/package.json` to update it. The helper installs the replacement before removing
+legacy Pi Transcribe Git registrations. Pi Voice migrates `pi-transcribe.json` to
+`pi-voice.json` on first use. Model files remain in the local cache.
 
 ### First model setup on each machine
 
-Run `/transcribe` in interactive Pi. Select and confirm the model download. Use these preferences:
+Run `/voice-settings` in interactive Pi (`/transcribe` remains an alias). Select and confirm the model download. Use these preferences:
 
 | Setting | Preferred value |
 | --- | --- |
@@ -52,13 +54,22 @@ These are documented defaults, not an automatically applied settings file. Model
 explicit. On macOS, allow microphone access for the terminal app when prompted.
 
 FFmpeg is declared in both OS package manifests. It is required for `transcribe_file`, but not for
-microphone dictation. If it is outside `PATH`, set `PI_TRANSCRIBE_FFMPEG_PATH` locally.
+microphone dictation. If it is outside `PATH`, set `PI_VOICE_FFMPEG_PATH` locally. The legacy `PI_TRANSCRIBE_FFMPEG_PATH` is also supported.
 
-Keep `~/.pi/agent/pi-transcribe.json` machine-local. It contains an absolute model path, and the
+Keep `~/.pi/agent/pi-voice.json` machine-local. It contains an absolute model path, and the
 extension replaces it when saving settings. Do not symlink it into the repository. Downloaded
 models remain in the local Hugging Face cache. `doctor.sh` checks package registration, the pinned
-checkout, FFmpeg availability, and the configured model file. These checks do not record audio,
+npm version, FFmpeg availability, and the configured model file. These checks do not record audio,
 load a model, or download files.
+
+## MCP adapter fork
+
+The vendored adapter targets upstream 3.1.0. Keep the local shared-project-config opt-out
+and strict OAuth environment interpolation patches when updating it. Adapter-owned files
+are now `~/.pi/agent/mcp-adapter.json` and `.pi/mcp-adapter.json`; shared `.mcp.json`
+files keep their names. `pi-ephemeral` writes the adapter-owned project file. Rename old
+adapter `mcp.json` files only after checking that no destination exists. Do not move files
+owned by Pi's built-in MCP support. Project servers now require trust and approval.
 
 ## Validate extensions
 

@@ -1,11 +1,18 @@
 import { execFile } from "node:child_process";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { fileURLToPath } from "node:url";
 import { createMcpAdapter } from "../index.ts";
 import { runMcpScript } from "../mcp-code.ts";
+import { loadMcpScriptWasm } from "../mcp-script-wasm.ts";
+import { executeCall } from "../proxy-modes.ts";
 import { buildToolMetadata } from "../tool-metadata.ts";
 import { McpServerManager } from "../server-manager.ts";
+import { getTestSecureKeyringReadCount, resetTestSecureKeyring } from "../secure-keyring.ts";
 import type { McpExtensionState } from "../state.ts";
 import { MCP_TOOL_APPROVAL_REQUEST_EVENT, type McpToolApprovalRequest } from "../types.ts";
 
@@ -15,6 +22,7 @@ const fdRunner = fileURLToPath(new URL("./fixtures/mcp-code-fd-runner.ts", impor
 const definition = { command: process.execPath, args: [fixture] };
 let manager: McpServerManager;
 let state: McpExtensionState;
+let intermediateState: McpExtensionState;
 
 function textBlocks(result: Awaited<ReturnType<typeof runMcpScript>>): string[] {
   return result.content
@@ -39,6 +47,8 @@ describe("runMcpScript", () => {
       description: expect.stringContaining("multiple MCP tool calls in one request"),
       promptSnippet: "Batch multiple MCP tool calls in one JavaScript request (loop, filter, chain)",
     }));
+    const scriptTool = registerTool.mock.calls.find(([tool]) => tool.name === "mcpScript")?.[0];
+    expect(scriptTool.description).not.toContain("Load the mcp-scripting skill");
     expect(registerTool).not.toHaveBeenCalledWith(expect.objectContaining({ name: "mcp_script" }));
   });
 
@@ -55,6 +65,19 @@ describe("runMcpScript", () => {
 
     expect(registerTool).toHaveBeenCalled();
     expect(registerTool).not.toHaveBeenCalledWith(expect.objectContaining({ name: "mcpScript" }));
+  });
+
+  it("retries loading QuickJS after a failed wasm read", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "mcp-script-wasm-"));
+    const target = join(directory, "quickjs.wasm");
+    try {
+      await expect(loadMcpScriptWasm(target)).rejects.toThrow();
+      const source = createRequire(import.meta.url).resolve("quickjs-wasi/quickjs.wasm");
+      await copyFile(source, target);
+      await expect(loadMcpScriptWasm(target)).resolves.toBeDefined();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it.runIf(Number.parseInt(process.versions.node, 10) >= 24)(
@@ -110,6 +133,15 @@ describe("runMcpScript", () => {
       failureTracker: new Map(),
       completedUiSessions: [],
     } as unknown as McpExtensionState;
+    intermediateState = {
+      ...state,
+      toolMetadata: new Map([["fixture", [
+        ...state.toolMetadata.get("fixture")!,
+        { name: "fixture_sized", originalName: "sized" },
+        { name: "fixture_read_resource", originalName: "read_resource", resourceUri: "fixture://text" },
+        { name: "fixture_read_empty", originalName: "read_empty", resourceUri: "fixture://empty" },
+      ]]]),
+    };
   });
 
   afterAll(async () => {
@@ -128,6 +160,50 @@ describe("runMcpScript", () => {
       },
     });
     expect(payload.error.message).not.toContain("mcp({ search:");
+  });
+
+  it("taints later direct and semantic evaluations with every server-attributed call", async () => {
+    const originalKey = process.env.SYSTEMONE_API_KEY;
+    const originalStore = process.env.PI_MCP_ADAPTER_TEST_AUTH_STORE;
+    delete process.env.SYSTEMONE_API_KEY;
+    process.env.PI_MCP_ADAPTER_TEST_AUTH_STORE = "memory";
+    resetTestSecureKeyring();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const taintedState = {
+        ...state,
+        config: {
+          settings: { jev: { scriptEvaluation: true, semanticSearch: true, allowedServers: ["allowed"] } },
+          mcpServers: { fixture: definition, allowed: { command: "unused" } },
+        },
+        toolMetadata: new Map([
+          ...state.toolMetadata,
+          ["allowed", [{ name: "allowed_lookup", originalName: "lookup", description: "Allowed lookup" }]],
+        ]),
+      } as unknown as McpExtensionState;
+      for (const path of ["fixture_echo", "fixture_fail"]) {
+        const result = await runMcpScript(taintedState, `
+          const call = await tools.call(${JSON.stringify(path)}, { value: "blocked data" });
+          const direct = await jev.evaluate({ state: { copied: call }, questions: { q: { type: "noul" } } });
+          const semantic = await tools.search({ query: "copied blocked data", searchMode: "semantic" });
+          return { direct, semantic, continued: true };
+        `);
+        expect(JSON.parse(textBlocks(result).at(-1)!)).toMatchObject({
+          direct: { ok: false, error: { code: "data_policy_denied" } },
+          semantic: { error: { code: "data_policy_denied" } },
+          continued: true,
+        });
+      }
+      expect(getTestSecureKeyringReadCount()).toBe(0);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalKey === undefined) delete process.env.SYSTEMONE_API_KEY;
+      else process.env.SYSTEMONE_API_KEY = originalKey;
+      if (originalStore === undefined) delete process.env.PI_MCP_ADAPTER_TEST_AUTH_STORE;
+      else process.env.PI_MCP_ADAPTER_TEST_AUTH_STORE = originalStore;
+      resetTestSecureKeyring();
+    }
   });
 
   it("searches the script-visible tool catalog with pagination and server filtering", async () => {
@@ -353,6 +429,82 @@ describe("runMcpScript", () => {
     });
   });
 
+  it("filters a large intermediate to [7] without exposing raw data or spill metadata", async () => {
+    const result = await runMcpScript(intermediateState, `
+      const response = await tools.call("fixture_sized", { bytes: 128 * 1024 });
+      return response.data.structuredContent.rows.filter(id => id === 7);
+    `);
+    expect(textBlocks(result)).toHaveLength(1);
+    expect(JSON.parse(textBlocks(result)[0])).toEqual([7]);
+    expect(result.details).toMatchObject({ calls: [{ path: "fixture_sized", ok: true }] });
+    expect(JSON.stringify(result)).not.toMatch(/padding|omitted|fullResultPath|fullOutputPath|outputGuard/);
+  });
+
+  it("keeps ordinary calls guarded even with script origin, and guards final script output", async () => {
+    const value = "private-tail".padStart(128 * 1024, "x");
+    const ordinary = await executeCall(state, "fixture_echo", { value }, undefined, undefined, undefined, "script");
+    expect(ordinary.details).toMatchObject({ outputGuard: { truncated: true }, mcpResult: { omitted: true } });
+    expect(JSON.stringify(ordinary)).not.toContain("private-tail");
+    const result = await runMcpScript(state, `return (await tools.fixture_echo({ value: ${JSON.stringify(value)} })).data.content[0].text;`);
+    expect(result.details).toMatchObject({ outputGuard: { truncated: true } });
+    expect(JSON.stringify(result)).not.toContain("private-tail");
+  });
+
+  it("admits exactly 16 MiB cumulatively across sequential successful results", async () => {
+    const result = await runMcpScript(intermediateState, `
+      const first = await tools.fixture_sized({ bytes: 8 * 1024 * 1024 });
+      const second = await tools.fixture_sized({ bytes: 8 * 1024 * 1024 });
+      const excess = await tools.fixture_echo({ value: "over budget" });
+      return { admitted: [first.ok, second.ok], excess, continued: true };
+    `);
+    expect(JSON.parse(textBlocks(result).at(-1)!)).toMatchObject({
+      admitted: [true, true], continued: true,
+      excess: { ok: false, error: { code: "intermediate_result_too_large", message: expect.any(String) } },
+    });
+    expect(result.details).toMatchObject({ calls: [
+      { ok: true, durationMs: expect.any(Number) },
+      { ok: true, durationMs: expect.any(Number) },
+      { ok: false, error: "intermediate_result_too_large", durationMs: expect.any(Number) },
+    ] });
+    expect(result.details).not.toHaveProperty("error");
+  });
+
+  it("shares the cumulative budget across parallel calls without depending on admission order", async () => {
+    const result = await runMcpScript(intermediateState, `
+      const responses = await Promise.all([1, 2, 3].map(() => tools.fixture_sized({ bytes: 6 * 1024 * 1024 })));
+      return responses.map(r => r.ok ? "admitted" : r.error.code).sort();
+    `);
+    expect(JSON.parse(textBlocks(result).at(-1)!)).toEqual(["admitted", "admitted", "intermediate_result_too_large"]);
+    expect(result.details).toMatchObject({ calls: expect.arrayContaining([
+      expect.objectContaining({ ok: true, durationMs: expect.any(Number) }),
+      expect.objectContaining({ ok: false, error: "intermediate_result_too_large", durationMs: expect.any(Number) }),
+    ]) });
+  });
+
+  it("counts UTF-8 JSON bytes, rejects one byte over, and does not charge rejected bytes", async () => {
+    const result = await runMcpScript(intermediateState, `
+      await tools.fixture_sized({ bytes: 8 * 1024 * 1024 });
+      const rejected = await tools.fixture_sized({ bytes: 8 * 1024 * 1024 + 1, multibyte: true });
+      const exact = await tools.fixture_sized({ bytes: 8 * 1024 * 1024, multibyte: true });
+      return { rejected, admitted: exact.ok, rows: exact.data?.structuredContent.rows ?? null, error: exact.error ?? null };
+    `);
+    expect(JSON.parse(textBlocks(result).at(-1)!)).toMatchObject({
+      rejected: { ok: false, error: { code: "intermediate_result_too_large" } }, admitted: true, rows: [7], error: null,
+    });
+    expect(result.details).toMatchObject({ calls: [
+      { ok: true }, { ok: false, error: "intermediate_result_too_large" }, { ok: true },
+    ] });
+    const nextScript = await runMcpScript(intermediateState, 'return (await tools.fixture_echo({ value: "fresh budget" })).ok;');
+    expect(textBlocks(nextScript)).toEqual(["true"]);
+  });
+
+  it("preserves resource text joining and the empty-resource fallback", async () => {
+    const result = await runMcpScript(intermediateState, 'return [await tools.fixture_read_resource({}), await tools.fixture_read_empty({})];');
+    expect(JSON.parse(textBlocks(result).at(-1)!)).toEqual([
+      { ok: true, data: "first\nsecond" }, { ok: true, data: "(empty resource)" },
+    ]);
+  });
+
   it("returns a failure envelope and lets the script continue", async () => {
     const result = await runMcpScript(
       state,
@@ -441,6 +593,46 @@ describe("runMcpScript", () => {
     expect(textBlocks(result)).toEqual(["first", "[console.log] second", "last"]);
   });
 
+  it("stops scripts that exceed the emitted output budget and keeps prior blocks", async () => {
+    const result = await runMcpScript(
+      state,
+      'emit("before limit"); for (let i = 0; i < 17; i++) console.log("x".repeat(1024 * 1024)); emit("after limit");',
+    );
+
+    const blocks = textBlocks(result);
+    expect(blocks[0]).toContain("before limit");
+    expect(blocks.join("\n")).not.toContain("after limit");
+    expect(result.details).toMatchObject({
+      error: "script_error",
+      message: "mcpScript output exceeds the 16 MiB per-script budget",
+    });
+  });
+
+  it("counts image metadata against the emitted output budget", async () => {
+    const result = await runMcpScript(
+      state,
+      `emit("before images");
+      for (let i = 0; i < 17; i++) emit({ type: "image", data: "", mimeType: "x".repeat(1024 * 1024) });
+      emit("after images");`,
+    );
+
+    expect(textBlocks(result)).toContain("before images");
+    expect(textBlocks(result)).not.toContain("after images");
+    expect(result.details).toMatchObject({
+      error: "script_error",
+      message: "mcpScript output exceeds the 16 MiB per-script budget",
+    });
+  });
+
+  it("truncates oversized thrown values before returning them to the host", async () => {
+    const result = await runMcpScript(state, 'throw "x".repeat(1024 * 1024);');
+    const message = String(result.details.message);
+
+    expect(result.details).toMatchObject({ error: "script_error" });
+    expect(Buffer.byteLength(message, "utf8")).toBeLessThanOrEqual(64 * 1024);
+    expect(message).toMatch(/\n\.\.\.\[mcpScript error truncated\]$/);
+  });
+
   it("formats non-JSON values in emitted, returned, and console output", async () => {
     const result = await runMcpScript(
       state,
@@ -483,5 +675,47 @@ describe("runMcpScript", () => {
       message: "tools is not enumerable — use tools.search({ query })",
       globals: ["undefined", "undefined", "undefined"],
     });
+  });
+
+  it("keeps injected function constructors inside QuickJS", async () => {
+    const result = await runMcpScript(state, `
+      const probes = [emit, tools.fixture_echo, console.log].map((fn) =>
+        fn.constructor("return [typeof process, typeof require, typeof fetch, typeof setTimeout]")());
+      return probes;
+    `);
+
+    expect(JSON.parse(textBlocks(result)[0])).toEqual([
+      ["undefined", "undefined", "undefined", "undefined"],
+      ["undefined", "undefined", "undefined", "undefined"],
+      ["undefined", "undefined", "undefined", "undefined"],
+    ]);
+  });
+
+  it("terminates a runaway microtask chain", async () => {
+    const result = await runMcpScript(state, `
+      await new Promise(() => {
+        const spin = () => Promise.resolve().then(spin);
+        spin();
+      });
+    `, 300);
+
+    expect(result.details).toMatchObject({ error: "timeout", timeoutMs: 300 });
+  });
+
+  it("reports QuickJS memory exhaustion as a script error", async () => {
+    const result = await runMcpScript(state, `
+      const values = [];
+      while (true) values.push("x".repeat(1024 * 1024) + values.length);
+    `, 5_000);
+
+    expect(result.details).toMatchObject({ error: "script_error" });
+    expect(textBlocks(result).at(-1)).toMatch(/out of memory/i);
+  });
+
+  it("reports deep recursion as a script error instead of trapping the worker", async () => {
+    const result = await runMcpScript(state, "function recurse() { return recurse(); } recurse();");
+
+    expect(result.details).toMatchObject({ error: "script_error" });
+    expect(textBlocks(result).at(-1)).toMatch(/stack (?:overflow|size exceeded)/i);
   });
 });

@@ -10,6 +10,7 @@ import type {
 import type { TextContent, ImageContent } from "@earendil-works/pi-ai";
 import type { UiStreamMode, UiStreamSummary } from "./ui-stream-types.ts";
 import type { UiToolVisibility } from "./ui-tool-visibility.ts";
+import { createHash } from "node:crypto";
 
 export type Transport = McpTransport;
 
@@ -24,6 +25,7 @@ export type McpServerRuntimeStatus =
   | "failed"
   | "needs-auth"
   | "not-connected"
+  | "blocked"
   | "disabled";
 
 export type McpListenState =
@@ -44,6 +46,7 @@ export interface McpServerStatusSnapshot {
   readonly disabled: boolean;
   readonly listenState: McpListenState;
   readonly catalogStale?: boolean;
+  readonly blockedReason?: string;
 }
 
 export interface McpStatusSnapshot {
@@ -53,6 +56,13 @@ export interface McpStatusSnapshot {
   readonly totalResources: number;
   readonly connectedCount: number;
   readonly disabledCount: number;
+}
+
+export type ProjectServerBlockReason = "untrusted" | "approval-required" | "denied";
+
+export interface ProjectServerBlock {
+  reason: ProjectServerBlockReason;
+  source: { path: string };
 }
 
 /**
@@ -191,7 +201,7 @@ export interface UiServerHandle {
   sessionToken: string;
   serverName: string;
   toolName: string;
-  viewer?: "browser" | "glimpse" | "suppressed";
+  viewer?: "browser" | "glimpse" | "orca" | "suppressed";
   windowOpen?: boolean;
   close: (reason?: string) => void;
   sendToolInput: (args: Record<string, unknown>) => void;
@@ -388,8 +398,10 @@ export interface OAuthConfig {
   grantType?: "authorization_code" | "client_credentials";
   /** Pre-registered client ID (optional, dynamic registration used if not provided) */
   clientId?: string;
-  /** Client secret for confidential clients */
+  /** Client secret for confidential clients; requires an explicit clientId when clientMetadataUrl is set. */
   clientSecret?: string;
+  /** Operator-supplied public HTTPS Client ID Metadata Document URL (SEP-991); opt-in, with DCR remaining the default. */
+  clientMetadataUrl?: string;
   /** Requested OAuth scopes */
   scope?: string;
   /** Extra authorization URL parameters for provider-specific extensions. Flow-owned parameters cannot be overridden. */
@@ -433,6 +445,8 @@ export interface ServerEntry {
   cwd?: string;
   // HTTP fields
   url?: string;
+  /** PEM CA bundle replacing default roots for this HTTPS MCP origin only. */
+  caFile?: string;
   headers?: Record<string, string>;
   /** Add or replace HTTP headers by running a trusted command for each request. */
   requestHeadersCommand?: HttpRequestHeadersCommand;
@@ -460,7 +474,7 @@ export interface ServerEntry {
   // Resource handling
   exposeResources?: boolean;
   // Direct tool registration
-  directTools?: boolean | string[];
+  directTools?: boolean | string[] | "search";
   // Override settings.toolPrefix for this server.
   toolPrefix?: ToolPrefix;
   // Include/exclude specific MCP tools/resources by original or prefixed name
@@ -493,6 +507,15 @@ export interface ServerEntry {
    * with no fallback. `auto` and `2026-07-28` must be set explicitly.
    */
   protocolVersion?: "legacy" | "auto" | "2026-07-28";
+  /**
+   * MCP Tasks extension (io.modelcontextprotocol/tasks, SEP-2663) support.
+   * On 2026-07-28 connections where the server advertises the extension, tool
+   * calls that return a task handle are transparently polled to completion,
+   * task-time elicitation is routed through the normal elicitation UI, and
+   * aborting a call cancels the remote task. Enabled by default; set to
+   * false to keep the plain synchronous call path.
+   */
+  tasks?: boolean;
   // Keep configuration visible without allowing connections or execution.
   disabled?: boolean;
 }
@@ -516,14 +539,29 @@ export interface McpOutputGuardSettings {
 export type ToolPrefix = "server" | "none" | "short" | "mcp";
 
 const ENCODED_SERVER_NAMESPACE_MARKER = "_mcpns_";
+// Provider tool-name limit (64 for Bedrock, Anthropic, OpenAI) minus the `mcp__` proxy prefix.
+const MAX_SERVER_NAMESPACE_LENGTH = 59;
 
 export function formatServerNamespace(serverName: string): string {
   const normalized = serverName.replace(/-/g, "_");
-  if (normalized === "" || (/^[A-Za-z0-9_]+$/.test(normalized) && !normalized.startsWith(ENCODED_SERVER_NAMESPACE_MARKER))) {
-    return normalized;
-  }
-  const codePoints = Array.from(normalized, character => character.codePointAt(0)!.toString(16)).join("_");
-  return `${ENCODED_SERVER_NAMESPACE_MARKER}${codePoints}`;
+  const safe = /^[A-Za-z0-9_]*$/.test(normalized) && !normalized.startsWith(ENCODED_SERVER_NAMESPACE_MARKER);
+  const body = safe ? normalized : encodeServerNamespace(normalized);
+  const namespace = safe ? body : `${ENCODED_SERVER_NAMESPACE_MARKER}${body}`;
+  if (namespace.length <= MAX_SERVER_NAMESPACE_LENGTH) return namespace;
+  // Hash the ASCII encoding, not the raw name: lone surrogates and U+FFFD share UTF-8 bytes.
+  const digest = createHash("sha256").update(namespace, "utf8").digest("hex").slice(0, 16);
+  // `_h_` cannot start an encoded body: `h` is neither `_` nor a hexadecimal digit.
+  const hashPrefix = `${ENCODED_SERVER_NAMESPACE_MARKER}_h_`;
+  const head = body.slice(0, MAX_SERVER_NAMESPACE_LENGTH - hashPrefix.length - digest.length - 1);
+  return `${hashPrefix}${head}_${digest}`;
+}
+
+// `_` becomes `__`, so `__` and `_<hex>_` form a prefix code and the encoding stays injective.
+function encodeServerNamespace(name: string): string {
+  return Array.from(name, character => {
+    if (character === "_") return "__";
+    return /^[A-Za-z0-9]$/.test(character) ? character : `_${character.codePointAt(0)!.toString(16)}_`;
+  }).join("");
 }
 export type HostConfigDiscovery = "off" | "prompt" | "on";
 export type McpFooterStatus = "full" | "compact" | "off";
@@ -556,10 +594,16 @@ export interface McpToolApprovalRequest {
   claim(handler: McpToolApprovalHandler): boolean;
 }
 
+export type { JevAnswer, JevErrorCode, JevEvaluateInput, JevEvaluationData, JevEvaluationEnvelope, JevJson, JevQuestion } from "./jev-contracts.ts";
+
 export interface McpSettings {
   /** Load the cross-harness project .mcp.json file. Defaults to true. */
   loadSharedProjectConfig?: boolean;
+  /** Admission policy for unapproved project-local MCP servers. Only user-global config may set this. */
+  projectServers?: "ask" | "allow";
   toolPrefix?: ToolPrefix;
+  /** Allow agents to persist remote MCP endpoints with the install action. Defaults to true. */
+  allowInstall?: boolean;
   /** Show the plug prefix in MCP status and connection text (default: true). Set to false to disable it. */
   showStatusIcon?: boolean;
   /** Footer status verbosity: full details, compact connected/enabled count, or no footer status. Defaults to full. */
@@ -568,11 +612,17 @@ export interface McpSettings {
   notifyOnStartupConnect?: boolean;
   /** Discover detected host-specific MCP configs only when explicitly enabled. */
   hostConfigDiscovery?: HostConfigDiscovery;
+  /** Trusted HOME-contained roots from which to discover ancestor project configs. */
+  ancestorConfigRoots?: string[];
   /** Agent Plugin package directories to load MCP servers from. */
   agentPluginPaths?: string[];
   idleTimeout?: number; // minutes, default 10, 0 to disable
   requestTimeoutMs?: number; // milliseconds, overrides the SDK request timeout when > 0
-  directTools?: boolean;
+  /** Defer lazy runtime startup even when persisted metadata is missing or invalid. Defaults to false. */
+  deferWithMissingMetadata?: boolean;
+  directTools?: boolean | "search";
+  /** Register per-server mcp__<server> namespace proxies. Defaults to true. */
+  namespaceProxyTools?: boolean;
   /**
    * Validate direct-tool inputs against the advertised schema after recovering
    * one JSON string layer for object and array properties. Defaults to false.
@@ -587,6 +637,27 @@ export interface McpSettings {
   warnOnLargeDirectTools?: boolean;
   /** Register the trusted MCP-only JavaScript scripting tool. Defaults to true; set false to hide it. */
   scriptMode?: boolean;
+  /** Expose MCP resources as tools (default: true). Set to false to disable globally across all servers. */
+  exposeResources?: boolean;
+  /** Optional Jev (System One) integrations. A valid key enables semantic search; script evaluation remains disabled by default. */
+  jev?: false | {
+    semanticSearch?: boolean;
+    scriptEvaluation?: boolean;
+    /** Restrict semantic-search metadata and allow script-evaluation sources. Semantic search defaults to every enabled server. */
+    allowedServers?: string[];
+    model?: string;
+    requestTimeoutMs?: number;
+    maxRetries?: number;
+    maxStateBytes?: number;
+    maxQuestionsPerRequest?: number;
+    maxEvaluationsPerScript?: number;
+    maxEvaluationBytesPerScript?: number;
+    /** Cumulative provider-reported input plus output tokens per script. Defaults to 32768. */
+    maxEvaluationTokensPerScript?: number;
+    /** Maximum semantic candidates per request. Defaults to 127; range 2..127. */
+    semanticCandidateLimit?: number;
+    semanticMinProbability?: number;
+  };
   /** Render MCP tool results as compact self-rendered rows by default, or as the legacy boxed row. */
   toolResultRendering?: "compact" | "boxed";
   /** Number of result text lines to show before expansion. Supports 1, 2, or 3. Defaults to 1 in compact mode and 3 in boxed mode. */
@@ -620,6 +691,8 @@ export interface McpSettings {
    * instruction when unset.
    */
   authRequiredMessage?: string;
+  /** Explicitly use AES-256-GCM files keyed by PI_MCP_ADAPTER_OAUTH_FILE_KEY instead of the OS credential store. */
+  oauthCredentialStore?: "encrypted-file";
   /**
    * Legacy OAuth tokens.json import directory.
    * Relative paths are resolved from the project root (cwd).
@@ -680,6 +753,8 @@ export interface PromptMetadata {
 }
 
 export interface DirectToolSpec {
+  /** Registered inactive; `mcp({ search })` or a successful `mcp({ tool })` call activates it (directTools: "search"). */
+  lazy?: boolean;
   serverName: string;
   originalName: string;
   prefixedName: string;
@@ -745,7 +820,7 @@ export interface McpPanelCallbacks {
   reconnect: (serverName: string) => Promise<boolean>;
   canAuthenticate: (serverName: string) => boolean;
   authenticate: (serverName: string) => Promise<McpAuthResult>;
-  getConnectionStatus: (serverName: string) => "connected" | "idle" | "failed" | "needs-auth" | "disabled";
+  getConnectionStatus: (serverName: string) => "connected" | "idle" | "failed" | "needs-auth" | "blocked" | "disabled";
   getFailureMessage?: (serverName: string) => string | null;
   refreshCacheAfterReconnect: (serverName: string) => ServerCacheEntry | null;
 }
@@ -791,6 +866,9 @@ export function formatToolName(
 ): string {
   const p = getServerPrefix(serverName, prefix);
   const sanitized = toolName.replace(/\./g, "_");
+  if (p && sanitized.startsWith(`${p}_`) && sanitized.length > p.length + 1) {
+    return sanitized;
+  }
   return p ? `${p}_${sanitized}` : sanitized;
 }
 
@@ -801,6 +879,24 @@ export function resolveToolPrefix(
   return definition?.toolPrefix ?? globalPrefix ?? "server";
 }
 
+/** A canonical name has an owner only when exactly one eligible entry produces it. */
+export function resolveUniqueNameOwnership<T>(
+  entries: readonly T[],
+  getName: (entry: T) => string,
+): { unique: T[]; collisions: Map<string, T[]> } {
+  const owners = new Map<string, T[]>();
+  for (const entry of entries) {
+    const name = getName(entry);
+    const named = owners.get(name) ?? [];
+    named.push(entry);
+    owners.set(name, named);
+  }
+  const collisions = new Map([...owners].filter(([, named]) => named.length > 1));
+  return {
+    unique: entries.filter((entry) => !collisions.has(getName(entry))),
+    collisions,
+  };
+}
 
 /**
  * Resolve a configured MCP server name from a prefixed tool name.

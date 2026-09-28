@@ -27,6 +27,15 @@ describe("package.json files", () => {
     expect(skill).toMatch(/^disable-model-invocation:\s*true\s*$/m);
   });
 
+  it("ships the OAuth guide linked by the published README", () => {
+    const readme = readFileSync(join(repoRoot, "README.md"), "utf-8");
+    const guide = readme.match(/\[OAuth\]\(([^)#]+)#token-storage\)/)?.[1];
+
+    expect(guide).toBe("OAUTH.md");
+    expect(packageJson.files).toContain(guide);
+    expect(readFileSync(join(repoRoot, "OAUTH.md"), "utf-8")).toMatch(/^## Token Storage$/m);
+  });
+
   it("exports source entry points and plain Node host helpers", () => {
     expect(packageJson.types).toBe("./index.ts");
     expect(packageJson.exports).toMatchObject({
@@ -95,6 +104,27 @@ describe("package.json files", () => {
 });
 
 describe("package.json dependency policy", () => {
+  it("uses only registry semver dependency specs and no native refresh-lock addon", () => {
+    const dependencyGroups = [
+      packageJson.dependencies ?? {},
+      packageJson.devDependencies ?? {},
+      packageJson.peerDependencies ?? {},
+    ];
+    const registrySemver = /^(?:[~^]?\d+\.\d+\.\d+|\*)(?:\s*\|\|\s*(?:[~^]?\d+\.\d+\.\d+|\*))*$/;
+
+    for (const dependencies of dependencyGroups) {
+      for (const [name, spec] of Object.entries(dependencies)) {
+        if (name === "recheck") {
+          expect(spec).toBe("4.6.0-beta.3");
+          continue;
+        }
+        expect(spec).toMatch(registrySemver);
+        expect(spec).not.toMatch(/^(?:https?:|git(?:\+[^:]+)?:|file:)/);
+      }
+    }
+    expect(packageJson.dependencies?.["fs-native-extensions"]).toBeUndefined();
+  });
+
   it("treats Pi host packages as optional peers with exact dev pins", () => {
     const entries = Object.entries(hostPeerPackages);
 

@@ -517,8 +517,8 @@ if [[ $LIST_CONFIG_ONLY -eq 0 && $CONFIG_ONLY_MODE -eq 0 ]]; then
         print_status OK "stow is installed"
     fi
     check_pi_workspace
-    source "$SCRIPT_DIR/scripts/lib/pi-transcribe.zsh"
-    dotfiles_check_pi_transcribe "$SCRIPT_DIR/common/.pi/agent/npm/package.json"
+    source "$SCRIPT_DIR/scripts/lib/pi-voice.zsh"
+    dotfiles_check_pi_voice "$SCRIPT_DIR/common/.pi/agent/npm/package.json"
 fi
 
 if ! dotfiles_resolve_active_roots "$SCRIPT_DIR" warn; then

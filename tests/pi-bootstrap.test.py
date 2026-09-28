@@ -117,10 +117,46 @@ class PiBootstrapTests(unittest.TestCase):
         self.assertNotIn("npm:example", Path(self.env["CALL_LOG"]).read_text())
         self.assertNotIn("[OK]", result.stdout)
 
+    def test_voice_install_removes_only_legacy_registration_after_success(self):
+        agent = Path(self.env["PI_CODING_AGENT_DIR"])
+        agent.mkdir(parents=True)
+        (agent / "settings.json").write_text(json.dumps({"packages": [
+            SOURCE + "abc", {"source": "npm:unrelated@1.0.0"}]}))
+        self.manifest.write_text(json.dumps({"piPackages": [], "dependencies": {
+            "@earendil-works/pi-voice": "0.1.0"}}))
+        result = self.run_zsh(self.helper, self.manifest)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(self.env["CALL_LOG"]).read_text().splitlines(), [
+            "install", "npm:@earendil-works/pi-voice@0.1.0", "remove", SOURCE + "abc"])
+        Path(self.env["CALL_LOG"]).unlink()
+        self.executable(self.bin / "pi", '#!/bin/sh\nprintf "%s\\n" "$@" >> "$CALL_LOG"\nexit 7\n')
+        result = self.run_zsh(self.helper, self.manifest)
+        self.assertEqual(result.returncode, 7)
+        self.assertNotIn("remove", Path(self.env["CALL_LOG"]).read_text())
+
+    def test_voice_pin_survives_npm_save_prefix_and_manifest_symlink(self):
+        target = self.base / "declared-packages.json"
+        target.write_text(json.dumps({"piPackages": [], "dependencies": {
+            "@earendil-works/pi-voice": "0.1.0", "example": "^1.0.0"}}))
+        self.manifest.unlink()
+        self.manifest.symlink_to(target)
+        self.env["MANIFEST"] = str(self.manifest)
+        self.executable(self.bin / "pi", '''#!/bin/sh
+jq '.dependencies["@earendil-works/pi-voice"] = "^0.1.0"' "$MANIFEST" > "$MANIFEST.tmp"
+# Simulate npm rewriting the symlink target without removing its link.
+cp "$MANIFEST.tmp" "$MANIFEST"
+rm "$MANIFEST.tmp"
+''')
+        result = self.run_zsh(self.helper, self.manifest)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.manifest.is_symlink())
+        self.assertEqual(json.loads(target.read_text())["dependencies"], {
+            "@earendil-works/pi-voice": "0.1.0", "example": "^1.0.0"})
+
     def test_runtime_exclusions_do_not_hide_portable_files(self):
         result = self.run_zsh("-c", '''
             source "$1"
-            for item in .pi/agent/pi-transcribe.json .pi/agent/git/github.com/example/index.ts .pi/.pi/agent/pi-transcribe.json; do
+            for item in .pi/agent/pi-transcribe.json .pi/agent/pi-voice.json .pi/agent/git/github.com/example/index.ts .pi/.pi/agent/pi-voice.json; do
                 dotfiles_is_pi_runtime_path "$item" || exit 1
                 dotfiles_is_stow_ignored_path "$item" || exit 2
             done
@@ -134,8 +170,8 @@ class PiBootstrapTests(unittest.TestCase):
         return self.run_zsh("-c", '''
             print_status() { printf '%s %s\\n' "$1" "$2"; }
             source "$1"
-            dotfiles_check_pi_transcribe "$2"
-        ''', "test", ROOT / "scripts/lib/pi-transcribe.zsh", self.manifest)
+            dotfiles_check_pi_voice "$2"
+        ''', "test", ROOT / "scripts/lib/pi-voice.zsh", self.manifest)
 
     def test_health_missing_package_and_configuration(self):
         result = self.health()
@@ -147,20 +183,26 @@ class PiBootstrapTests(unittest.TestCase):
     def test_health_installed_package_and_model_states(self):
         import json
         agent = Path(self.env["PI_CODING_AGENT_DIR"])
-        package = agent / "git/github.com/earendil-works/pi-transcribe"
-        (package / "node_modules").mkdir(parents=True)
-        (package / "package.json").write_text("{}")
-        self.executable(self.bin / "git", '#!/bin/sh\nprintf "abc\\n"\n')
-        self.manifest.write_text(json.dumps({"piPackages": [SOURCE + "abc"], "dependencies": {}}))
-        (agent / "settings.json").write_text(json.dumps({"packages": [{"source": SOURCE + "abc"}]}))
+        package = agent / "npm/node_modules/@earendil-works/pi-voice"
+        package.mkdir(parents=True)
+        (package / "package.json").write_text('{"version":"0.1.0"}')
+        self.manifest.write_text(json.dumps({"piPackages": [], "dependencies": {"@earendil-works/pi-voice": "0.1.0"}}))
+        (agent / "settings.json").write_text(json.dumps({"packages": [{"source": "npm:@earendil-works/pi-voice@0.1.0"}]}))
         model = self.base / "local model.gguf"
         config = agent / "pi-transcribe.json"
         config.write_text(json.dumps({"model": {"path": str(model)}}))
         result = self.health()
-        self.assertIn("installed at the declared commit", result.stdout)
+        self.assertIn("installed at the declared version", result.stdout)
         self.assertIn("model file is missing", result.stdout)
         model.touch()
         self.assertIn("model file exists", self.health().stdout)
+        # Legacy settings remain untouched by the health check.
+        self.assertTrue(config.exists())
+        config.rename(agent / "pi-voice.json")
+        config = agent / "pi-voice.json"
+        self.assertIn("model file exists", self.health().stdout)
+        (package / "package.json").write_text('{"version":"0.2.0"}')
+        self.assertIn("differs from the manifest", self.health().stdout)
         config.write_text("invalid json")
         self.assertIn("model path is invalid", self.health().stdout)
         (self.bin / "ffmpeg").unlink()

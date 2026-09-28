@@ -4,6 +4,7 @@ node_modules
 agent/settings.json
 agent/settings-extensions.json
 agent/pi-transcribe.json
+agent/pi-voice.json
 agent/git/
 agent/auth.json
 agent/mcp-auth.json

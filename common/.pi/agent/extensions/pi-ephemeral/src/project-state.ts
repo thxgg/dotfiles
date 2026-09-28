@@ -21,7 +21,7 @@ export async function readProjectState(cwd: string, catalog?: CatalogData): Prom
 
   const warnings = [
     ...(settingsResult.error ? [`settings.json error: ${settingsResult.error}`] : []),
-    ...(mcpResult.error ? [`mcp.json error: ${mcpResult.error}`] : []),
+    ...(mcpResult.error ? [`mcp-adapter.json error: ${mcpResult.error}`] : []),
     ...manifestWarnings,
     ...catalogWarnings,
   ];
@@ -104,7 +104,7 @@ export function getInstallConflict(item: CatalogItem, state: ProjectState): stri
     }
     case "mcp": {
       if (state.mcpError) {
-        return `mcp '${item.label}' cannot be installed because .pi/mcp.json is invalid`;
+        return `mcp '${item.label}' cannot be installed because .pi/mcp-adapter.json is invalid`;
       }
       const existing = state.mcpJson?.mcpServers ?? {};
       return existing[item.serverName] ? `mcp server '${item.serverName}' conflicts with existing project server` : undefined;

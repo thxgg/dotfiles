@@ -1,28 +1,8 @@
-import type { Theme } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createMcpSetupPanel, type SetupPanelCallbacks } from "../mcp-setup-panel.ts";
 import type { McpDiscoverySummary } from "../config.ts";
-
-function createTheme() {
-  const colors: Record<string, number> = {
-    accent: 31,
-    border: 32,
-    success: 33,
-    warning: 34,
-    muted: 35,
-    dim: 36,
-    error: 37,
-  };
-  const fg = vi.fn((color: string, text: string) => `\x1b[38;5;${colors[color] ?? 38}m${text}\x1b[39m`);
-  const theme = {
-    fg,
-    bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
-    italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
-    inverse: (text: string) => `\x1b[7m${text}\x1b[27m`,
-  } as unknown as Theme;
-  return { fg, theme };
-}
+import { createTheme } from "./helpers/panel-theme.ts";
 
 function createDiscovery(): McpDiscoverySummary {
   return {
@@ -66,6 +46,25 @@ function createCallbacks(): SetupPanelCallbacks {
 }
 
 describe("mcp setup panel theme and component rendering", () => {
+  it("shows preview errors without breaking setup or import rendering", () => {
+    const discovery = createDiscovery();
+    discovery.imports = [{ kind: "cursor", path: "/tmp/cursor-mcp.json", serverCount: 1 }];
+    const callbacks = createCallbacks();
+    callbacks.previewImports = () => { throw new Error("Failed to read MCP config at /tmp/mcp.json"); };
+    const panel = createMcpSetupPanel(
+      discovery,
+      callbacks,
+      { mode: "setup", onboardingState: { version: 1, sharedConfigHintShown: false, setupCompleted: false } },
+      { requestRender: () => {} },
+      () => {},
+    );
+
+    expect(panel.render(100).join("\n")).toContain("Failed to read MCP config at /tmp/mcp.json");
+    panel.handleInput("\r");
+    expect(panel.render(100).join("\n")).toContain("Failed to read MCP config at /tmp/mcp.json");
+    panel.dispose();
+  });
+
   it("renders setup content through the active Pi theme", () => {
     const { fg, theme } = createTheme();
     const panel = createMcpSetupPanel(
