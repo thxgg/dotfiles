@@ -4,10 +4,10 @@ Keep evidence artifacts inside the app repository, not in the dotfiles repo, unl
 
 ## Directory Layout
 
-Use one folder per evidence run:
+Select `<artifact-root>` using the [Artifact Folder rule](../SKILL.md#artifact-folder). Use one folder per evidence run:
 
 ```text
-.agents/artifacts/ui-evidence/
+<artifact-root>/ui-evidence/
 └── YYYYMMDD-HHMMSS-<slug>/
     ├── before.png
     ├── after.png
@@ -19,8 +19,8 @@ Use one folder per evidence run:
 Examples:
 
 ```text
-.agents/artifacts/ui-evidence/20260604-153012-dashboard-empty-state/
-.agents/artifacts/ui-evidence/20260604-154905-reservations-filter/
+<artifact-root>/ui-evidence/20260604-153012-dashboard-empty-state/
+<artifact-root>/ui-evidence/20260604-154905-reservations-filter/
 ```
 
 ## Naming
@@ -73,6 +73,6 @@ Caveats:
 
 ## Git Policy
 
-Treat `.agents/artifacts/ui-evidence/` as generated output. Do not commit it unless the user explicitly asks or the project expects visual artifacts in version control.
+Treat the selected run folder as generated output. Do not commit it unless the user explicitly asks or the project expects visual artifacts in version control.
 
 Final answers should still list the local artifact paths so the user can inspect them.

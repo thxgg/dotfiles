@@ -4,10 +4,9 @@ Use these recipes from the repository root of the app under test so artifact pat
 
 ## Start a Scenario
 
-```bash
-RUN_DIR="./.agents/artifacts/ui-evidence/$(date +%Y%m%d-%H%M%S)-<slug>"
-mkdir -p "$RUN_DIR"
+First select the artifact root and set up `RUN_DIR` using the [Artifact Folder instructions](../SKILL.md#artifact-folder).
 
+```bash
 agent-browser open "http://localhost:3000/<route>"
 agent-browser wait --load networkidle
 agent-browser set viewport 1440 1000
@@ -16,7 +15,6 @@ agent-browser snapshot -i
 
 Notes:
 
-- Replace `<slug>` with a short scenario name.
 - Replace the URL with the project's local dev URL.
 - If the project documents a preferred viewport, use it.
 - Prefer named sessions only when juggling multiple browser flows.

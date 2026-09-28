@@ -13,7 +13,7 @@ Use this skill when a task changes visible web UI and the final answer should in
 Capture the UI in a repeatable way:
 
 1. Identify the scenario: app, route, viewport, theme, auth/session, and interaction.
-2. Create a run folder under `.agents/artifacts/ui-evidence/`.
+2. Select the artifact root and create a run folder as described below.
 3. Capture the **before** state before editing UI code.
 4. Make the requested change.
 5. Return to the same scenario with the same viewport/session/data.
@@ -25,13 +25,17 @@ If a project has `UI_EVIDENCE.md`, `.agents/ui-evidence.md`, or `.agents/ui-evid
 
 ## Artifact Folder
 
-Create a folder named:
+Use the artifact directory specified by the active environment. If none is specified, use the project's artifact directory. If neither specifies one, use `.agents/artifacts/` inside the app repository. For example, when the environment requires `.amp/in/artifacts/`, use that directory instead of the fallback.
 
-```text
-.agents/artifacts/ui-evidence/YYYYMMDD-HHMMSS-<slug>/
+Before writing artifacts, follow any environment or project requirements for Git exclusions. Set `ARTIFACT_ROOT` to the selected directory and create one run folder:
+
+```bash
+ARTIFACT_ROOT="<artifact-root>"
+RUN_DIR="$ARTIFACT_ROOT/ui-evidence/$(date +%Y%m%d-%H%M%S)-<slug>"
+mkdir -p "$RUN_DIR"
 ```
 
-Use a short slug for the scenario, for example `reservations-filter` or `dashboard-empty-state`.
+Replace `<artifact-root>` with the selected path. Use a short slug for the scenario, for example `reservations-filter` or `dashboard-empty-state`. Use this `RUN_DIR` for all examples below.
 
 See [artifact conventions](references/artifact-conventions.md) for details.
 
@@ -57,9 +61,9 @@ See [agent-browser recording recipes](references/agent-browser-recording.md) for
 For static UI changes, capture screenshots:
 
 ```bash
-agent-browser screenshot ./.agents/artifacts/ui-evidence/<run>/before.png
+agent-browser screenshot "$RUN_DIR/before.png"
 # make code changes and refresh/reopen same scenario
-agent-browser screenshot ./.agents/artifacts/ui-evidence/<run>/after.png
+agent-browser screenshot "$RUN_DIR/after.png"
 ```
 
 Use `--full` only when the whole scrollable page matters. Use `--annotate` when element refs or layout explanation matters.
@@ -71,7 +75,7 @@ For small visual changes such as alignment, spacing, or icon/text positioning, p
 For interaction changes, record a short WebM:
 
 ```bash
-agent-browser record start .agents/artifacts/ui-evidence/<run>/flow.webm
+agent-browser record start "$RUN_DIR/flow.webm"
 # perform the interaction using agent-browser refs
 agent-browser record stop
 ```
