@@ -29,6 +29,8 @@ through Dillon's `scripts/sync-matt-skills.sh`:
 Dillon's TDD override is retained. Local cross-harness patches make skill-to-skill
 invocation and parallel review delegation portable between Pi and Claude, and
 make `code-review` infer an issue tracker without `setup-matt-pocock-skills`.
+`code-review` also distinguishes committed reviews from work-in-progress reviews,
+including staged, unstaged, and in-scope untracked changes in the latter.
 `grilling` retains one-question-at-a-time interviews rather than upstream's
 batched questions. Do not replace these customizations during an upstream sync.
 
