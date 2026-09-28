@@ -9,7 +9,9 @@ The following skills retain their baseline from
 [`dmmulroy/skills@8a10f56`](https://github.com/dmmulroy/skills/commit/8a10f56abf86dc52e8209e5f61fffa6951402974):
 
 - `improve-codebase-architecture`: retained despite its deletion upstream.
-- `tech-spec`: retains local portable skill invocation and delegation instructions.
+- `tech-spec`: retains local standards/TDD references and portable delegation instructions.
+  Its interview instructions are inline, without interview sub-skill calls, following
+  [`dmmulroy/skills@cbd1929`](https://github.com/dmmulroy/skills/commit/cbd1929589267453029859a43d2ecf411c865b54).
 
 ## Matt Pocock
 
