@@ -11,7 +11,7 @@ test("workflow model defaults to Codex GPT-6 Astra", () => {
   assert.equal(resolveWorkflowModel(ctx, undefined), astra);
   assert.equal(resolveWorkflowModel(ctx, "gpt-6-astra"), astra);
   assert.equal(resolveWorkflowModel(ctx, "openai-codex/gpt-6-astra"), astra);
-  assert.equal(resolveWorkflowModel(ctx, "gpt-5.6-sol"), undefined);
+  assert.equal(resolveWorkflowModel(ctx, "gpt-6-sol"), undefined);
 });
 
 test("workflow model accepts only Anthropic Fable 5 as an override", () => {
