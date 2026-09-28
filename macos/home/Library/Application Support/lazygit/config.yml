@@ -6,31 +6,31 @@ git:
 gui:
   theme:
     activeBorderColor:
-      - '#7287fd'
+      - '#b4befe'
       - bold
     inactiveBorderColor:
-      - '#8c8fa1'
+      - '#7f849c'
     searchingActiveBorderColor:
-      - '#7287fd'
+      - '#b4befe'
       - bold
     optionsTextColor:
-      - '#1e66f5'
+      - '#89b4fa'
     selectedLineBgColor:
-      - '#ccd0da'
+      - '#313244'
     inactiveViewSelectedLineBgColor:
-      - '#e6e9ef'
+      - '#45475a'
     cherryPickedCommitBgColor:
-      - '#bcc0cc'
+      - '#45475a'
     cherryPickedCommitFgColor:
-      - '#179299'
+      - '#94e2d5'
     markedBaseCommitBgColor:
-      - '#7287fd'
+      - '#b4befe'
     markedBaseCommitFgColor:
-      - '#eff1f5'
+      - '#1e1e2e'
     unstagedChangesColor:
-      - '#d20f39'
+      - '#f38ba8'
     defaultFgColor:
-      - '#4c4f69'
+      - '#cdd6f4'
 
   authorColors:
-    '*': '#7287fd'
+    '*': '#b4befe'

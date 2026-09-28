@@ -13,16 +13,23 @@ Applications run directly through their installed executables.
 
 Use each application's settings or native configuration:
 
-- Ghostty and Herdr retain their native system-appearance settings.
+- Ghostty uses Catppuccin Mocha with dark window chrome.
+- Herdr uses its dark `catppuccin` theme with native appearance switching disabled.
+- OpenCode uses its `catppuccin` theme in dark mode.
+- Fish uses static Mocha colors with Lavender accents.
 - Neovim uses a static Mocha default in `common/.config/nvim/lua/user/theme.lua`.
-- btop uses its `color_theme` setting and keeps both Catppuccin theme files.
-- Starship uses `common/.config/starship.toml`. Light/dark alternatives remain available.
-- lazygit keeps separate theme files. Use its native config-file option to select one.
-- lazydocker keeps light/dark configuration directories. Use its native `CONFIG_DIR` option.
+- btop selects `catppuccin_mocha` by name on both platforms and keeps both theme files.
+- Starship uses Mocha in `common/.config/starship.toml`. Light/dark alternatives remain available.
+- lazygit defaults to Mocha and keeps separate theme files. Use its native config-file option to select one.
+- lazydocker defaults to Mocha and keeps light/dark configuration directories. Use its native `CONFIG_DIR` option.
 - HyprPanel uses `config.json` and `modules.scss`. Light alternatives remain available.
 - GTK and Kvantum use their native settings. No script rewrites GTK preferences or generates Kvantum links.
 - Pi keeps its theme files; select them through `/settings`.
-- Browser themes remain under `common/.local/share/browser-themes/`, with installation instructions in each directory.
+- Browser themes use Mocha with Lavender accents under `common/.local/share/browser-themes/`. The existing `soft-lavender` directory names are preserved. Reload each unpacked theme as described in its README.
+
+Linux-only selections are unchanged. GTK, Kvantum, Hyprland, and Rofi still
+select Latte/light. HyprPanel and Wofi already use dark colors. Pi's active
+selection and OS-wide appearance remain machine-local and are not changed.
 
 The Linux Amp web-app launcher is unrelated to theme automation and remains available for remote Orbs.
 
@@ -30,8 +37,8 @@ The Linux Amp web-app launcher is unrelated to theme automation and remains avai
 
 Remove only deployed symlinks that point to the retired repository scripts.
 Do not remove unrelated executables with the same names. Open a new shell after
-removing wrappers. Existing Fish colors remain as user settings; shell startup
-no longer writes universal theme variables.
+removing wrappers. Fish sets process-global Mocha colors at startup; it does
+not write universal theme variables.
 
 Old `~/.local/state/theme` files are no longer read. Existing GTK/Kvantum settings
 and browser assets are left intact. No appearance or application state migration

@@ -2,7 +2,7 @@ local M = {}
 
 -- Static default. Select a different variant in this file, not shared runtime state.
 local function read_mode()
-	return "light"
+	return "dark"
 end
 
 M.mode = read_mode

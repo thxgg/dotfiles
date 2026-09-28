@@ -1,6 +1,6 @@
 font-family = Berkeley Mono Variable Nerd Font
-theme = light:Catppuccin Latte,dark:Catppuccin Mocha
-window-theme = system
+theme = Catppuccin Mocha
+window-theme = dark
 font-size = 14
 adjust-cell-height = -1
 adjust-font-baseline = 1

@@ -58,6 +58,62 @@ class CommonConfigTests(unittest.TestCase):
                 pipelines.append(clipboard)
         self.assertEqual(pipelines[0], pipelines[1])
 
+    def test_shared_and_macos_dark_theme_defaults(self):
+        config = ROOT / 'common/.config'
+        macos = ROOT / 'macos/home/Library/Application Support'
+        for path in (config / 'ghostty/config', macos / 'com.mitchellh.ghostty/config'):
+            source = path.read_text()
+            self.assertIn('theme = Catppuccin Mocha\n', source)
+            self.assertIn('window-theme = dark\n', source)
+        herdr = (config / 'herdr/config.toml').read_text()
+        self.assertIn('name = "catppuccin"\n', herdr)
+        self.assertIn('auto_switch = false\n', herdr)
+        self.assertEqual(json.loads((config / 'opencode/cli.json').read_text())['theme'],
+                         {'name': 'catppuccin', 'mode': 'dark'})
+        self.assertIn('color_theme = "catppuccin_mocha"',
+                      (config / 'btop/btop.conf').read_text())
+        self.assertTrue((config / 'btop/themes/catppuccin_mocha.theme').is_file())
+        self.assertEqual((config / 'starship.toml').read_text(),
+                         (config / 'starship-dark.toml').read_text())
+        for base in (config, macos):
+            self.assertEqual((base / 'lazydocker/config.yml').read_text(),
+                             (config / 'lazydocker/dark/config.yml').read_text())
+            lazygit = (base / 'lazygit/config.yml').read_text()
+            self.assertEqual('gui:\n' + lazygit.split('gui:\n', 1)[1],
+                             (config / 'lazygit/theme-dark.yml').read_text())
+            self.assertIn('mode: "rebase"', lazygit)
+
+    def test_fish_mocha_colors_in_isolated_shell(self):
+        fish = shutil.which('fish')
+        if not fish:
+            self.skipTest('fish unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            env = {'HOME': directory, 'PATH': '/usr/bin:/bin',
+                   'XDG_CONFIG_HOME': directory + '/config'}
+            source = ROOT / 'common/.config/fish/conf.d/colors.fish'
+            command = (f'source "{source}"; '
+                       'printf "%s\\n" $fish_color_normal $fish_color_keyword '
+                       '$fish_pager_color_selected_background')
+            result = subprocess.run([fish, '--no-config', '-c', command], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(),
+                             ['cdd6f4', 'b4befe', '--background=45475a'])
+
+    def test_browser_themes_use_mocha_with_lavender(self):
+        for name in ('soft-lavender', 'soft-lavender-helium'):
+            path = ROOT / 'common/.local/share/browser-themes' / name / 'manifest.json'
+            manifest = json.loads(path.read_text())
+            self.assertEqual(manifest['version'], '2.0.0')
+            colors = manifest['theme']['colors']
+            self.assertEqual(colors['toolbar'], [30, 30, 46])
+            self.assertEqual(colors['ntp_background'], [30, 30, 46])
+            self.assertEqual(colors['ntp_link'], [180, 190, 254])
+            for color in colors.values():
+                self.assertEqual(len(color), 3)
+                self.assertTrue(all(isinstance(value, int) and 0 <= value <= 255
+                                    for value in color))
+
     def test_history_uses_existing_home_directory(self):
         source = (ROOT / 'common/.psqlrc').read_text()
         self.assertIn(r'\set HISTFILE ~/.psql_history-:DBNAME', source)

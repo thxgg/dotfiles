@@ -1,22 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Soft Lavender for Helium",
-  "version": "1.2.0",
-  "description": "Soft lavender adapted to Helium's shared frame and toolbar background. Not an official Mitchell Hashimoto theme.",
+  "name": "Catppuccin Mocha Lavender for Helium",
+  "version": "2.0.0",
+  "description": "Dark Helium theme with Catppuccin Mocha colors and Lavender accents.",
   "theme": {
     "colors": {
-      "frame": [230, 214, 244],
-      "frame_inactive": [230, 214, 244],
-      "toolbar": [254, 244, 254],
-      "tab_text": [48, 40, 53],
-      "tab_background_text": [48, 40, 53],
-      "bookmark_text": [48, 40, 53],
-      "toolbar_button_icon": [87, 76, 93],
-      "omnibox_background": [236, 224, 239],
-      "omnibox_text": [48, 40, 53],
-      "ntp_background": [254, 244, 254],
-      "ntp_text": [48, 40, 53],
-      "ntp_link": [109, 72, 145]
+      "frame": [24, 24, 37],
+      "frame_inactive": [17, 17, 27],
+      "toolbar": [30, 30, 46],
+      "tab_text": [205, 214, 244],
+      "tab_background_text": [166, 173, 200],
+      "bookmark_text": [205, 214, 244],
+      "toolbar_button_icon": [180, 190, 254],
+      "omnibox_background": [49, 50, 68],
+      "omnibox_text": [205, 214, 244],
+      "ntp_background": [30, 30, 46],
+      "ntp_text": [205, 214, 244],
+      "ntp_link": [180, 190, 254]
     }
   }
 }
