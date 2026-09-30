@@ -273,6 +273,28 @@ test("streamed thinking keeps each tool batch at its own transcript position", a
   }
 });
 
+test("nested codemode calls do not hide the next direct tool row", async () => {
+  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
+  process.env.PI_VERBOSITY_BUILTINS = "1";
+  initTheme("dark", false);
+  const h = harness();
+  try {
+    await h.event("session_start");
+    await h.event("tool_execution_start", { toolCallId: "batch", toolName: "codemode", args: {} });
+    const nested = { toolCallId: "batch/1", parentToolCallId: "batch", toolName: "read" };
+    await h.event("tool_execution_start", { ...nested, args: { path: "nested.ts" } });
+    await h.event("tool_execution_update", { ...nested, partialResult: { content: [{ type: "text", text: "partial" }] } });
+    await h.event("tool_execution_end", { ...nested, result: { content: [{ type: "text", text: "ok" }] }, isError: false });
+    const args = { path: "direct.ts" };
+    await h.event("tool_execution_start", { toolCallId: "direct", toolName: "read", args });
+    const row = new ToolExecutionComponent("read", "direct", args, { showImages: false }, h.definitions.get("read"), h.ctx.ui as never, tmpdir());
+    assert.match(stripVTControlCharacters(row.render(80).join("\n")), /Exploring 1 read/);
+  } finally {
+    await h.event("session_shutdown");
+    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
+  }
+});
+
 test("eager adapters survive rows constructed before session_start on reload", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-reload-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;

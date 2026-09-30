@@ -27,6 +27,8 @@ an error; they do not terminate Pi.
 - Images and input requests stay normal. Thinking blocks, assistant/user text, and
   unsupported tools separate groups. Tool groups stay in transcript order, even
   when thinking is hidden. Agent, workflow, and MCP tools are not adapted.
+- Native codemode owns its nested-call display. Nested execution events do not
+  join direct-tool groups or hide later direct rows.
 
 ## Execution scope
 
@@ -60,7 +62,7 @@ Deployment uses `safe-stow.sh`; committing these files does not deploy them.
 
 ## Limits
 
-Tested with Pi 0.85.1. Pi owns transcript layout and scrollback. Regular terminal
+The workspace targets Pi 0.99.1. Pi owns transcript layout and scrollback. Regular terminal
 scrollback can retain previous rendering. Only fullscreen mode supports mouse
 interaction. Reload/resume reconstructs active-branch groups, including compaction
 context; group expansion is session-local. No global arbitrary-tool rendering hook

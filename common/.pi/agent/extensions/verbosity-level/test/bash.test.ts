@@ -23,7 +23,7 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
       requests.set(request.context.toolCallId, request);
       request.component = activityComponent(activity, request, () => enabled);
     } } } as never, original);
-    for (const key of ["execute", "parameters", "description", "promptSnippet", "promptGuidelines", "constrainedSampling"] as const) assert.equal(wrapped[key], original[key]);
+    for (const key of ["execute", "parameters", "description", "promptSnippet", "promptGuidelines", "constrainedSampling", "outputSchema"] as const) assert.equal(wrapped[key], original[key]);
     const commands = ["printf 'status-output\\n'", "printf 'validation-output\\n'; printf 'changed' > changed.txt", "printf 'failure-output\\n'; exit 7"];
     const rows: ToolExecutionComponent[] = [];
     const natives: ToolExecutionComponent[] = [];
@@ -35,7 +35,10 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
       const row = new ToolExecutionComponent("bash", id, args, { showImages: false }, wrapped, ui as never, dir);
       const native = new ToolExecutionComponent("bash", `native${i}`, args, { showImages: false }, original, ui as never, dir);
       let result;
-      try { result = { ...await wrapped.execute(id, args, undefined, update => row.updateResult({ ...update, isError: false }, true), undefined as never), isError: false }; }
+      try {
+        const output = await wrapped.execute(id, args, undefined, update => row.updateResult({ ...update, isError: update.isError ?? false }, true), undefined as never);
+        result = { ...output, isError: output.isError ?? false };
+      }
       catch (error) { result = { content: [{ type: "text" as const, text: (error as Error).message }], isError: true }; }
       activity.finish(id, result);
       row.updateResult(result); native.updateResult(result);

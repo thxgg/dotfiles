@@ -1,66 +1,48 @@
+import type { SystemMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const ANTHROPIC_PROVIDER = "anthropic";
 const PI_DOCUMENTATION_ANCHOR =
   "Pi documentation (read only when the user asks about pi itself";
 
-type JsonRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): JsonRecord | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  return value as JsonRecord;
-}
-
-function stripPiDocumentationParagraph(text: string): string {
+function stripPiDocumentation(text: string): string {
+  if (!text.includes(PI_DOCUMENTATION_ANCHOR)) return text;
+  // Older sessions can hold a flattened prompt instead of named sections.
   return text
+    .replace(/<docs>[\s\S]*?<\/docs>/g, block => block.includes(PI_DOCUMENTATION_ANCHOR) ? "" : block)
     .split(/\n\n+/)
-    .filter((paragraph) => !paragraph.includes(PI_DOCUMENTATION_ANCHOR))
+    .filter(paragraph => !paragraph.includes(PI_DOCUMENTATION_ANCHOR))
     .join("\n\n");
 }
 
-function sanitizeSystemBlock(value: unknown): { readonly value: unknown; readonly changed: boolean } {
-  const block = asRecord(value);
-  if (block?.type !== "text" || typeof block.text !== "string") {
-    return { value, changed: false };
-  }
+function sanitizeSystemMessage(message: SystemMessage): SystemMessage {
+  let changed = false;
+  const content = typeof message.content === "string"
+    ? stripPiDocumentation(message.content)
+    : message.content.map(block => {
+      const text = stripPiDocumentation(block.text);
+      if (text === block.text) return block;
+      changed = true;
+      return { ...block, text };
+    });
+  if (typeof content === "string" && content !== message.content) changed = true;
 
-  const text = stripPiDocumentationParagraph(block.text);
-  if (text === block.text) {
-    return { value, changed: false };
-  }
-
-  return { value: { ...block, text }, changed: true };
+  const sections = message.sections && Object.fromEntries(
+    Object.entries(message.sections).map(([name, value]) => {
+      if (value === null || !value.includes(PI_DOCUMENTATION_ANCHOR)) return [name, value];
+      changed = true;
+      // Keep the removal delta so replay cannot restore an earlier docs section.
+      return [name, name === "docs" ? null : stripPiDocumentation(value)];
+    }),
+  );
+  return changed ? { ...message, content, ...(sections ? { sections } : {}) } : message;
 }
 
-/**
- * Removes Pi's documentation paragraph from Anthropic provider requests.
- * Other providers and all non-system payload fields pass through unchanged.
- */
+/** Remove Pi documentation only from Anthropic request context, never saved history or tools. */
 export default function anthropicPromptSanitizer(pi: ExtensionAPI): void {
-  pi.on("before_provider_request", (event, ctx) => {
-    if (ctx.model?.provider !== ANTHROPIC_PROVIDER) {
-      return;
-    }
-
-    const payload = asRecord(event.payload);
-    if (!payload || !Array.isArray(payload.system)) {
-      return;
-    }
-
-    let changed = false;
-    const system = payload.system.map((value) => {
-      const result = sanitizeSystemBlock(value);
-      changed ||= result.changed;
-      return result.value;
-    });
-
-    if (!changed) {
-      return;
-    }
-
-    return { ...payload, system };
+  pi.on("context_with_system", (event, ctx) => {
+    if (ctx.model?.provider !== "anthropic") return;
+    const messages = event.messages.map(message => message.role === "system" ? sanitizeSystemMessage(message) : message);
+    if (messages.every((message, index) => message === event.messages[index])) return;
+    return { messages };
   });
 }

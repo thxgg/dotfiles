@@ -51,17 +51,28 @@ test('Anthropic sanitation preserves user content and other providers', async ()
   const { default: extension } = await import('../agent/extensions/anthropic-prompt-sanitizer.ts');
   const h = harness();
   extension(h.api);
-  const handler = h.handlers.get('before_provider_request');
-  const messages = [{ role: 'user', content: 'Preserve this request' }];
-  const payload = {
-    system: [{ type: 'text', text: 'Keep this.\n\nPi documentation (read only when the user asks about pi itself: local paths\n\nKeep this too.' }],
-    messages,
-  };
-  const result = await handler({ payload }, { model: { provider: 'anthropic' } });
-  assert.equal(result.system[0].text, 'Keep this.\n\nKeep this too.');
-  assert.equal(result.messages, messages);
-  assert.equal(await handler({ payload }, { model: { provider: 'openai' } }), undefined);
-  assert.match(payload.system[0].text, /Pi documentation/);
+  const handler = h.handlers.get('context_with_system');
+  assert.equal(h.handlers.has('before_provider_request'), false);
+  const docs = 'Pi documentation (read only when the user asks about pi itself: local paths';
+  const messages = [
+    { role: 'system', content: 'Keep this.', sections: { docs: `<docs>\n${docs}\n</docs>`, rules: 'Keep rules.' }, toolsAdded: [{ name: 'read' }], timestamp: 0 },
+    { role: 'user', content: docs, timestamp: 1 },
+    { role: 'system', content: [{ type: 'text', text: `Keep this.\n\n<docs>\n${docs}\n</docs>\n\nKeep this too.`, textSignature: 'opaque' }], sections: { docs, old: null }, toolsRemoved: [{ name: 'write' }], timestamp: 2 },
+  ];
+  const before = structuredClone(messages);
+  const result = await handler({ messages }, { model: { provider: 'anthropic' } });
+  assert.equal(result.messages[0].role, 'system');
+  assert.deepEqual(result.messages[0].sections, { docs: null, rules: 'Keep rules.' });
+  assert.equal(result.messages[0].toolsAdded, messages[0].toolsAdded);
+  assert.equal(result.messages[1], messages[1]);
+  assert.deepEqual(result.messages[2].content, [{ type: 'text', text: 'Keep this.\n\nKeep this too.', textSignature: 'opaque' }]);
+  assert.equal(result.messages[2].toolsRemoved, messages[2].toolsRemoved);
+  assert.deepEqual(result.messages[2].sections, { docs: null, old: null });
+  assert.equal(await handler({ messages }, { model: { provider: 'openai' } }), undefined);
+  assert.equal(await handler(result, { model: { provider: 'anthropic' } }), undefined);
+  assert.deepEqual(messages, before, 'saved history must remain unchanged');
+  const legacy = { role: 'system', content: `Keep this.\n\n${docs}\n\nKeep this too.`, timestamp: 0 };
+  assert.equal(handler({ messages: [legacy] }, { model: { provider: 'anthropic' } }).messages[0].content, 'Keep this.\n\nKeep this too.');
 });
 
 test('cloak masks only matching paths with isolated synthetic configuration', async () => {

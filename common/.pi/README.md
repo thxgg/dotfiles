@@ -14,7 +14,9 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-The workspace targets Pi `0.87.1`. Pi now declares its own `@earendil-works/pi-server` dependency; the workspace no longer pins that transitive dependency directly.
+The workspace targets Pi `0.99.1`, including the vendored MCP adapter's development dependencies.
+Vite+ owns the CLI installation. Keep workspace pins aligned with the CLI when validating upgrades;
+a successful check against older workspace dependencies does not validate a newer CLI.
 
 ## External packages and Pi Voice
 
@@ -70,6 +72,31 @@ are now `~/.pi/agent/mcp-adapter.json` and `.pi/mcp-adapter.json`; shared `.mcp.
 files keep their names. `pi-ephemeral` writes the adapter-owned project file. Rename old
 adapter `mcp.json` files only after checking that no destination exists. Do not move files
 owned by Pi's built-in MCP support. Project servers now require trust and approval.
+
+## Native codemode
+
+Enable native codemode alongside direct tools in machine-local `~/.pi/agent/settings.json`:
+
+```json
+{
+  "defaultTools": ["+codemode"],
+  "codemode": { "mode": "on" }
+}
+```
+
+Merge these preferences with existing settings. Do not replace the file or stow it.
+Use codemode for bounded tool batches and filtering. Keep `mcpScript` for the adapter's
+MCP calls, and keep `Agent` and `workflow` for isolated model work. Native codemode does
+not require native MCP servers. SDK child sessions still opt out of parent extensions.
+
+Nested calls pass through the Git guard and cloak hook. Verbosity grouping ignores nested
+execution events because codemode owns their display; direct tool rows remain grouped.
+The aggregate check runs an offline SDK test with a scripted provider, real codemode,
+local tools, and these hooks. It does not contact providers or start MCP servers.
+
+Anthropic prompt sanitation uses `context_with_system`. It removes the Pi documentation
+from request-local system content and section updates, preserving tool declarations,
+non-system messages, and saved session history.
 
 ## Validate extensions
 

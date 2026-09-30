@@ -142,18 +142,19 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     if (event.message.role === "toolResult") refreshCall(event.message.toolCallId);
   });
   pi.on("tool_execution_start", event => {
-    if (!terminal) return;
+    // Nested calls have no transcript rows. The parent (for example codemode) owns their display.
+    if (!terminal || event.parentToolCallId) return;
     activity.start(event.toolCallId, event.toolName, event.args);
     refreshCall(event.toolCallId);
   });
   pi.on("tool_execution_update", event => {
-    if (!terminal) return;
+    if (!terminal || event.parentToolCallId) return;
     // No partial-result copies. Native renderers still receive all progress updates.
     if (event.partialResult.content.some((p: Content) => p.type === "image")) { activity.exclude(event.toolCallId); redraw(); }
     else refreshCall(event.toolCallId);
   });
   pi.on("tool_execution_end", (event, ctx) => {
-    if (!terminal) return;
+    if (!terminal || event.parentToolCallId) return;
     activity.finish(event.toolCallId, { ...event.result, isError: event.isError }, ctx.signal?.aborted);
     if (event.result.content.some((p: Content) => p.type === "image")) redraw();
     else refreshCall(event.toolCallId);
