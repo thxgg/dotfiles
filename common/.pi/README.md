@@ -98,6 +98,34 @@ Anthropic prompt sanitation uses `context_with_system`. It removes the Pi docume
 from request-local system content and section updates, preserving tool declarations,
 non-system messages, and saved session history.
 
+## Optional Astra Ultrafast (paid API)
+
+`agent/models.json` adds `openai/gpt-6-astra-ultrafast`, labeled
+**GPT-6 Astra Ultrafast (PAID API)**. It uses the existing OpenAI API-key credential,
+not the Codex subscription. Native `samplingParams` sends `model: "gpt-6-astra"`
+and `service_tier: "ultrafast"`; no additional provider wrapper is needed.
+Standard Astra and the existing Codex Fast aliases remain unchanged.
+
+Keep this model out of machine-local `enabledModels` so `Ctrl+P` does not cycle
+into paid Ultrafast. Keep `openai-codex/gpt-6-astra-fast` as the saved default.
+To opt in for a separate session:
+
+```sh
+pi --provider openai --model gpt-6-astra-ultrafast
+```
+
+Or select `/model openai/gpt-6-astra-ultrafast` manually. Do not press `Ctrl+S`
+unless you intend to make it the default. Resuming an Ultrafast session restores
+that selection. Compaction in that session also uses Ultrafast.
+
+The alias includes published Ultrafast prices because Pi 0.99.1 has no Ultrafast
+cost multiplier: $60 input, $6 cached input, and $300 output per million tokens
+at short context. See [OpenAI pricing](https://developers.openai.com/api/docs/pricing).
+Displayed costs remain estimates, particularly if the server falls back to another
+tier. The prior API-key probe returned `ultrafast`; the subscription probe returned
+`default`. Changing the OpenAI credential to ChatGPT OAuth does not guarantee
+Ultrafast access.
+
 ## Validate extensions
 
 ```bash
