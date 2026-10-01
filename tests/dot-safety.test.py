@@ -56,6 +56,34 @@ class DotSafety(unittest.TestCase):
                 result = subprocess.run([ZSH, '-f', '-c', common + mock + function('cmd_check_packages') + '\ncmd_check_packages'], env={'HOME': directory, 'PATH': '/usr/bin:/bin', 'DOTFILES_DIR': directory, 'OSTYPE': 'linux-gnu'}, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
+    def test_nvim_update_syncs_once_and_preserves_tool_updates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            body = '''set -euo pipefail
+header() { :; }; info() { :; }; success() { :; }; warn() { :; };
+command_exists() { return 0; }
+nvim() { printf '%s\\n' "$*"; }
+''' + function('update_nvim') + '\nupdate_nvim'
+            result = subprocess.run([ZSH, '-f', '-c', body], env={'HOME': directory, 'TMPDIR': directory, 'PATH': '/usr/bin:/bin'}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = result.stdout.splitlines()
+            self.assertEqual(len(calls), 3, result.stdout)
+            self.assertEqual(calls[0], '--headless +Lazy! sync +qa')
+            self.assertTrue(calls[1].startswith('--headless -c luafile '), calls[1])
+            self.assertEqual(calls[2], "--headless +lua require('nvim-treesitter').update():wait(300000) +qa")
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_nvim_sync_failure_stops_tool_updates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            body = '''set -euo pipefail
+header() { :; }; info() { :; }; success() { :; }; warn() { :; };
+command_exists() { return 0; }
+nvim() { printf '%s\\n' "$*"; return 17; }
+''' + function('update_nvim') + '\nif update_nvim; then exit 0; else exit $?; fi'
+            result = subprocess.run([ZSH, '-f', '-c', body], env={'HOME': directory, 'TMPDIR': directory, 'PATH': '/usr/bin:/bin'}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 17, result.stderr)
+            self.assertEqual(result.stdout.splitlines(), ['--headless +Lazy! sync +qa'])
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
     def test_update_does_not_apply_theme(self):
         with tempfile.TemporaryDirectory() as directory:
             fake = Path(directory)/'.local/bin/theme-mode'

@@ -383,13 +383,8 @@ update_nvim() {
 		return
 	fi
 
-	info "Updating, syncing, cleaning, and checking Lazy.nvim plugins"
-	nvim --headless \
-		"+Lazy! update" \
-		"+Lazy! sync" \
-		"+Lazy! clean" \
-		"+Lazy! check" \
-		+qa || return
+	info "Syncing Lazy.nvim plugins (install, update, and clean)"
+	nvim --headless "+Lazy! sync" +qa || return
 
 	info "Updating Mason registries and installed packages"
 	local mason_script mason_status
