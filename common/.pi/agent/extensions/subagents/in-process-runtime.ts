@@ -17,6 +17,7 @@ import { jobStore } from "./job-store.ts";
 import { composeAgentPrompt } from "./prompt.ts";
 import { createChildModelRuntime } from "./model-runtime.ts";
 import { createPermissionGuard } from "./readonly.ts";
+import painterExtension from "../painter/index.ts";
 import { bindChildSessionExtensions, shutdownAndDisposeChildSession } from "./child-lifecycle.ts";
 import { createToolTimeoutGuard } from "./tool-timeout.ts";
 import { createStructuredOutputTool, STRUCTURED_OUTPUT_INSTRUCTION } from "./structured-output.ts";
@@ -59,7 +60,9 @@ function createSettingsManager(cwd: string, agent: AgentDefinition): SettingsMan
   return settings;
 }
 
+/** Load the permission guard and explicitly allowed child capabilities without parent lifecycle hooks. */
 export function createChildResourceLoader(job: RuntimeJob, agent: AgentDefinition, settingsManager: SettingsManager): DefaultResourceLoader {
+  const imageExtensions = getActiveToolNames(agent)?.includes("generate_image") ? [painterExtension] : [];
   return new DefaultResourceLoader({
     cwd: job.cwd,
     agentDir: getAgentDir(),
@@ -67,11 +70,11 @@ export function createChildResourceLoader(job: RuntimeJob, agent: AgentDefinitio
     // Do not recursively load the parent's extension stack. A nested subagent
     // extension shares this module's process-global job map, so its child
     // session_shutdown handler can cancel every sibling job in the parent.
-    // The permission guard below is the only extension a delegated session
-    // needs. Provider registrations are copied through modelRuntime.
+    // Register only the permission guard and explicitly allowed capability
+    // extensions. Provider registrations are copied through modelRuntime.
     noExtensions: true,
     appendSystemPromptOverride: (base) => [...base, composeAgentPrompt(agent), ...(agent.outputSchema ? [STRUCTURED_OUTPUT_INSTRUCTION] : [])],
-    extensionFactories: [createPermissionGuard(agent, { jobId: job.id, store: jobStore })],
+    extensionFactories: [createPermissionGuard(agent, { jobId: job.id, store: jobStore }), ...imageExtensions],
   });
 }
 
