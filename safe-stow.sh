@@ -464,6 +464,8 @@ remove_obsolete_managed_symlinks() {
     obsolete_paths=(
         ".pi/agent/mcp.json"
         ".pi/agent/extensions/pi-mcp"
+        ".pi/agent/extensions/pi-mcp-adapter-local"
+        ".pi/agent/extensions/pi-ephemeral"
     )
 
     for target_path in "${obsolete_paths[@]}"; do
@@ -888,6 +890,9 @@ if [[ $include_deploy_paths -eq 1 ]]; then
     link_dot_command
 fi
 
+if [[ $PI_ONLY_MODE -eq 1 ]]; then
+    remove_obsolete_managed_symlinks
+fi
 if [[ $PI_ONLY_MODE -eq 1 || $SKILLS_ONLY_MODE -eq 1 ]]; then
     link_special_leaf_paths
 fi

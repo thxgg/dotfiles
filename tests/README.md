@@ -103,6 +103,18 @@ Shell subprocesses use `zsh -f`, a temporary `HOME`, and a minimal environment.
 They do not inherit `BASH_ENV`, `ZDOTDIR`, or live Pi configuration. User shell
 startup files are not loaded.
 
+# Pi native MCP migration checks
+
+```sh
+node --test tests/pi-mcp-migration.test.mjs
+```
+
+These checks use temporary project directories. They verify that adapter-managed
+servers become native project entries, Ephemeral manifests are archived without
+removing other project resources, shared `.mcp.json` files remain in place, and
+name conflicts fail without overwriting configurations. They do not connect to MCP
+servers or authenticate.
+
 # Pi model alias checks
 
 Run from the repository root with Pi installed:

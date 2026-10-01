@@ -20,6 +20,9 @@ common/.config/herdr/*.log
 .agents/artifacts/
 .pi/artifacts/
 .pi/ephemeral.json
+.pi/ephemeral.json.migrated
+.pi/mcp.json
+.pi/mcp-adapter.json.migrated
 .pi/skills/
 
 # Pi global runtime/state: ignore by default, then allowlist portable config.
@@ -52,6 +55,7 @@ common/.pi/node_modules/
 
 # Pi runtime state (machine-local, never commit or stow)
 common/.pi/ephemeral/
+common/.pi/agent/extensions/pi-mcp-adapter-local/.pi/
 
 # Dependency directories
 **/node_modules/

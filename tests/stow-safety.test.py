@@ -341,6 +341,18 @@ class StowSafety(unittest.TestCase):
         self.run_script('safe-stow.sh')
         self.assertFalse(child.parent.exists())
 
+    def test_removes_retired_adapter_and_ephemeral_link_trees(self):
+        for name in ('pi-mcp-adapter-local', 'pi-ephemeral'):
+            relative = f'.pi/agent/extensions/{name}'
+            child = self.home / relative / 'index.ts'
+            expected = self.repo / 'common' / relative / 'index.ts'
+            self.link(child, os.path.relpath(expected, child.parent))
+        result = self.run_script('safe-stow.sh', '--only-pi')
+        for name in ('pi-mcp-adapter-local', 'pi-ephemeral'):
+            target = self.home / '.pi/agent/extensions' / name
+            self.assertFalse(target.exists(), f'{target}: {list(target.iterdir()) if target.exists() else "missing"}\n{result.stdout}')
+        self.assert_no_backups()
+
     def test_doctor_reports_broken_managed_pi_runtime_links(self):
         self.put(self.repo / 'common/.ssh/config', '# fixture\n')
         (self.home / '.ssh').mkdir()

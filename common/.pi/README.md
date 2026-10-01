@@ -14,8 +14,8 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-The workspace targets Pi `0.99.1`, including the vendored MCP adapter's development dependencies.
-Vite+ owns the CLI installation. Keep workspace pins aligned with the CLI when validating upgrades;
+The workspace targets Pi `0.99.2`. Vite+ owns the CLI installation.
+Keep workspace pins aligned with the CLI when validating upgrades;
 a successful check against older workspace dependencies does not validate a newer CLI.
 
 ## External packages and Pi Voice
@@ -64,14 +64,21 @@ models remain in the local Hugging Face cache. `doctor.sh` checks package regist
 npm version, FFmpeg availability, and the configured model file. These checks do not record audio,
 load a model, or download files.
 
-## MCP adapter fork
+## Native MCP and extension controls
 
-The vendored adapter targets upstream 3.1.0. Keep the local shared-project-config opt-out
-and strict OAuth environment interpolation patches when updating it. Adapter-owned files
-are now `~/.pi/agent/mcp-adapter.json` and `.pi/mcp-adapter.json`; shared `.mcp.json`
-files keep their names. `pi-ephemeral` writes the adapter-owned project file. Rename old
-adapter `mcp.json` files only after checking that no destination exists. Do not move files
-owned by Pi's built-in MCP support. Project servers now require trust and approval.
+Pi uses its built-in MCP support. Put project servers in `.pi/mcp.json` after
+reviewing and trusting the project. The former MCP adapter and Pi Ephemeral are retired.
+To migrate their old project configs, run `node scripts/migrate-pi-mcp.mjs <project-root>...`.
+The script merges servers without overwriting native entries, archives Ephemeral's
+manifest and adapter config, and preserves other project resources, such as skills.
+Shared `.mcp.json` files are copied, not removed. Unsupported adapter fields fail
+validation instead of disappearing. Native MCP has no adapter-style idle disconnect.
+Native OAuth uses its own credentials; re-authenticate remote servers with
+`/mcp login <server>` when necessary.
+Do not run `pi mcp list` merely to check config: it connects enabled servers.
+
+`pi-extmgr` is declared in `agent/npm/package.json` for `/extensions` package management.
+The existing local `/toggle-skills` extension manages skill invocation separately.
 
 ## Native codemode
 
@@ -85,9 +92,8 @@ Enable native codemode alongside direct tools in machine-local `~/.pi/agent/sett
 ```
 
 Merge these preferences with existing settings. Do not replace the file or stow it.
-Use codemode for bounded tool batches and filtering. Keep `mcpScript` for the adapter's
-MCP calls, and keep `Agent` and `workflow` for isolated model work. Native codemode does
-not require native MCP servers. SDK child sessions still opt out of parent extensions.
+Use codemode for bounded tool batches and native MCP calls, and keep `Agent` and
+`workflow` for isolated model work. SDK child sessions still opt out of parent extensions.
 
 Nested calls pass through the Git guard and cloak hook. Verbosity grouping ignores nested
 execution events because codemode owns their display; direct tool rows remain grouped.
