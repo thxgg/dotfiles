@@ -129,6 +129,8 @@ pane_history = true
 allow_nested = false
 kitty_graphics = true
 
-switch_ascii_input_source_in_prefix = true
+# Keep disabled: macOS registers the Herdr client as Ghostty, adding a Dock icon.
+# Automatic input-source switching is the suspected trigger.
+switch_ascii_input_source_in_prefix = false
 [advanced]
 scrollback_limit_bytes = 52428800
