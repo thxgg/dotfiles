@@ -104,33 +104,74 @@ Anthropic prompt sanitation uses `context_with_system`. It removes the Pi docume
 from request-local system content and section updates, preserving tool declarations,
 non-system messages, and saved session history.
 
-## Optional Astra Ultrafast (paid API)
+## OpenAI chat models and speed aliases
 
-`agent/models.json` adds `openai/gpt-6-astra-ultrafast`, labeled
-**GPT-6 Astra Ultrafast (PAID API)**. It uses the existing OpenAI API-key credential,
-not the Codex subscription. Native `samplingParams` sends `model: "gpt-6-astra"`
-and `service_tier: "ultrafast"`; no additional provider wrapper is needed.
-Standard Astra and the existing Codex Fast aliases remain unchanged.
+Chat models use the `openai` provider with **Sign in with ChatGPT** OAuth.
+Pi 0.99.2 supersedes the legacy `openai-codex` chat connection with this provider.
+Use `/login openai` and choose the ChatGPT subscription login, not an API key.
+The subscription route uses `https://api.openai.com/v1`; this endpoint does not
+by itself imply API-key billing. If you replace OAuth with an API key, requests
+use separate API billing instead.
 
-Keep this model out of machine-local `enabledModels` so `Ctrl+P` does not cycle
-into paid Ultrafast. Keep `openai-codex/gpt-6-astra-fast` as the saved default.
-To opt in for a separate session:
+`agent/models.json` provides `openai/gpt-6-astra-fast`,
+`openai/gpt-6.1-sol-fast`, and `openai/gpt-6-astra-ultrafast`.
+The existing `gpt6-sol-aliases.ts` extension rewrites their upstream model IDs
+and sends `service_tier: "priority"` for Fast or `"ultrafast"` for Ultrafast.
+It wraps `openai-responses`, including direct compaction requests, and leaves
+ordinary models on the native simple stream. Do not load a second wrapper.
+
+Keep Astra Fast as the default. Migrate machine-local `defaultProvider`,
+`enabledModels`, `modelThinkingLevels`, and `compaction.modelOverrides` from
+`openai-codex` to `openai` where present. Keep model IDs and thinking levels,
+except retired `gpt-6-sol` selections, which should use `gpt-6.1-sol`.
+These settings remain untracked. New defaults do not change models recorded in
+old sessions. After `/reload`, select the migrated model explicitly:
+
+```text
+/model openai/gpt-6-astra-fast
+```
+
+Subagent chat models, workflow defaults, and recap also use `openai`.
+Painter's chat controller uses `openai/gpt-6-astra`, but its `generate_image`
+tool still uses the legacy `openai-codex` credential and backend image endpoint.
+Do not remove that credential or migrate the image client. If it reports an
+invalidated token, run `/login openai-codex` in Pi. The new subscription API
+does not currently support image generation.
+
+### Optional Astra Ultrafast
+
+Keep Ultrafast out of automatic cycling until its served tier is verified.
+Select it explicitly:
+
+```text
+/model openai/gpt-6-astra-ultrafast
+```
+
+Or start a separate session:
 
 ```sh
 pi --provider openai --model gpt-6-astra-ultrafast
 ```
 
-Or select `/model openai/gpt-6-astra-ultrafast` manually. Do not press `Ctrl+S`
-unless you intend to make it the default. Resuming an Ultrafast session restores
-that selection. Compaction in that session also uses Ultrafast.
+Ultrafast requires an eligible account. On 1 October 2026, the account catalog
+advertised Astra Ultrafast. A small OpenAI OAuth request with
+`service_tier: "ultrafast"` completed with HTTP 200 and `ULTRAFAST_OK`, but
+the returned tier was `default`. This verifies subscription connectivity, not
+Ultrafast processing or speed. The legacy Codex request returned HTTP 401.
+Resuming an Ultrafast session restores that selection, and compaction also
+requests Ultrafast.
 
-The alias includes published Ultrafast prices because Pi 0.99.1 has no Ultrafast
-cost multiplier: $60 input, $6 cached input, and $300 output per million tokens
-at short context. See [OpenAI pricing](https://developers.openai.com/api/docs/pricing).
-Displayed costs remain estimates, particularly if the server falls back to another
-tier. The prior API-key probe returned `ultrafast`; the subscription probe returned
-`default`. Changing the OpenAI credential to ChatGPT OAuth does not guarantee
-Ultrafast access.
+OpenAI lists Ultrafast at 8× Standard included usage and 6× purchased-credit usage.
+Pi 0.99.2 has no native Ultrafast cost multiplier, so the alias carries 6× token
+rates for a credit-priced estimate. Fast uses standard token rates plus Pi's
+service-tier multiplier. These estimates are not the subscription allowance
+balance and do not detect server fallback.
+
+Third-party credit use requires a separate opt-in in ChatGPT Settings → Usage
+and an app limit of 100%. This migration does not enable credit use or automatic
+credit purchases. See [app usage and credits](https://help.openai.com/articles/20001542),
+[subscription API limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations),
+and [Codex speed and billing](https://developers.openai.com/codex/speed).
 
 ## Session recap
 

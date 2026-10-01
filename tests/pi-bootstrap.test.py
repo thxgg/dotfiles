@@ -166,6 +166,36 @@ rm "$MANIFEST.tmp"
         ''', "test", ROOT / "scripts/lib/stow-roots.zsh")
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_doctor_checks_openai_and_painter_auth_separately(self):
+        source = (ROOT / "doctor.sh").read_text()
+        body = "check_pi_workspace() {" + source.split(
+            "check_pi_workspace() {", 1)[1].split("\n}\n", 1)[0] + "\n}\n"
+        self.executable(self.bin / "pi", '''#!/bin/sh
+printf '%s\\n' "$*" >> "$CALL_LOG"
+if [ "$1" = --version ]; then echo test; exit 0; fi
+case "$*" in
+  "auth check --provider openai --no-refresh") exit "$OPENAI_STATUS" ;;
+  "auth check --provider openai-codex --no-refresh") exit "$CODEX_STATUS" ;;
+  *) exit 99 ;;
+esac
+''')
+        self.executable(self.bin / "vp", '#!/bin/sh\necho test\n')
+        for openai_status, codex_status in [(0, 7), (7, 0)]:
+            with self.subTest(openai=openai_status, painter=codex_status):
+                Path(self.env["CALL_LOG"]).write_text("")
+                self.env.update(OPENAI_STATUS=str(openai_status), CODEX_STATUS=str(codex_status))
+                result = self.run_zsh("-c", 'SCRIPT_DIR="$HOME"\n'
+                    "print_status() { printf '%s %s\\n' \"$1\" \"$2\"; }\n"
+                    + body + "\ncheck_pi_workspace")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(Path(self.env["CALL_LOG"]).read_text().splitlines(), [
+                    "--version", "auth check --provider openai --no-refresh",
+                    "auth check --provider openai-codex --no-refresh"])
+                self.assertIn("OK Pi OpenAI authentication is ready" if openai_status == 0
+                              else "WARN Pi OpenAI authentication is not ready", result.stdout)
+                self.assertIn("OK Pi Painter legacy Codex authentication is ready" if codex_status == 0
+                              else "WARN Pi Painter authentication is not ready", result.stdout)
+
     def health(self):
         return self.run_zsh("-c", '''
             print_status() { printf '%s %s\\n' "$1" "$2"; }

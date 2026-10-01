@@ -47,7 +47,7 @@ function formatModel(model: Model<any> | undefined): string | undefined {
 function resolveModel(ctx: ExtensionContext, modelSpec: string | undefined): Model<any> | undefined {
   if (!modelSpec) return undefined;
   const slash = modelSpec.indexOf("/");
-  if (slash === -1) return ctx.modelRegistry.find(ctx.model?.provider ?? "openai-codex", modelSpec);
+  if (slash === -1) return ctx.modelRegistry.find(ctx.model?.provider ?? "openai", modelSpec);
   return ctx.modelRegistry.find(modelSpec.slice(0, slash), modelSpec.slice(slash + 1));
 }
 

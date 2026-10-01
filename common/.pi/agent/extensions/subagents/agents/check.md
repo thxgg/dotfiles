@@ -1,7 +1,7 @@
 ---
 name: check
 description: Hidden internal agent for one configured review check.
-model: openai-codex/gpt-6-astra
+model: openai/gpt-6-astra
 thinking: minimal
 tools: [read, grep, find, ls, bash]
 permissions:

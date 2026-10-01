@@ -124,7 +124,7 @@ function fakeClientResult(images: GeneratedImage[]): DirectImageClientResult {
 		retryCount: 0,
 		warnings: [],
 		requestBody: {
-			model: "gpt-6-sol",
+			model: "gpt-6.1-sol",
 			store: false,
 			stream: true,
 			instructions: "Use image_generation.",

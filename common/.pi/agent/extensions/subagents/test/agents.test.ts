@@ -13,7 +13,7 @@ test("discovers built-in Pi agents", () => {
 test("general agents use Astra and Fable reviewers use Fable 5.1", () => {
   const agents = discoverAgents(process.cwd(), "builtin").agents;
   for (const name of ["agent", "search", "reviewer", "painter", "check"]) {
-    assert.equal(getAgentByName(agents, name)?.model, "openai-codex/gpt-6-astra", name);
+    assert.equal(getAgentByName(agents, name)?.model, "openai/gpt-6-astra", name);
   }
   for (const name of ["oracle", "fable-reviewer", "frontend-reviewer"]) {
     assert.equal(getAgentByName(agents, name)?.model, "anthropic/claude-fable-5-1", name);

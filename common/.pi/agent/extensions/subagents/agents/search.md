@@ -1,7 +1,7 @@
 ---
 name: search
 description: Fast read-only local codebase search and exploration.
-model: openai-codex/gpt-6-astra
+model: openai/gpt-6-astra
 thinking: minimal
 tools: [read, grep, find, ls, bash]
 permissions:

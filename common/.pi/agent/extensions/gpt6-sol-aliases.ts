@@ -1,48 +1,48 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { AssistantMessageEventStream, Model, SimpleStreamOptions, StreamOptions } from "@earendil-works/pi-ai";
-import { normalizeContext } from "@earendil-works/pi-ai";
+import type { Api, AssistantMessageEventStream, Model, SimpleStreamOptions, StreamOptions } from "@earendil-works/pi-ai";
+import { clampThinkingLevel, normalizeContext } from "@earendil-works/pi-ai";
 import { getApiProvider } from "@earendil-works/pi-ai/compat";
 
 type PiModel = NonNullable<ExtensionContext["model"]>;
 type JsonRecord = Record<string, unknown>;
-type CodexProvider = NonNullable<ReturnType<typeof getApiProvider>>;
+type ResponsesProvider = NonNullable<ReturnType<typeof getApiProvider>>;
 
-const PROVIDER = "openai-codex";
-const CODEX_API = "openai-codex-responses";
-const UPSTREAM_MODEL = "gpt-6-sol";
-const FAST_MODEL = "gpt-6-sol-fast";
+const PROVIDER = "openai";
+const RESPONSES_API = "openai-responses";
+const UPSTREAM_MODEL = "gpt-6.1-sol";
+const FAST_MODEL = "gpt-6.1-sol-fast";
 const ASTRA_MODEL = "gpt-6-astra";
 const ASTRA_FAST_MODEL = "gpt-6-astra-fast";
-type Alias = typeof FAST_MODEL | typeof ASTRA_FAST_MODEL;
-const FAST_SERVICE_TIER = "priority";
+const ASTRA_ULTRAFAST_MODEL = "gpt-6-astra-ultrafast";
+type Alias = typeof FAST_MODEL | typeof ASTRA_FAST_MODEL | typeof ASTRA_ULTRAFAST_MODEL;
 const UPSTREAM_COST = {
   input: 2,
   output: 10,
-  cacheRead: 0.2,
+  cacheRead: 0.1,
   cacheWrite: 2.5,
 };
-const PROVIDER_PROBE_JWT =
-  "e30.eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiYWNjdF9waV9leHRlbnNpb25fcHJvYmUifX0.sig";
+const PROVIDER_PROBE_KEY = "pi-openai-alias-probe";
 
 function selectedAlias(model: PiModel | undefined): Alias | undefined {
-  if (model?.provider === PROVIDER && (model.id === FAST_MODEL || model.id === ASTRA_FAST_MODEL)) return model.id;
+  if (model?.provider === PROVIDER && (model.id === FAST_MODEL || model.id === ASTRA_FAST_MODEL || model.id === ASTRA_ULTRAFAST_MODEL)) return model.id;
   return undefined;
 }
 
-function isFastAlias(alias: Alias | undefined): boolean {
-  return alias === FAST_MODEL || alias === ASTRA_FAST_MODEL;
+function serviceTierForAlias(alias: Alias): "priority" | "ultrafast" {
+  return alias === ASTRA_ULTRAFAST_MODEL ? "ultrafast" : "priority";
 }
 
 function upstreamModelId(alias: Alias): string {
-  return alias === ASTRA_FAST_MODEL ? ASTRA_MODEL : UPSTREAM_MODEL;
+  return alias === FAST_MODEL ? UPSTREAM_MODEL : ASTRA_MODEL;
 }
 
 function asRecord(value: unknown): JsonRecord | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  // SAFETY: The guard excludes null, primitives, and arrays. Payload fields remain unknown.
   return value as JsonRecord;
 }
 
-function toUpstreamModel(model: Model<any>): Model<any> {
+function toUpstreamModel(model: Model<Api>): Model<Api> {
   const alias = selectedAlias(model);
   if (!alias) return model;
 
@@ -60,26 +60,28 @@ function rewriteAliasPayload(payload: unknown, alias: Alias | undefined): unknow
   return {
     ...body,
     model: upstreamModelId(alias),
-    ...(isFastAlias(alias) ? { service_tier: FAST_SERVICE_TIER } : {}),
+    service_tier: serviceTierForAlias(alias),
   };
 }
 
-type CodexOptions = StreamOptions & {
+type ResponsesOptions = StreamOptions & {
   serviceTier?: string;
   reasoningEffort?: SimpleStreamOptions["reasoning"];
 };
 
-function createCodexOptions(model: Model<any>, options?: SimpleStreamOptions): CodexOptions {
+function createResponsesOptions(model: Model<Api>, options?: SimpleStreamOptions): ResponsesOptions {
   const alias = selectedAlias(model);
-  const codexOptions = options as CodexOptions | undefined;
-  const serviceTier = isFastAlias(alias) ? FAST_SERVICE_TIER : codexOptions?.serviceTier;
+  // SAFETY: Responses-only optional fields are forwarded to the same provider boundary.
+  const responsesOptions = options as ResponsesOptions | undefined;
+  const serviceTier = alias ? serviceTierForAlias(alias) : responsesOptions?.serviceTier;
   const originalOnPayload = options?.onPayload;
+  const reasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
 
   return {
-    ...codexOptions,
+    ...responsesOptions,
     serviceTier,
-    // The raw stream API uses reasoningEffort, not SimpleStreamOptions.reasoning.
-    reasoningEffort: options?.reasoning,
+    // Match the native simple stream’s thinking-level clamping.
+    reasoningEffort: reasoning === "off" ? undefined : reasoning,
     async onPayload(payload, requestModel) {
       let current = rewriteAliasPayload(payload, alias);
       const next = await originalOnPayload?.(current, requestModel);
@@ -89,13 +91,13 @@ function createCodexOptions(model: Model<any>, options?: SimpleStreamOptions): C
   };
 }
 
-function probeModel(): Model<"openai-codex-responses"> {
+function probeModel(): Model<"openai-responses"> {
   return {
     id: UPSTREAM_MODEL,
-    name: "GPT-6 Sol",
-    api: CODEX_API,
+    name: "GPT-6.1 Sol",
+    api: RESPONSES_API,
     provider: PROVIDER,
-    baseUrl: "https://chatgpt.com/backend-api",
+    baseUrl: "https://api.openai.com/v1",
     reasoning: true,
     input: ["text"],
     cost: UPSTREAM_COST,
@@ -110,7 +112,7 @@ async function drain(stream: AssistantMessageEventStream): Promise<void> {
   }
 }
 
-async function loadApiProvider(api: string, model: Model<any>, apiKey: string): Promise<CodexProvider> {
+async function loadApiProvider(api: string, model: Model<Api>, apiKey: string): Promise<ResponsesProvider> {
   const lazyProvider = getApiProvider(api);
   if (!lazyProvider) throw new Error(`Could not find built-in ${api} provider to wrap.`);
 
@@ -129,15 +131,17 @@ async function loadApiProvider(api: string, model: Model<any>, apiKey: string): 
   return getApiProvider(api) ?? lazyProvider;
 }
 
+/** Route OpenAI speed aliases through Responses, including direct compaction calls. */
 export default async function (pi: ExtensionAPI) {
-  const codexProvider = await loadApiProvider(CODEX_API, probeModel(), PROVIDER_PROBE_JWT);
+  const responsesProvider = await loadApiProvider(RESPONSES_API, probeModel(), PROVIDER_PROBE_KEY);
 
   // Compaction invokes the provider's streamSimple directly and does not carry
   // Pi's before_provider_request hook, so normalize aliases at this boundary.
   pi.registerProvider(PROVIDER, {
-    api: CODEX_API,
-    streamSimple: (model, context, options) =>
-      codexProvider.stream(toUpstreamModel(model), context, createCodexOptions(model, options)),
+    api: RESPONSES_API,
+    streamSimple: (model, context, options) => selectedAlias(model)
+      ? responsesProvider.stream(toUpstreamModel(model), context, createResponsesOptions(model, options))
+      : responsesProvider.streamSimple(model, context, options),
   });
 
   pi.on("message_end", (event, ctx) => {

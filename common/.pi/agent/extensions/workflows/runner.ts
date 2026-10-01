@@ -47,7 +47,7 @@ function transcript(messages: any[]): TranscriptEntry[] {
   }
   return values.slice(-200).map((entry) => ({ ...entry, text: entry.text.slice(0, 16 * 1024) }));
 }
-export const WORKFLOW_MODELS = ["openai-codex/gpt-6-astra", "anthropic/claude-fable-5"] as const;
+export const WORKFLOW_MODELS = ["openai/gpt-6-astra", "anthropic/claude-fable-5"] as const;
 const DEFAULT_WORKFLOW_MODEL = WORKFLOW_MODELS[0];
 export function resolveWorkflowModel(ctx: Pick<ExtensionContext, "modelRegistry">, spec: unknown): Model<any> | undefined {
   const requested = typeof spec === "string" && spec.trim() ? spec.trim() : DEFAULT_WORKFLOW_MODEL;

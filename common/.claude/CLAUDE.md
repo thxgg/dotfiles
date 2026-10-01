@@ -2,25 +2,25 @@
 
 ## Subagent model selection when running as Fable 5
 
-When the current model is Fable 5 and the agent wants to spawn subagents, always use **Pi with GPT-6 Sol** (`openai-codex/gpt-6-sol`) via subprocess — do not use the built-in Agent tool models.
+When the current model is Fable 5 and the agent wants to spawn subagents, always use **Pi with GPT-6.1 Sol** (`openai/gpt-6.1-sol`) via subprocess — do not use the built-in Agent tool models.
 
 ### Invoking Pi as a subprocess for subagent work
 
 One-shot call:
 
 ```
-pi -p --model openai-codex/gpt-6-sol --thinking high --no-session <<'EOF'
+pi -p --model openai/gpt-6.1-sol --thinking high --no-session <<'EOF'
 <self-contained task brief here>
 EOF
 ```
 
-Use the current repo as cwd. The model/effort must be Codex GPT-6 Sol with high thinking:
-`--model openai-codex/gpt-6-sol --thinking high`
+Use the current repo as cwd. The model/effort must be OpenAI GPT-6.1 Sol with high thinking:
+`--model openai/gpt-6.1-sol --thinking high`
 
 For stateful/multiturn integration, start RPC mode:
 
 ```
-pi --mode rpc --model openai-codex/gpt-6-sol --thinking high --name "claude-subagent"
+pi --mode rpc --model openai/gpt-6.1-sol --thinking high --name "claude-subagent"
 ```
 
 Then send LF-delimited JSON to stdin, e.g.:
@@ -31,13 +31,13 @@ Then send LF-delimited JSON to stdin, e.g.:
 
 Read JSONL events/responses from stdout. Use strict `\n` framing.
 
-## Mixed-model workflows when running as GPT-6 Sol
+## Mixed-model workflows when running as GPT-6.1 Sol
 
-When the current model is GPT-6 Sol inside Claude Code, use native dynamic workflows for tasks where independent analysis materially improves confidence, such as architecture decisions, difficult debugging, plans, and reviews.
+When the current model is GPT-6.1 Sol inside Claude Code, use native dynamic workflows for tasks where independent analysis materially improves confidence, such as architecture decisions, difficult debugging, plans, and reviews.
 
 For those workflows:
 
-- Run independent analysis branches with both `gpt-6-sol` and `claude-fable-5`, normally at high effort.
+- Run independent analysis branches with both `gpt-6.1-sol` and `claude-fable-5`, normally at high effort.
 - Give both branches the same self-contained evidence and question; do not show either model the other's answer before it commits its own findings.
 - Add a final synthesis or adjudication phase that compares agreements, disagreements, evidence, and unresolved uncertainty.
 - Do not use a mixed-model workflow for routine or tightly scoped work where one agent is sufficient.

@@ -460,10 +460,16 @@ check_pi_workspace() {
             print_status FAIL "Pi executable failed: $pi_bin"
         fi
 
-        if "$pi_bin" auth check --provider openai-codex --no-refresh >/dev/null 2>&1; then
-            print_status OK "Pi OpenAI Codex authentication is ready"
+        if "$pi_bin" auth check --provider openai --no-refresh >/dev/null 2>&1; then
+            print_status OK "Pi OpenAI authentication is ready"
         else
-            print_status WARN "Pi OpenAI Codex authentication is not ready; run pi auth check --provider openai-codex"
+            print_status WARN "Pi OpenAI authentication is not ready; run pi auth check --provider openai"
+        fi
+        # Painter still uses the legacy image-generation connection.
+        if "$pi_bin" auth check --provider openai-codex --no-refresh >/dev/null 2>&1; then
+            print_status OK "Pi Painter legacy Codex authentication is ready"
+        else
+            print_status WARN "Pi Painter authentication is not ready; run /login openai-codex in Pi"
         fi
     fi
 

@@ -1,7 +1,7 @@
 ---
 name: painter
 description: Generate or edit images for the parent or other agents without blocking their work.
-model: openai-codex/gpt-6-astra
+model: openai/gpt-6-astra
 thinking: minimal
 tools: [read, ls, generate_image]
 permissions:

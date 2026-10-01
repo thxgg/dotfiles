@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Review changes for correctness, regressions, test gaps, security, and unnecessary complexity.
-model: openai-codex/gpt-6-astra
+model: openai/gpt-6-astra
 thinking: xhigh
 tools: [read, grep, find, ls, bash]
 permissions:

@@ -33,12 +33,22 @@ test("textFromContent joins text blocks", () => {
 });
 
 test("resolveSideModel rewrites the fast Sol alias", () => {
-  const resolution = resolveSideModel({ provider: "openai-codex", id: "gpt-6-sol-fast" } as never);
-  assert.equal(resolution.model.id, "gpt-6-sol");
-  assert.deepEqual(resolution.rewritePayload({ model: "gpt-6-sol-fast", input: [] }), {
-    model: "gpt-6-sol",
+  const resolution = resolveSideModel({ provider: "openai", id: "gpt-6.1-sol-fast" } as never);
+  assert.equal(resolution.model.id, "gpt-6.1-sol");
+  assert.deepEqual(resolution.rewritePayload({ model: "gpt-6.1-sol-fast", input: [] }), {
+    model: "gpt-6.1-sol",
     input: [],
     service_tier: "priority",
+  });
+});
+
+test("resolveSideModel preserves the Astra Ultrafast tier", () => {
+  const resolution = resolveSideModel({ provider: "openai", id: "gpt-6-astra-ultrafast" } as never);
+  assert.equal(resolution.model.id, "gpt-6-astra");
+  assert.deepEqual(resolution.rewritePayload({ model: "gpt-6-astra-ultrafast", input: [] }), {
+    model: "gpt-6-astra",
+    input: [],
+    service_tier: "ultrafast",
   });
 });
 

@@ -97,7 +97,8 @@ Run `python3 tests/pi-bootstrap.test.py` from the repository root. These offline
 files and mock commands. They compare Pi workspace paths, package names, dependency declarations,
 and links with `common/.pi/package-lock.json`. This static check does not replace a clean frozen
 install or validate transitive dependency resolution. They also check package manifest parsing, the Vite+ fallback, install failure
-handling, Stow runtime exclusions, legacy Transcribe registration removal after successful Voice installation, and Pi Voice health reports. They do not install packages,
+handling, Stow runtime exclusions, legacy Transcribe registration removal after successful Voice installation, and Pi Voice health reports. They check separate OpenAI chat and legacy Painter auth
+health commands with mock credentials/statuses. They do not install packages,
 change live Pi settings, or download models. They require Python 3, zsh, and jq.
 Shell subprocesses use `zsh -f`, a temporary `HOME`, and a minimal environment.
 They do not inherit `BASH_ENV`, `ZDOTDIR`, or live Pi configuration. User shell
@@ -125,10 +126,12 @@ pi --no-extensions -e ./tests/pi-model-aliases.test.js --no-skills --no-prompt-t
 
 The tests load the extension through Pi. They use the real provider serializers with a local `fetch` replacement. They do not send model requests or use real credentials. They check:
 
-- Astra Fast and Sol Fast model rewriting.
-- Priority processing for fast aliases only.
-- Normal Astra requests without priority processing.
-- Reasoning-level translation, including Astra Max.
+- Astra Fast, Astra Ultrafast, and GPT-6.1 Sol Fast model rewriting.
+- Correct priority/ultrafast tiers through OpenAI Responses with subscription-shaped auth.
+- Omission of unsupported subscription request fields and preservation of Painter’s legacy provider.
+- Normal Astra and GPT-6.1 Sol requests without speed tiers.
+- Removal of legacy chat aliases and the old Sol Fast selection.
+- Reasoning-level translation, including Max and Off.
 - Payload callbacks and alias restoration in completed messages.
 - The direct `streamSimple` path used for compaction.
 - Removal of the Sol 1M model and its compaction exception.
@@ -137,19 +140,25 @@ Do not use `--list-models` to run these tests. Pi can hide extension-load errors
 
 ## Astra Fast usage
 
-The existing `common/.pi/agent/extensions/gpt6-sol-aliases.ts` extension handles both Sol and Astra. Do not load a second copy of its provider wrappers.
+The existing `common/.pi/agent/extensions/gpt6-sol-aliases.ts` extension handles GPT-6.1 Sol Fast, Astra Fast, and Astra Ultrafast. Do not load a second copy of its provider wrappers.
 
 After `/reload`, select:
 
 ```text
-/model openai-codex/gpt-6-astra-fast
+/model openai/gpt-6-astra-fast
 ```
 
 The alias sends `model: "gpt-6-astra"` and `service_tier: "priority"`. Reasoning effort remains a separate setting. The model uses a conservative 272,000-token context window and normal auto-compaction. The extension does not disable threshold auto-compaction.
 
 The rates in `models.json` are standard token rates, not ChatGPT credit accounting. Pi applies its own service-tier cost multiplier. Its displayed cost is an estimate; use OpenAI's usage records for actual charges. [Codex fast mode](https://developers.openai.com/codex/speed/) lists Astra at 2.5 times Standard credit consumption where available.
 
-## Live verification result
+The workspace `ultrafast-model.test.mjs` also runs the serializer checks and verifies
+model metadata, OpenAI subscription auth registration, and the unchanged legacy
+provider used by Painter. Astra Ultrafast requires Pro 500 or another eligible plan.
+A live OpenAI OAuth request completed, but returned the `default` tier rather than
+confirming Ultrafast processing. See [configuration and billing notes](../common/.pi/README.md#optional-astra-ultrafast).
+
+## Historical legacy Codex Astra Fast live verification result
 
 A short request through the extension returned HTTP 200 and `ASTRA_OK`:
 
