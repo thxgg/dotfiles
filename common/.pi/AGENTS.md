@@ -21,6 +21,22 @@ prompt additions. Keep global prompt additions in `agent/APPEND_SYSTEM.md`.
 - `agent/npm/package.json` declares external packages managed separately by Pi.
   It is not a member of this workspace. Do not add its dependencies to this lockfile.
 
+## Periodic Pi Reviews and Native Support
+
+- During periodic checks for Pi features, fixes, and updates, check whether released
+  native support can replace our local workarounds. Prefer the native approach once
+  it covers the required behavior and passes relevant regression checks.
+- In particular, review native `openai-responses` WebSocket and routing-hint support
+  against `agent/lib/openai-websocket.ts` and its integration in
+  `agent/extensions/gpt6-sol-aliases.ts`. Keep the public subscription route, OAuth
+  authentication, model/tier aliases, and Painter's separate image path intact.
+  Related upstream issues and PRs are listed in [the transport notes](README.md#openai-websocket-transport).
+- When migrating, remove the superseded workaround and update its tests and docs.
+  Do not keep duplicate provider wrappers. Verify shipped behavior; a closed issue
+  or proposed PR is not proof that native support is available.
+- For a read-only review, report the migration opportunity. Apply the migration or
+  update dependencies only when those changes are authorized.
+
 ## Related Documentation
 
 - [Workspace setup and validation](README.md)

@@ -35,6 +35,9 @@ common/.pi/agent/*
 !common/.pi/agent/extensions-disabled/
 !common/.pi/agent/extensions-disabled/**
 !common/.pi/agent/keybindings.json
+!common/.pi/agent/lib/
+common/.pi/agent/lib/*
+!common/.pi/agent/lib/openai-websocket.ts
 !common/.pi/agent/npm/
 !common/.pi/agent/npm/package.json
 !common/.pi/agent/skills/

@@ -117,8 +117,10 @@ use separate API billing instead.
 `openai/gpt-6.1-sol-fast`, and `openai/gpt-6-astra-ultrafast`.
 The existing `gpt6-sol-aliases.ts` extension rewrites their upstream model IDs
 and sends `service_tier: "priority"` for Fast or `"ultrafast"` for Ultrafast.
-It wraps `openai-responses`, including direct compaction requests, and leaves
-ordinary models on the native simple stream. Do not load a second wrapper.
+It is the single `openai-responses` provider wrapper, including direct compaction
+requests. Its dedicated `agent/lib/openai-websocket.ts` module adds WebSocket
+transport and routing hints to aliases and ordinary OpenAI chat models. Do not
+load a second provider wrapper.
 
 Keep Astra Fast as the default. Migrate machine-local `defaultProvider`,
 `enabledModels`, `modelThinkingLevels`, and `compaction.modelOverrides` from
@@ -137,6 +139,76 @@ tool still uses the legacy `openai-codex` credential and backend image endpoint.
 Do not remove that credential or migrate the image client. If it reports an
 invalidated token, run `/login openai-codex` in Pi. The new subscription API
 does not currently support image generation.
+
+### OpenAI WebSocket transport
+
+The OpenAI extension prefers reusable WebSockets on `wss://api.openai.com/v1/responses`.
+It only wraps provider `openai`, API `openai-responses`, and the public OpenAI base URL.
+Other providers, custom endpoints, and Painter's legacy image client are unchanged.
+Authentication still comes from Pi; the extension does not read, refresh, or save credentials.
+No global transport setting is required. With the existing Stow leaf link, run
+`/reload` in the Pi session to activate the change; new sessions load it automatically.
+The entry resolves its source path before importing the transport, so it also works
+before the new library file has a separate home link. For a fresh deployment, use
+`./safe-stow.sh --only-pi` from the repository root.
+
+Each handshake carries `x-codex-routing-hint` derived from the final serialized request:
+
+- Astra Fast: `model=gpt-6-astra;tier=priority`
+- Astra Ultrafast: `model=gpt-6-astra;tier=ultrafast`
+- Sol Fast: `model=gpt-6.1-sol;tier=priority`
+- Ordinary models without a requested tier: `model=<upstream-model>`
+
+The hint is advisory. A successful request or returned `default` tier does not
+prove the processing tier granted by the backend.
+
+The transport preserves Pi's serializer, full context, tools, images, reasoning,
+usage accounting, and provider-event hooks. It does not introduce prefill,
+`previous_response_id` chaining, prompt filtering, or benchmark limits on output.
+The HTTP-compatible response hook includes `x-pi-transport: websocket` for a socket
+request; its synthetic HTTP 200 represents the event-stream bridge, not an HTTP generation.
+
+Sockets are reused only within a session with identical handshake headers. A
+credential refresh, account change, model/tier change, or changed header opens a
+new socket. Concurrent requests do not share a socket. Idle sockets close after
+two minutes and rotate after 45 minutes. Session replacement, reload, and shutdown
+cancel active work and close sockets. The cache retains at most 16 idle/session entries.
+
+The existing transport preference is honored:
+
+- `auto` or unset: try WebSocket, then SSE only if the handshake fails before sending.
+- `websocket` or `websocket-cached`: require WebSocket; still send full context.
+- `sse`: use HTTP/SSE with the routing hint. This is the rollback option, but Pi's
+  setting itself is global and can also affect other providers that honor it.
+
+There is **no transport replay after `response.create` is sent**, even if no visible
+text has arrived. Pi's separate agent-level retry policy remains unchanged.
+Caller-supplied fetch adapters and provider-scoped proxy environments retain HTTP
+handling. The normal WebSocket adapter uses Pi's own Undici dependency and global
+dispatcher, including Pi's configured proxy/TLS policy. No dependency is added.
+
+`websocketConnectTimeoutMs` bounds the handshake (default 15 seconds, 0 disables it).
+`timeoutMs` bounds stream idleness (default five minutes, 0 disables it). A separate
+fixed ten-minute request deadline prevents periodic events from holding a request
+open forever. Undrained event buffers are limited to 16 MiB.
+
+Offline loopback tests cover transport behavior and use synthetic credentials.
+On 1 October 2026, Pi 0.99.2 live checks passed for Astra, Astra Fast, Astra Ultrafast,
+Sol, Sol Fast, and an Ultrafast `read` round trip. A small preceding benchmark favored
+reused WebSockets; header benefits were inconclusive. These checks do not validate
+all long-running TUI lifecycle or backend failure behavior.
+
+Related upstream work (status checked 1 October 2026):
+
+- [#3442](https://github.com/earendil-works/pi/issues/3442): general Responses WebSocket support, closed.
+- [#1630](https://github.com/earendil-works/pi/pull/1630): implementation proposal, closed without merge.
+- [#7648](https://github.com/earendil-works/pi/pull/7648): legacy Codex WebSocket retry handling, open.
+- [#6513](https://github.com/earendil-works/pi/issues/6513): cached Codex socket account changes, open.
+- [#9474](https://github.com/earendil-works/pi/issues/9474): non-resetting Codex request deadlines, open.
+- [#9481](https://github.com/earendil-works/pi/issues/9481): canonical Codex turn attribution, open.
+
+This extension is a local transport workaround, not full Codex parity. It does not
+copy legacy Codex authentication, attribution metadata, or backend-specific headers.
 
 ### Optional Astra Ultrafast
 

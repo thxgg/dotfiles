@@ -138,6 +138,24 @@ The tests load the extension through Pi. They use the real provider serializers 
 
 Do not use `--list-models` to run these tests. Pi can hide extension-load errors and exit successfully in that mode.
 
+## OpenAI WebSocket checks
+
+```sh
+npm --prefix common/.pi run check
+```
+
+The aggregate suite includes `common/.pi/test/openai-websocket.test.mjs`.
+These tests use a loopback WebSocket server, synthetic credentials, and Pi's real
+Responses serializer/parser. They check reusable full-context requests, routing
+hints, session/account/model/tier isolation, concurrency, SSE fallback before send,
+no replay after send, cancellation, shutdown, malformed streams, Unicode, images,
+tool-result payloads, usage, and request deadlines. They do not contact OpenAI.
+
+The single provider entry remains `gpt6-sol-aliases.ts`; it composes the dedicated
+`agent/lib/openai-websocket.ts` transport. The existing offline alias tests continue
+to use caller-owned fetch adapters, so they cannot unexpectedly make live requests.
+See [transport controls and limitations](../common/.pi/README.md#openai-websocket-transport).
+
 ## Astra Fast usage
 
 The existing `common/.pi/agent/extensions/gpt6-sol-aliases.ts` extension handles GPT-6.1 Sol Fast, Astra Fast, and Astra Ultrafast. Do not load a second copy of its provider wrappers.

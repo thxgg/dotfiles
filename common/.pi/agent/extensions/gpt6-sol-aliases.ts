@@ -1,3 +1,6 @@
+import { realpathSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, AssistantMessageEventStream, Model, SimpleStreamOptions, StreamOptions } from "@earendil-works/pi-ai";
 import { clampThinkingLevel, normalizeContext } from "@earendil-works/pi-ai";
@@ -131,17 +134,26 @@ async function loadApiProvider(api: string, model: Model<Api>, apiKey: string): 
   return getApiProvider(api) ?? lazyProvider;
 }
 
-/** Route OpenAI speed aliases through Responses, including direct compaction calls. */
+/** Route OpenAI chat through reusable WebSockets and preserve speed aliases/compaction. */
 export default async function (pi: ExtensionAPI) {
   const responsesProvider = await loadApiProvider(RESPONSES_API, probeModel(), PROVIDER_PROBE_KEY);
+  // Pi's loader resolves relative imports from the live Stow symlink. Resolve the
+  // source entry first so both existing leaf links and freshly deployed trees work.
+  const sourceDir = dirname(realpathSync(fileURLToPath(import.meta.url)));
+  const transportModule: typeof import("../lib/openai-websocket.ts") = await import(
+    pathToFileURL(resolve(sourceDir, "../lib/openai-websocket.ts")).href
+  );
+  const transport = transportModule.createOpenAIWebSocketTransport();
+  pi.on("session_shutdown", () => transport.close());
+  pi.on("session_start", () => transport.close());
 
   // Compaction invokes the provider's streamSimple directly and does not carry
   // Pi's before_provider_request hook, so normalize aliases at this boundary.
   pi.registerProvider(PROVIDER, {
     api: RESPONSES_API,
     streamSimple: (model, context, options) => selectedAlias(model)
-      ? responsesProvider.stream(toUpstreamModel(model), context, createResponsesOptions(model, options))
-      : responsesProvider.streamSimple(model, context, options),
+      ? responsesProvider.stream(toUpstreamModel(model), context, transport.options(model, createResponsesOptions(model, options)))
+      : responsesProvider.streamSimple(model, context, transport.options(model, options ?? {})),
   });
 
   pi.on("message_end", (event, ctx) => {

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -44,6 +46,28 @@ test('every standalone extension imports and registers without starting a sessio
     } else {
       assert.ok(h.handlers.size + h.registrations.length > 0, file);
     }
+  }
+});
+
+test('OpenAI extension loads through a Stow leaf symlink without a separately deployed library', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pi-openai-stow-test-'));
+  try {
+    const extensions = join(dir, 'extensions');
+    mkdirSync(extensions);
+    const link = join(extensions, 'gpt6-sol-aliases.ts');
+    symlinkSync(fileURLToPath(new URL('../agent/extensions/gpt6-sol-aliases.ts', import.meta.url)), link);
+    const probe = join(dir, 'probe.js');
+    writeFileSync(probe, 'export default function(pi) { console.log("STOW_IMPORT_OK"); pi.registerCommand("probe", {description:"Offline load probe", handler:async()=>{}}); }');
+    const cli = fileURLToPath(new URL('../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js', import.meta.url));
+    const result = spawnSync(process.execPath, [cli, '-ne', '-e', link, '-e', probe,
+      '-ns', '-np', '-nc', '--no-session', '--no-approve', '--offline', '--no-tools', '-p', '/probe'], {
+      cwd: dir, env: {...process.env, PI_CODING_AGENT_DIR:dir, PI_OFFLINE:'1'}, encoding:'utf8', timeout:20_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr + result.stdout, /STOW_IMPORT_OK/);
+    assert.doesNotMatch(result.stderr + result.stdout, /Failed to load extension/);
+  } finally {
+    rmSync(dir, {recursive:true,force:true});
   }
 });
 
