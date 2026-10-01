@@ -245,6 +245,26 @@ credit purchases. See [app usage and credits](https://help.openai.com/articles/2
 [subscription API limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations),
 and [Codex speed and billing](https://developers.openai.com/codex/speed).
 
+## Subscription usage and banked resets
+
+The local `agent/extensions/usage/` workspace adds the standalone `/usage`
+command. Its menu lists OpenAI and Anthropic quota summaries, plus Close.
+Select a provider for details and reset inventory. It uses native Pi selectors and an account-specific
+confirmation before spending a reset credit. It reads metadata only, never
+sends generation probes, and leaves Pi's model retry policy unchanged.
+
+Codex quotas use the separate legacy `openai-codex` OAuth credential. They are
+**not** the allowance for current `openai` token-sharing chat models. Claude
+uses Pi's `anthropic` OAuth login and its profile organization. API-key billing
+is not supported by this subscription dashboard.
+
+The extension keeps last-good bars, uses actual durations, supports dynamic
+Claude model windows and overage indicators, and shares polling/backoff and
+reset idempotency state across Pi processes. Runtime state stays outside Stow
+at `~/.local/state/pi-subscription-usage/`. Do not delete unconfirmed reset state.
+See [provider limits, safeguards, and activation](agent/extensions/usage/README.md).
+Live provider compatibility and real reset redemption are not yet verified.
+
 ## Session recap
 
 Recap starts off in every new, resumed, forked, or reloaded session. Type `/recap`

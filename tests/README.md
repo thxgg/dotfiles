@@ -156,6 +156,22 @@ The single provider entry remains `gpt6-sol-aliases.ts`; it composes the dedicat
 to use caller-owned fetch adapters, so they cannot unexpectedly make live requests.
 See [transport controls and limitations](../common/.pi/README.md#openai-websocket-transport).
 
+## Subscription quota and reset checks
+
+The aggregate Pi workspace check includes `agent/extensions/usage/test/`:
+
+```sh
+npm --prefix common/.pi run check
+```
+
+These tests use synthetic credentials and injected HTTP responses. They check
+actual-duration Codex labels, sparse updates, dynamic Claude windows, percentage
+units, overage exceptions, reset expiry/eligibility, shared query backoff, account
+changes, native confirmation cancellation, durable idempotency, and two-process
+file locks. An isolated actual Pi CLI invocation checks `/usage` loading.
+They do not contact providers or redeem real credits. Live quota endpoints and
+reset programs remain unverified. See the [extension notes](../common/.pi/agent/extensions/usage/README.md).
+
 ## Astra Fast usage
 
 The existing `common/.pi/agent/extensions/gpt6-sol-aliases.ts` extension handles GPT-6.1 Sol Fast, Astra Fast, and Astra Ultrafast. Do not load a second copy of its provider wrappers.
