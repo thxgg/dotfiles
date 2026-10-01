@@ -2,8 +2,6 @@
   "tui.altScreen.top": "ctrl+home",
   "tui.altScreen.bottom": "ctrl+end",
   "tui.input.newLine": ["shift+enter", "ctrl+j"],
-  "tui.input.submit": "alt+enter",
-  "app.message.followUp": "enter",
   "app.models.save": ["ctrl+shift+s"],
   "app.thinking.save": ["ctrl+shift+s"],
   "app.session.toggleSort": ["alt+s"],
