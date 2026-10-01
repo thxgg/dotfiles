@@ -2,8 +2,8 @@ import { CONFIG_DIR_NAME, getAgentDir, type ExtensionContext } from "@earendil-w
 import fs from "node:fs/promises";
 import path from "node:path";
 
+/** Summary and automatic refresh settings; activation is session-local. */
 export type RecapConfig = {
-  enabled: boolean;
   auto: boolean;
   debounceMs: number;
   minTurns: number;
@@ -12,8 +12,8 @@ export type RecapConfig = {
   model: string;
 };
 
+/** Default settings used after the user enables recap. */
 export const DEFAULT_CONFIG: RecapConfig = {
-  enabled: true,
   auto: true,
   debounceMs: 30_000,
   minTurns: 1,
@@ -36,11 +36,11 @@ function numberSetting(value: unknown, fallback: number, min: number, max: numbe
     : fallback;
 }
 
+/** Parse supported settings, ignoring legacy activation preferences. */
 export function applySettings(config: RecapConfig, value: unknown): RecapConfig {
   const raw = record(value);
   if (!raw) return config;
   return {
-    enabled: typeof raw.enabled === "boolean" ? raw.enabled : config.enabled,
     auto: typeof raw.auto === "boolean" ? raw.auto : config.auto,
     debounceMs: numberSetting(raw.debounceMs ?? raw.inactivityMs, config.debounceMs, 30_000, 60_000),
     minTurns: numberSetting(raw.minTurns, config.minTurns, 0, 100),
@@ -58,26 +58,15 @@ async function readObject(filePath: string): Promise<JsonObject | undefined> {
   }
 }
 
-const statePath = () => path.join(getAgentDir(), ".cache", "session-recap", "state.json");
-
+/** Read summary settings without reading or writing persistent toggle state. */
 export async function loadConfig(ctx: ExtensionContext): Promise<RecapConfig> {
   const globalPromise = readObject(path.join(getAgentDir(), "settings.json"));
   const projectPromise = ctx.isProjectTrusted()
     ? readObject(path.join(ctx.cwd, CONFIG_DIR_NAME, "settings.json"))
     : Promise.resolve(undefined);
-  const statePromise = readObject(statePath());
-  const [global, project, state] = await Promise.all([globalPromise, projectPromise, statePromise]);
+  const [global, project] = await Promise.all([globalPromise, projectPromise]);
 
   let config = applySettings({ ...DEFAULT_CONFIG }, global?.recap);
   config = applySettings(config, project?.recap);
-  if (typeof state?.enabled === "boolean") config.enabled = state.enabled;
   return config;
-}
-
-export async function persistEnabled(enabled: boolean): Promise<void> {
-  const target = statePath();
-  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(temporary, `${JSON.stringify({ enabled, updatedAt: new Date().toISOString() }, null, 2)}\n`);
-  await fs.rename(temporary, target);
 }

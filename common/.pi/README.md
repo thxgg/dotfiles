@@ -126,6 +126,17 @@ tier. The prior API-key probe returned `ultrafast`; the subscription probe retur
 `default`. Changing the OpenAI credential to ChatGPT OAuth does not guarantee
 Ultrafast access.
 
+## Session recap
+
+Recap starts off in every new, resumed, forked, or reloaded session. Type `/recap`
+to enable it for the current session and generate a recap. Type `/recap` again to
+turn it off and stop pending work and focus monitoring. The toggle is not saved.
+Legacy `recap.enabled` settings and cached global toggle state are ignored.
+
+While enabled, recap keeps its automatic focus-based refresh behavior unless
+`recap.auto` is false. `/recap on`, `/recap off`, `/recap refresh`, and `/recap clear`
+remain available. Tree navigation and compaction do not change the toggle.
+
 ## Validate extensions
 
 ```bash

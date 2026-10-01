@@ -4,7 +4,7 @@ import {
   type ExtensionContext,
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { loadConfig, persistEnabled, type RecapConfig } from "./config.ts";
+import { loadConfig, type RecapConfig } from "./config.ts";
 import {
   createHerdrFocusMonitor,
   disableTerminalFocusReporting,
@@ -71,6 +71,7 @@ function isAbort(error: unknown): boolean {
     || error instanceof Error && /abort/i.test(error.message);
 }
 
+/** Register the session-local, opt-in recap command and refresh lifecycle. */
 export default function recapExtension(pi: ExtensionAPI): void {
   let active = false;
   let focused = true;
@@ -105,12 +106,12 @@ export default function recapExtension(pi: ExtensionAPI): void {
   };
 
   const syncWidget = (ctx: ExtensionContext) => {
-    if (active && config?.enabled && state.text) showWidget(ctx, state.text);
+    if (active && state.text) showWidget(ctx, state.text);
     else clearWidget(ctx);
   };
 
   const run = async (ctx: ExtensionContext, source: "auto" | "manual", force = false) => {
-    if (!active || !config?.enabled || ctx.mode !== "tui") return;
+    if (!active || !config || ctx.mode !== "tui") return;
     if (source === "auto" && (focused || !settled || !ctx.isIdle())) return;
     const turn = currentUserTurn(ctx);
     if (!turn.key || (!force && (state.key === turn.key || turn.count < config.minTurns))) return;
@@ -139,7 +140,7 @@ export default function recapExtension(pi: ExtensionAPI): void {
   };
 
   const schedule = (ctx: ExtensionContext) => {
-    if (!active || focused || !settled || !config?.enabled || !config.auto) return;
+    if (!active || focused || !settled || !config?.auto) return;
     const turn = currentUserTurn(ctx);
     if (!turn.key || state.key === turn.key || turn.count < config.minTurns) return;
     if (timer || generation) return;
@@ -180,19 +181,7 @@ export default function recapExtension(pi: ExtensionAPI): void {
     });
   };
 
-  pi.on("session_start", async (_event, ctx) => {
-    cancel();
-    active = ctx.mode === "tui";
-    settled = ctx.isIdle();
-    focused = true;
-    blurredAt = undefined;
-    state = replay(ctx.sessionManager.getBranch());
-    config = await loadConfig(ctx);
-    syncWidget(ctx);
-    if (active && config.enabled && config.auto) installFocus(ctx);
-  });
-
-  pi.on("session_shutdown", (_event, ctx) => {
+  const disable = (ctx: ExtensionContext) => {
     active = false;
     cancel();
     focusMonitor?.dispose();
@@ -201,15 +190,27 @@ export default function recapExtension(pi: ExtensionAPI): void {
     unsubscribeInput = undefined;
     if (terminalReporting) disableTerminalFocusReporting();
     terminalReporting = false;
+    focused = true;
+    blurredAt = undefined;
+    ctx.ui.setStatus(STATUS_KEY, undefined);
     clearWidget(ctx);
+  };
+
+  pi.on("session_start", (_event, ctx) => {
+    disable(ctx);
+    settled = ctx.isIdle();
+    state = {};
+    config = undefined;
   });
+
+  pi.on("session_shutdown", (_event, ctx) => disable(ctx));
 
   pi.on("input", () => {
     settled = false;
     cancel();
   });
   pi.on("message_start", (event, ctx) => {
-    if (event.message.role !== "user" || (!state.text && !state.key)) return;
+    if (!active || event.message.role !== "user" || (!state.text && !state.key)) return;
     state = {};
     append({ action: "clear" });
     clearWidget(ctx);
@@ -223,38 +224,28 @@ export default function recapExtension(pi: ExtensionAPI): void {
     schedule(ctx);
   });
 
-  const reloadSessionState = async (ctx: ExtensionContext) => {
+  const reloadSessionState = (ctx: ExtensionContext) => {
+    if (!active) return;
     cancel();
     state = replay(ctx.sessionManager.getBranch());
-    config = await loadConfig(ctx);
     syncWidget(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => reloadSessionState(ctx));
   pi.on("session_compact", async (_event, ctx) => reloadSessionState(ctx));
 
   pi.registerCommand("recap", {
-    description: "Show, refresh, or disable the session recap",
+    description: "Toggle recap for this session (off by default); optionally on, off, clear, or refresh",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       if (ctx.mode !== "tui") return;
-      await ctx.waitForIdle();
-      config ??= await loadConfig(ctx);
       const action = args.trim().toLowerCase();
 
-      if (["off", "disable", "hide"].includes(action)) {
-        cancel();
-        focusMonitor?.dispose();
-        focusMonitor = undefined;
-        unsubscribeInput?.();
-        unsubscribeInput = undefined;
-        if (terminalReporting) disableTerminalFocusReporting();
-        terminalReporting = false;
-        await persistEnabled(false);
-        config.enabled = false;
-        clearWidget(ctx);
-        ctx.ui.notify("Session recap off globally", "info");
+      if ((!action && active) || ["off", "disable", "hide"].includes(action)) {
+        disable(ctx);
+        ctx.ui.notify("Session recap off", "info");
         return;
       }
       if (action === "clear") {
+        cancel();
         state = {};
         append({ action: "clear" });
         clearWidget(ctx);
@@ -264,10 +255,16 @@ export default function recapExtension(pi: ExtensionAPI): void {
         ctx.ui.notify("Usage: /recap [on|off|clear|refresh]", "warning");
         return;
       }
-      if (!config.enabled) {
-        await persistEnabled(true);
-        config.enabled = true;
-        if (!focusMonitor && !unsubscribeInput) installFocus(ctx);
+      await ctx.waitForIdle();
+      config ??= await loadConfig(ctx);
+      if (!active) {
+        active = true;
+        settled = ctx.isIdle();
+        focused = true;
+        blurredAt = undefined;
+        state = replay(ctx.sessionManager.getBranch());
+        if (config.auto) installFocus(ctx);
+        ctx.ui.notify("Session recap on (this session only)", "info");
       }
       await run(ctx, "manual", true);
     },
