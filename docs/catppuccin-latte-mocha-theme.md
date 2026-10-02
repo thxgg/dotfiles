@@ -22,14 +22,25 @@ Use each application's settings or native configuration:
 - Starship uses Mocha in `common/.config/starship.toml`. Light/dark alternatives remain available.
 - lazygit defaults to Mocha and keeps separate theme files. Use its native config-file option to select one.
 - lazydocker defaults to Mocha and keeps light/dark configuration directories. Use its native `CONFIG_DIR` option.
-- HyprPanel uses `config.json` and `modules.scss`. Light alternatives remain available.
-- GTK and Kvantum use their native settings. No script rewrites GTK preferences or generates Kvantum links.
+- HyprPanel keeps its black-and-white OLED colors in `config.json` and `modules.scss`. Light alternatives remain available.
+- GTK and Kvantum select Mocha Lavender through their native settings. No script rewrites GTK preferences or generates Kvantum links.
+- Hyprland loads Mocha in both its Lua and legacy configurations. Rofi selects `catppuccin-dark`.
 - Pi keeps its theme files; select them through `/settings`.
 - Browser themes use Mocha with Lavender accents under `common/.local/share/browser-themes/`. The existing `soft-lavender` directory names are preserved. Reload each unpacked theme as described in its README.
 
-Linux-only selections are unchanged. GTK, Kvantum, Hyprland, and Rofi still
-select Latte/light. HyprPanel and Wofi already use dark colors. Pi's active
-selection and OS-wide appearance remain machine-local and are not changed.
+Linux defaults now use Mocha Lavender, except HyprPanel, which intentionally
+keeps its black-and-white overrides. Wofi clipboard menus use Mocha Lavender.
+Pi's active selection and OS-wide appearance remain machine-local. On Linux,
+select the native dark preference and GTK theme for the current user:
+
+```sh
+gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+gsettings set org.gnome.desktop.interface gtk-theme 'catppuccin-mocha-lavender-standard+default'
+```
+
+GTK/libadwaita applications and the desktop portal use the system preference.
+Libadwaita applications can retain their native palette. Restart applications
+that do not reload their GTK or Kvantum settings.
 
 The Linux Amp web-app launcher is unrelated to theme automation and remains available for remote Orbs.
 

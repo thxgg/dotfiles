@@ -83,6 +83,23 @@ class CommonConfigTests(unittest.TestCase):
                              (config / 'lazygit/theme-dark.yml').read_text())
             self.assertIn('mode: "rebase"', lazygit)
 
+    def test_linux_dark_theme_defaults(self):
+        config = ROOT / 'linux/home/.config'
+        for version in ('3.0', '4.0'):
+            source = (config / f'gtk-{version}/settings.ini').read_text()
+            self.assertIn('gtk-theme-name=catppuccin-mocha-lavender-standard+default\n', source)
+            self.assertIn('gtk-application-prefer-dark-theme=1\n', source)
+        self.assertIn('theme=catppuccin-mocha-lavender\n',
+                      (config / 'Kvantum/kvantum.kvconfig').read_text())
+        self.assertIn('source=~/.config/hypr/mocha.conf\n',
+                      (config / 'hypr/hyprland.conf').read_text())
+        self.assertIn('local theme = require("mocha")',
+                      (config / 'hypr/hyprland.lua').read_text())
+        self.assertIn('@theme "catppuccin-dark"',
+                      (config / 'rofi/config.rasi').read_text())
+        self.assertIn('@import "catppuccin-mocha"',
+                      (config / 'rofi/catppuccin-dark.rasi').read_text())
+
     def test_fish_mocha_colors_in_isolated_shell(self):
         fish = shutil.which('fish')
         if not fish:

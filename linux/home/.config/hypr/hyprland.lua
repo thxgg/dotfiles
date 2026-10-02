@@ -1,7 +1,7 @@
 -- Hyprland Lua configuration.
 -- See https://wiki.hypr.land/Configuring/Start/
 
-local theme = require("latte")
+local theme = require("mocha")
 
 ----------------
 --- MONITORS ---

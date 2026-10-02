@@ -17,7 +17,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/common-config.test.py
 
 These checks use temporary homes. They check retired Amp/theme configuration,
 Docker PATH guards, PostgreSQL history, and editor setup with stubbed LSP/DAP
-interfaces. They check shared/macOS dark theme selections, isolated Fish colors,
+interfaces. They check shared/macOS and Linux GTK/Kvantum/Hyprland/Rofi dark theme selections, isolated Fish colors,
 and browser Mocha palette values. They do not verify application rendering or
 installed GTK/Qt themes. They also verify that every shared skill has a relative Claude Code
 symlink to the same source directory. Static checks reject retired launcher paths in both Hyprland configurations

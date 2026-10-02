@@ -31,7 +31,7 @@ element-icon {
     size: 1.1em;
 }
 
-@theme "catppuccin-light"
+@theme "catppuccin-dark"
 
 mainbox {
     children: [ "inputbar", "message", "listview" ];
