@@ -14,7 +14,7 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-The workspace targets Pi `0.99.2`. Vite+ owns the CLI installation.
+The workspace targets Pi `1.0.0`. Vite+ owns the CLI installation.
 Keep workspace pins aligned with the CLI when validating upgrades;
 a successful check against older workspace dependencies does not validate a newer CLI.
 
@@ -102,7 +102,15 @@ local tools, and these hooks. It does not contact providers or start MCP servers
 
 Anthropic prompt sanitation uses `context_with_system`. It removes the Pi documentation
 from request-local system content and section updates, preserving tool declarations,
-non-system messages, and saved session history.
+non-system messages, and saved session history. The codemode tool's own documentation
+path remains available. Codemode scripts must test tool presence with `"name" in tools`;
+Pi 1.0 throws when a script reads an unknown member, including through `typeof`.
+
+Pi 1.0 compatibility checks also cover grammar-call history replay through our OpenAI
+alias wrapper after switching from Anthropic or a gateway. Keep the WebSocket wrapper,
+Painter's ChatGPT-backed image path, child-session extension isolation, and static themes:
+Pi 1.0 does not replace these behaviors. Native image generation is an additional provider
+path and does not save artifacts automatically.
 
 ## OpenAI chat models and speed aliases
 
@@ -234,7 +242,7 @@ Resuming an Ultrafast session restores that selection, and compaction also
 requests Ultrafast.
 
 OpenAI lists Ultrafast at 8× Standard included usage and 6× purchased-credit usage.
-Pi 0.99.2 has no native Ultrafast cost multiplier, so the alias carries 6× token
+Pi 1.0.0 has no native Ultrafast cost multiplier, so the alias carries 6× token
 rates for a credit-priced estimate. Fast uses standard token rates plus Pi's
 service-tier multiplier. These estimates are not the subscription allowance
 balance and do not detect server fallback.

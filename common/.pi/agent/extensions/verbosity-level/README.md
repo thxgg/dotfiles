@@ -62,7 +62,7 @@ Deployment uses `safe-stow.sh`; committing these files does not deploy them.
 
 ## Limits
 
-The workspace targets Pi 0.99.1. Pi owns transcript layout and scrollback. Regular terminal
+The workspace targets Pi 1.0.0. Pi owns transcript layout and scrollback. Regular terminal
 scrollback can retain previous rendering. Only fullscreen mode supports mouse
 interaction. Reload/resume reconstructs active-branch groups, including compaction
 context; group expansion is session-local. No global arbitrary-tool rendering hook

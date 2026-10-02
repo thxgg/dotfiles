@@ -26,11 +26,11 @@ const { default: verbosity } = await import('../agent/extensions/verbosity-level
 const { default: sanitizeAnthropic } = await import('../agent/extensions/anthropic-prompt-sanitizer.ts');
 
 test('Anthropic request sanitation preserves the canonical session and tool declarations', async () => {
-  const settingsManager = SettingsManager.inMemory({ cacheWarming: 'off', retry: { enabled: false } });
+  const settingsManager = SettingsManager.inMemory({ defaultTools: ['+codemode'], cacheWarming: 'off', retry: { enabled: false } });
   const resourceLoader = new DefaultResourceLoader({
     cwd, agentDir, settingsManager, noExtensions: true, noSkills: true,
     noPromptTemplates: true, noThemes: true, noContextFiles: true,
-    extensionFactories: [sanitizeAnthropic],
+    extensionFactories: [createCodemodeExtension({ mode: 'on' }), sanitizeAnthropic],
   });
   await resourceLoader.reload();
   const faux = fauxProvider({ provider: 'anthropic' });
@@ -49,6 +49,9 @@ test('Anthropic request sanitation preserves the canonical session and tool decl
     assert.equal(request.messages[0].role, 'system');
     assert.doesNotMatch(JSON.stringify(request), /Pi documentation/);
     assert.ok(request.messages[0].toolsAdded.some(tool => tool.name === 'read'));
+    const codemode = request.messages[0].toolsAdded.find(tool => tool.name === 'codemode');
+    assert.ok(codemode, 'keep codemode available after sanitation');
+    assert.match(codemode.description, /codemode\.md/, 'preserve the native models API documentation path');
     assert.match(JSON.stringify(session.sessionManager.getBranch()), /Pi documentation/);
   } finally {
     session.dispose();
@@ -87,7 +90,11 @@ test('native codemode preserves local guards, redaction, structured bash results
         try { await tools.bash({ command: 'git status --no-verify' }); }
         catch (error) { blocked = error.message; }
         const shell = await tools.bash({ command: "# git editor check\\nprintf '%s/%s/%s' \\"$GIT_EDITOR\\" \\"$GIT_SEQUENCE_EDITOR\\" \\"$GIT_MERGE_AUTOEDIT\\"" });
-        return { masked, blocked, shell };
+        const hasRead = 'read' in tools;
+        const hasMissing = 'missing_fixture_tool' in tools;
+        let missingError;
+        try { tools.Bash; } catch (error) { missingError = error.message; }
+        return { masked, blocked, shell, hasRead, hasMissing, missingError };
       ` }, { id: 'batch' }), { stopReason: 'toolUse' }),
       fauxAssistantMessage('Done'),
     ]);
@@ -101,6 +108,9 @@ test('native codemode preserves local guards, redaction, structured bash results
     assert.match(text, /BLOCKED: --no-verify/);
     assert.match(text, /true\/true\/no/);
     assert.match(text, /exit_code/);
+    assert.match(text, /"hasRead":\s*true/);
+    assert.match(text, /"hasMissing":\s*false/);
+    assert.match(text, /tools\.bash/, 'missing-member errors suggest the correct tool');
     const nested = events.filter(event => event.type === 'tool_execution_end' && event.parentToolCallId === 'batch');
     assert.equal(nested.length, 3);
     assert.equal(nested.filter(event => event.isError).length, 1);

@@ -14,7 +14,7 @@ From this worktree:
 ./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh
 ```
 
-Requires the installed `pi` CLI (tested with 0.85.1). No npm install is needed to
+Requires the installed `pi` CLI (offline renderer checks pass with 1.0.0). No npm install is needed to
 run the viewer. The launcher uses an empty temporary working directory and agent
 directory. It disables discovered extensions, skills, prompts, context files,
 tools, and session saving. It loads only this viewer and the repository's

@@ -124,6 +124,8 @@ Run from the repository root with Pi installed:
 pi --no-extensions -e ./tests/pi-model-aliases.test.js --no-skills --no-prompt-templates --no-context-files --no-session -p /test-model-aliases
 ```
 
+The CLI entrypoint delegates to `common/.pi/test/model-alias-checks.js`, so the shared
+checks resolve dependencies inside the Pi workspace, including in clean temporary installs.
 The tests load the extension through Pi. They use the real provider serializers with a local `fetch` replacement. They do not send model requests or use real credentials. They check:
 
 - Astra Fast, Astra Ultrafast, and GPT-6.1 Sol Fast model rewriting.
@@ -188,7 +190,10 @@ The rates in `models.json` are standard token rates, not ChatGPT credit accounti
 
 The workspace `ultrafast-model.test.mjs` also runs the serializer checks and verifies
 model metadata, OpenAI subscription auth registration, and the unchanged legacy
-provider used by Painter. Astra Ultrafast requires Pro 500 or another eligible plan.
+provider used by Painter. It also verifies Pi 1.0 grammar-call replay after switching
+from Anthropic or a gateway through our alias wrapper. The codemode SDK tests check
+safe tool-presence probes, missing-member recovery hints, and preservation of the
+codemode documentation path after Anthropic sanitation. Astra Ultrafast requires Pro 500 or another eligible plan.
 A live OpenAI OAuth request completed, but returned the `default` tier rather than
 confirming Ultrafast processing. See [configuration and billing notes](../common/.pi/README.md#optional-astra-ultrafast).
 
