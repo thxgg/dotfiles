@@ -38,6 +38,7 @@ common/.pi/agent/*
 !common/.pi/agent/lib/
 common/.pi/agent/lib/*
 !common/.pi/agent/lib/openai-websocket.ts
+!common/.pi/agent/lib/import-browser-profile.ts
 !common/.pi/agent/npm/
 !common/.pi/agent/npm/package.json
 !common/.pi/agent/skills/
