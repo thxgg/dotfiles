@@ -4,7 +4,8 @@
   "piPackages": [],
   "dependencies": {
     "@earendil-works/pi-voice": "0.1.0",
-    "@plannotator/pi-extension": "^0.27.24",
-    "pi-extmgr": "0.3.0"
+    "@plannotator/pi-extension": "^0.27.25",
+    "pi-autoresearch": "^1.8.1",
+    "pi-extmgr": "^0.3.0"
   }
 }
