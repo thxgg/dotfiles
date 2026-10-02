@@ -69,7 +69,8 @@ remote execution, sandbox delegates, SDK base-tool overrides, or competing built
 execution extensions. See the extension's README for its ownership limits.
 Low verbosity and web adapters are now enabled by default when the extension is
 deployed. These explicit launchers let you test the worktree version first.
-Mode commands are session-local and ignore archived saved state.
+These explicit CLI choices and mode commands save the global preference and sync
+with other open interactive sessions. Archived Focus state stays ignored.
 
 ## Custom fixtures
 

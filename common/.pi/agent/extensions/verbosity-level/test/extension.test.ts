@@ -1,13 +1,41 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import test, { beforeEach, afterEach } from "node:test";
+import { execFile } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { stripVTControlCharacters } from "node:util";
+import { promisify, stripVTControlCharacters } from "node:util";
 import { initTheme, ToolExecutionComponent, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import verbosityLevel from "../index.ts";
-import { InvalidVerbosityError, loadEnabled, parseVerbosity, persistEnabled, statePath } from "../config.ts";
+import { InvalidVerbosityError, loadVerbosity, parseVerbosity, persistVerbosity, statePath, VerbosityStateError } from "../config.ts";
+
+const execFileAsync = promisify(execFile);
+const shutdowns: Array<() => unknown> = [];
+let testDir: string;
+const originalDir = process.env.PI_CODING_AGENT_DIR;
+const originalEager = process.env.PI_VERBOSITY_BUILTINS;
+beforeEach(async () => {
+  testDir = await mkdtemp(join(tmpdir(), "verbosity-test-"));
+  process.env.PI_CODING_AGENT_DIR = testDir;
+});
+afterEach(async () => {
+  for (const shutdown of shutdowns.splice(0)) await shutdown();
+  if (originalDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = originalDir;
+  if (originalEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS;
+  else process.env.PI_VERBOSITY_BUILTINS = originalEager;
+  await rm(testDir, { recursive: true, force: true });
+});
+
+async function waitFor(condition: () => boolean) {
+  const deadline = Date.now() + 5000;
+  while (!condition()) {
+    assert.ok(Date.now() < deadline, "Timed out waiting for cross-session synchronization");
+    await delay(25);
+  }
+}
 
 function harness(mode = "tui", owner = "builtin") {
   const handlers = new Map<string, (event: any, ctx: any) => unknown>();
@@ -39,10 +67,11 @@ function harness(mode = "tui", owner = "builtin") {
     appendEntry() {},
   };
   verbosityLevel(pi as unknown as ExtensionAPI);
+  shutdowns.push(() => handlers.get("session_shutdown")?.({}, ctx));
   return { ctx, definitions, notifications, commands, listeners, flags,
     setFlag(value: string | boolean | undefined) { flagValue = value; }, flagReads: () => flagReads,
     renders: () => renders,
-    event: (name: string, value: unknown = {}) => handlers.get(name)?.(value, ctx) };
+    event: (name: string, value: unknown = { reason: "startup" }) => handlers.get(name)?.(value, ctx) };
 }
 
 test("verbosity parser accepts only exact CLI choices", () => {
@@ -52,140 +81,147 @@ test("verbosity parser accepts only exact CLI choices", () => {
   }
 });
 
-test("CLI verbosity overrides saved state, applies late, and never persists commands", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "focus-cli-"));
-  const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
-  process.env.PI_CODING_AGENT_DIR = dir;
-  process.env.PI_VERBOSITY_BUILTINS = "1";
-  initTheme("dark", false);
-  try {
-    for (const verbosity of ["low", "default"]) {
-      await persistEnabled(verbosity === "default"); // Deliberately contradict the CLI.
-      const before = await readFile(statePath(), "utf8");
-      const h = harness();
-      assert.equal(h.flags.get("verbosity")?.type, "string");
-      assert.equal(h.flags.get("verbosity")?.default, undefined);
-      assert.equal(h.flagReads(), 0);
-      h.setFlag(verbosity);
-      const row = new ToolExecutionComponent("bash", "cli", { command: "git status" }, { showImages: false }, h.definitions.get("bash"), h.ctx.ui as never, tmpdir());
-      const lines = () => stripVTControlCharacters(row.render(80).join("\n"));
-      const native = lines();
-      assert.doesNotMatch(native, /Running \d+ command/);
-      await h.event("session_start");
-      assert.equal(h.flagReads(), 1);
-      await h.event("tool_execution_start", { toolCallId: "cli", toolName: "bash", args: { command: "git status" } });
-      if (verbosity === "low") assert.match(lines(), /Running \d+ command/);
-      else assert.equal(lines(), native);
+test("CLI selection saves globally once; commands survive session changes and restart", async () => {
+  for (const verbosity of ["low", "default"] as const) {
+    assert.equal(persistVerbosity(verbosity === "low" ? "default" : "low"), undefined);
+    const h = harness();
+    assert.equal(h.flags.get("verbosity")?.type, "string");
+    assert.equal(h.flags.get("verbosity")?.default, undefined);
+    assert.equal(h.flagReads(), 0);
+    h.setFlag(verbosity);
+    await h.event("session_start");
+    assert.equal(h.flagReads(), 1);
+    assert.equal(loadVerbosity(), verbosity);
+    const next = verbosity === "low" ? "default" : "low";
+    await h.commands.get("verbosity").handler(next, h.ctx);
+    for (const reason of ["new", "resume", "fork"]) {
+      await h.event("session_start", { reason });
       await h.commands.get("verbosity").handler("status", h.ctx);
-      assert.match(h.notifications.at(-1) ?? "", new RegExp(`Verbosity ${verbosity}\\. Session only`));
-      for (const [command, action, grouped] of [
-        ["verbosity", "default", false], ["verbosity", "low", true],
-        ["verbosity", "default", false], ["verbosity", "low", true],
-      ] as const) {
-        await h.commands.get(command).handler(action, h.ctx);
-        if (grouped) assert.match(lines(), /Running \d+ command/);
-        else assert.equal(lines(), native);
-        assert.equal(await readFile(statePath(), "utf8"), before);
-      }
-      for (const reason of ["reload", "new", "resume", "fork"]) {
-        await h.event("session_start", { reason });
-        await h.commands.get("verbosity").handler("status", h.ctx);
-        assert.match(h.notifications.at(-1) ?? "", new RegExp(`Verbosity ${verbosity}\\.`));
-        assert.equal(await readFile(statePath(), "utf8"), before);
-      }
-      await h.event("session_shutdown");
+      assert.ok(h.notifications.at(-1)?.startsWith(`Verbosity ${next}. Global`));
+      assert.equal(loadVerbosity(), next);
     }
-  } finally {
-    if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
-    await rm(dir, { recursive: true, force: true });
+    await h.event("session_shutdown");
+    const reloaded = harness();
+    reloaded.setFlag(verbosity);
+    await reloaded.event("session_start", { reason: "reload" });
+    assert.equal(loadVerbosity(), next);
+    await reloaded.commands.get("verbosity").handler("status", reloaded.ctx);
+    assert.ok(reloaded.notifications.at(-1)?.startsWith(`Verbosity ${next}. Global`));
+    await reloaded.event("session_shutdown");
+    const restarted = harness();
+    await restarted.event("session_start");
+    await restarted.commands.get("verbosity").handler("status", restarted.ctx);
+    assert.ok(restarted.notifications.at(-1)?.startsWith(`Verbosity ${next}. Global`));
+    await restarted.event("session_shutdown");
   }
 });
 
-test("explicit local opt-out is preserved without creating state, and rejects invalid commands", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "focus-cli-empty-"));
-  const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
-  process.env.PI_CODING_AGENT_DIR = dir;
+test("open sessions sync both ways, redraw rows, and stop watching on shutdown", async () => {
+  initTheme("dark", false);
+  const first = harness();
+  const second = harness();
+  second.ctx.cwd = join(tmpdir(), "another-project");
+  for (const h of [first, second]) {
+    await h.event("session_start");
+    await h.event("tool_execution_start", { toolCallId: "sync", toolName: "bash", args: { command: "git status" } });
+    await h.event("tool_execution_end", { toolCallId: "sync", result: { content: [{ type: "text", text: "clean" }] }, isError: false });
+  }
+  const row = new ToolExecutionComponent("bash", "sync", { command: "git status" }, { showImages: false }, second.definitions.get("bash"), second.ctx.ui as never, tmpdir());
+  row.updateResult({ content: [{ type: "text", text: "clean" }], isError: false });
+  const lines = () => stripVTControlCharacters(row.render(80).join("\n"));
+  assert.match(lines(), /Ran 1 command/);
+  await first.commands.get("verbosity").handler("default", first.ctx);
+  await waitFor(() => !/Ran 1 command/.test(lines()));
+  assert.equal(loadVerbosity(), "default");
+  const before = second.renders();
+  // A separate process uses the real adapter, not the extension event bus.
+  await execFileAsync(process.execPath, ["--import", "tsx", "--input-type=module", "-e",
+    `import { persistVerbosity } from ${JSON.stringify(new URL("../config.ts", import.meta.url).href)}; if (persistVerbosity("low")) process.exit(1);`,
+  ], { cwd: fileURLToPath(new URL("..", import.meta.url)) });
+  await waitFor(() => /Ran 1 command/.test(lines()));
+  assert.ok(second.renders() > before);
+  await first.commands.get("verbosity").handler("status", first.ctx);
+  assert.match(first.notifications.at(-1) ?? "", /Verbosity low/);
+  await first.event("session_shutdown");
+  await second.event("session_shutdown");
+  const stoppedRenders = second.renders();
+  assert.equal(persistVerbosity("default"), undefined);
+  await delay(600);
+  assert.equal(second.renders(), stoppedRenders);
+});
+
+test("first run uses low without writing; local opt-out preserves global commands", async () => {
   process.env.PI_VERBOSITY_BUILTINS = "0";
-  try {
-    for (const mode of ["tui", "rpc", "json", "print"]) {
-      const h = harness(mode);
-      h.setFlag("low");
-      await h.event("session_start");
-      await h.commands.get("verbosity").handler("default", h.ctx);
-      await h.commands.get("verbosity").handler("low", h.ctx);
-      assert.equal(h.definitions.size, process.env.PI_VERBOSITY_BUILTINS === "0" ? 0 : 7);
-      for (const action of ["HIGH", "low normal", "low extra", "status extra"]) {
-        await h.commands.get("verbosity").handler(action, h.ctx);
-        if (mode === "tui") assert.match(h.notifications.at(-1) ?? "", /Use \/verbosity/);
-      }
-      await h.commands.get("verbosity").handler("status", h.ctx);
-      if (mode === "tui") assert.match(h.notifications.at(-1) ?? "", /Verbosity low\..*\nSupported: none/);
-      else assert.deepEqual(h.notifications, []);
-      assert.deepEqual(await readdir(dir), []);
-      await h.event("session_shutdown");
-    }
-    const legacy = harness();
-    await legacy.event("session_start");
-    await legacy.commands.get("verbosity").handler("status", legacy.ctx);
-    assert.match(legacy.notifications.at(-1) ?? "", /Verbosity low\. Session only/);
-    await legacy.commands.get("verbosity").handler("low", legacy.ctx);
-    assert.deepEqual(await readdir(dir), []);
-    await legacy.commands.get("verbosity").handler("default", legacy.ctx);
-    assert.equal(await loadEnabled(), false);
-    await legacy.event("session_shutdown");
-  } finally {
-    if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
-    await rm(dir, { recursive: true, force: true });
+  const h = harness();
+  await h.event("session_start");
+  await h.commands.get("verbosity").handler("status", h.ctx);
+  assert.match(h.notifications.at(-1) ?? "", /Verbosity low/);
+  assert.deepEqual(await readdir(testDir), []);
+  assert.equal(h.definitions.size, 0);
+  for (const action of ["HIGH", "low normal", "low extra", "status extra"]) {
+    await h.commands.get("verbosity").handler(action, h.ctx);
+    assert.match(h.notifications.at(-1) ?? "", /Use \/verbosity/);
+  }
+  assert.equal(loadVerbosity(), undefined);
+  await h.commands.get("verbosity").handler("default", h.ctx);
+  assert.equal(loadVerbosity(), "default");
+});
+
+test("non-TUI modes do not read or write global state, even with CLI selection", async () => {
+  await writeFile(statePath(), "not json");
+  for (const mode of ["rpc", "json", "print"]) {
+    const h = harness(mode);
+    h.setFlag("low");
+    await h.event("session_start");
+    await h.commands.get("verbosity").handler("default", h.ctx);
+    assert.deepEqual(h.notifications, []);
+    assert.equal(await readFile(statePath(), "utf8"), "not json");
   }
 });
 
 test("invalid CLI selection stays disabled despite saved state and commands", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "focus-cli-invalid-"));
-  const oldDir = process.env.PI_CODING_AGENT_DIR;
-  const oldEager = process.env.PI_VERBOSITY_BUILTINS;
-  process.env.PI_CODING_AGENT_DIR = dir;
-  process.env.PI_VERBOSITY_BUILTINS = "1";
-  initTheme("dark", false);
-  try {
-    await persistEnabled(true);
-    const before = await readFile(statePath(), "utf8");
-    for (const value of ["", "high", "LOW", "low normal", true]) {
-      const h = harness();
-      h.setFlag(value);
-      await h.event("session_start");
-      assert.match(h.notifications.at(-1) ?? "", /Invalid --verbosity/);
-      await h.commands.get("verbosity").handler("low", h.ctx);
-      await h.commands.get("verbosity").handler("low", h.ctx);
-      assert.ok(h.notifications.every(message => message.includes("Invalid --verbosity")));
-      await h.event("tool_execution_start", { toolCallId: "invalid", toolName: "bash", args: { command: "git status" } });
-      const row = new ToolExecutionComponent("bash", "invalid", { command: "git status" }, { showImages: false }, h.definitions.get("bash"), h.ctx.ui as never, tmpdir());
-      assert.doesNotMatch(row.render(80).join("\n"), /Running \d+ command/);
-      assert.equal(await readFile(statePath(), "utf8"), before);
-      await h.event("session_shutdown");
-    }
-    await writeFile(statePath(), '{"enabled":"true"}');
-    assert.equal(await loadEnabled(), false);
-    await writeFile(statePath(), "not json");
-    assert.equal(await loadEnabled(), false);
-  } finally {
-    if (oldDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldDir;
-    if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
-    await rm(dir, { recursive: true, force: true });
+  assert.equal(persistVerbosity("low"), undefined);
+  const before = await readFile(statePath(), "utf8");
+  for (const value of ["", "high", "LOW", "low normal", true]) {
+    const h = harness();
+    h.setFlag(value);
+    await h.event("session_start");
+    await h.commands.get("verbosity").handler("low", h.ctx);
+    assert.ok(h.notifications.every(message => message.includes("Invalid --verbosity")));
+    assert.equal(await readFile(statePath(), "utf8"), before);
   }
 });
 
-test("persisted mode defaults off and supports atomic round trips", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "focus-state-"));
-  try {
-    const path = join(dir, "state.json");
-    assert.equal(await loadEnabled(path), false);
-    await persistEnabled(true, path); assert.equal(await loadEnabled(path), true);
-    await persistEnabled(false, path); assert.equal(await loadEnabled(path), false);
-  } finally { await rm(dir, { recursive: true, force: true }); }
+test("state parses strictly and writes atomically with private permissions", async () => {
+  const path = statePath();
+  assert.equal(loadVerbosity(), undefined);
+  for (const verbosity of ["default", "low"] as const) {
+    assert.equal(persistVerbosity(verbosity), undefined);
+    assert.equal(loadVerbosity(), verbosity);
+  }
+  assert.equal((await stat(path)).mode & 0o777, 0o600);
+  assert.deepEqual(await readdir(dirname(path)), ["verbosity.local.json"]);
+  for (const contents of ["not json", "null", "{}", '{"verbosity":true}', '{"verbosity":"HIGH"}']) {
+    await writeFile(path, contents);
+    assert.ok(loadVerbosity() instanceof VerbosityStateError);
+  }
+});
+
+test("read and save failures are visible and never claim a successful change", async () => {
+  await writeFile(statePath(), "not json");
+  const h = harness();
+  await h.event("session_start");
+  assert.match(h.notifications.at(-1) ?? "", /Cannot read global verbosity/);
+  await h.commands.get("verbosity").handler("low", h.ctx);
+  assert.equal(loadVerbosity(), "low");
+  await rm(statePath());
+  await mkdir(statePath()); // Deterministic failure even when tests run as root.
+  h.notifications.length = 0;
+  await h.commands.get("verbosity").handler("default", h.ctx);
+  assert.equal(h.notifications.length, 1);
+  assert.match(h.notifications[0] ?? "", /Cannot save global verbosity/);
+  await h.commands.get("verbosity").handler("status", h.ctx);
+  assert.match(h.notifications.at(-1) ?? "", /Verbosity low/);
 });
 
 test("live extension events keep source order, progress, mode switching, and disposal", async () => {
@@ -303,7 +339,7 @@ test("eager adapters survive rows constructed before session_start on reload", a
   process.env.PI_VERBOSITY_BUILTINS = "1";
   initTheme("dark", false);
   try {
-    await persistEnabled(true);
+    assert.equal(persistVerbosity("low"), undefined);
     const h = harness();
     const row = new ToolExecutionComponent("bash", "history", { command: "git status" }, { showImages: false }, h.definitions.get("bash"), h.ctx.ui as never, tmpdir());
     row.updateResult({ content: [{ type: "text", text: "original" }], isError: false });

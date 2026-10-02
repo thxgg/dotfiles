@@ -1,9 +1,8 @@
 # Verbosity level
 
-Active Pi extension. Low verbosity is the default for each session. It groups
-standard local built-ins and opted-in repository web tools without changing model
-messages, tool execution, permissions, or results. Saved settings from the archived
-Focus version are ignored. Mode changes are session-local.
+Active Pi extension. Verbosity is a global, persistent preference. Low verbosity
+groups standard local built-ins and opted-in repository web tools without changing
+model messages, tool execution, permissions, or results.
 
 ```text
 /verbosity low
@@ -11,9 +10,24 @@ Focus version are ignored. Mode changes are session-local.
 /verbosity status
 ```
 
-`pi --verbosity default` starts with native rows. `/focus` is removed.
-The two display choices are `low` and `default`. Invalid CLI values disable grouping and show
-an error; they do not terminate Pi.
+Both mode commands save `~/.pi/agent/verbosity.local.json`. Open interactive
+sessions that share the same agent directory pick up changes within about 250 ms,
+even while idle. New, resumed, forked, and reloaded sessions read the saved choice.
+`PI_CODING_AGENT_DIR` changes the shared preference directory.
+
+`pi --verbosity default` saves native rows as the global choice at startup;
+`pi --verbosity low` saves grouped rows. Reload does not replay an old CLI choice.
+Concurrent changes use the last completed atomic write. The file is machine-local,
+outside caches, and excluded from Git and Stow.
+
+With no saved preference, the first session uses `low` without writing a file.
+Archived Focus state stays ignored. Invalid or unreadable preferences produce an
+error, not a silent reset. An open session keeps its last known mode; a new session
+uses native rows until the preference is repaired. A failed save leaves the active
+mode unchanged. RPC, JSON, and print modes do not read, save, or watch preferences.
+
+The two choices are `low` and `default`. `/focus` is removed. Invalid CLI values
+disable grouping and show an error; they do not terminate Pi.
 
 ## Interaction
 

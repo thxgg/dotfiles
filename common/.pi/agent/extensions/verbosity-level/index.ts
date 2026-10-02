@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "./adapter.ts";
 import { registerLocalTools } from "./builtins.ts";
-import { InvalidVerbosityError, parseVerbosity, type Verbosity } from "./config.ts";
+import { InvalidVerbosityError, loadVerbosity, parseVerbosity, persistVerbosity, statePath, VerbosityStateError, watchVerbosity, type Verbosity } from "./config.ts";
 import { Activity, type Content } from "./model.ts";
 import { BOUNDARY_ENTRY, OUTSIDE_ENTRY, reconstruct } from "./rebuild.ts";
 import { activityComponent } from "./render.ts";
@@ -11,12 +11,12 @@ import { activityComponent } from "./render.ts";
 type ModeState =
   | { readonly kind: "inactive" }
   | { readonly kind: "invalid"; readonly error: InvalidVerbosityError }
-  | { readonly kind: "ready"; readonly verbosity: Verbosity; readonly persistence: "session" };
+  | { readonly kind: "ready"; readonly verbosity: Verbosity };
 
-/** Register the default low-verbosity renderer. Resolve CLI selection only at session_start. */
+/** Register the globally synchronized renderer. Resolve CLI selection only at session_start. */
 export default function verbosityLevel(pi: ExtensionAPI): void {
   pi.registerFlag("verbosity", {
-    description: "Tool display: low (grouped) or default (native), session-only",
+    description: "Save global tool display: low (grouped) or default (native)",
     type: "string",
   });
   // CLI extension flags are applied after factories run. An explicit process option
@@ -27,6 +27,9 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
   let mode: ModeState = { kind: "inactive" };
   const isEnabled = () => mode.kind === "ready" && mode.verbosity === "low";
   let terminal = false;
+  let preferencePath: string | undefined;
+  let stopWatching: (() => void) | undefined;
+  let cliApplied = false;
   let animation: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
   let lastEntry: string | undefined;
@@ -86,8 +89,24 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     }
     lastEntry = entries.at(-1)?.id;
   };
+  const syncVerbosity = (ctx: ExtensionContext) => {
+    if (mode.kind !== "ready" || !preferencePath) return;
+    const saved = loadVerbosity(preferencePath);
+    if (saved instanceof VerbosityStateError) {
+      ctx.ui.notify(saved.message, "error");
+      return; // Keep the last known mode on read failure or file removal.
+    }
+    if (saved !== undefined && saved !== mode.verbosity) {
+      mode = { kind: "ready", verbosity: saved };
+      redraw();
+    }
+  };
   const localNames = eager ? registerLocalTools(pi) : [];
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
+    stopWatching?.();
+    stopWatching = undefined;
+    if (animation) clearInterval(animation);
+    animation = undefined;
     terminal = false;
     mode = { kind: "inactive" };
     const selection = parseVerbosity(pi.getFlag("verbosity"));
@@ -99,11 +118,19 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
       return;
     }
     if (ctx.mode !== "tui") return; // No terminal UI or state I/O in RPC/print/JSON.
-    mode = selection === undefined
-      ? { kind: "ready", verbosity: "low", persistence: "session" }
-      : { kind: "ready", verbosity: selection, persistence: "session" };
+    preferencePath = statePath();
+    const saved = loadVerbosity(preferencePath);
+    if (saved instanceof VerbosityStateError) ctx.ui.notify(saved.message, "error");
+    mode = { kind: "ready", verbosity: saved instanceof VerbosityStateError ? "default" : saved ?? "low" };
+    // Reload creates a fresh factory but must not replay an old CLI choice.
+    if (!cliApplied && event.reason === "startup" && selection !== undefined) {
+      const error = persistVerbosity(selection, preferencePath);
+      if (error) ctx.ui.notify(error.message, "error");
+      else mode = { kind: "ready", verbosity: selection };
+    }
+    cliApplied = true;
     terminal = true;
-    if (animation) clearInterval(animation);
+    stopWatching = watchVerbosity(preferencePath, () => syncVerbosity(ctx));
     animation = setInterval(() => {
       if (isEnabled() && [...activity.calls.values()].some(call => call.status === "running" || call.status === "queued")) redraw();
     }, 80);
@@ -170,6 +197,8 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
   pi.on("user_bash", () => { if (terminal) activity.boundary(); });
   pi.on("agent_settled", () => { if (terminal) { activity.settle(); redraw(); } });
   pi.on("session_shutdown", () => {
+    stopWatching?.();
+    stopWatching = undefined;
     disposed = true;
     if (animation) clearInterval(animation);
     animation = undefined;
@@ -179,12 +208,17 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     invalidators.clear();
     activity = new Activity(supported);
   });
-  const changeVerbosity = async (verbosity: Verbosity, ctx: ExtensionContext) => {
-    if (mode.kind !== "ready") return;
-    mode = { ...mode, verbosity };
+  const changeVerbosity = (verbosity: Verbosity, ctx: ExtensionContext) => {
+    if (mode.kind !== "ready" || !preferencePath) return false;
+    const error = persistVerbosity(verbosity, preferencePath);
+    if (error) {
+      ctx.ui.notify(error.message, "error");
+      return false;
+    }
+    mode = { kind: "ready", verbosity };
     redraw();
+    return true;
   };
-  const scopeDescription = () => "Session only. Commands do not change saved settings.";
   const commandReady = (ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return false;
     if (mode.kind === "ready") return true;
@@ -192,19 +226,21 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     return false;
   };
   pi.registerCommand("verbosity", {
-    description: "Set supported tool display: low, default, status (CLI selection makes changes session-only)",
+    description: "Set global persistent tool display: low, default, status",
     getArgumentCompletions(prefix) {
       return ["low", "default"].filter(value => value.startsWith(prefix)).map(value => ({ value, label: value }));
     },
     async handler(args, ctx) {
       if (!commandReady(ctx)) return;
       const action = args.trim() || "status";
-      if (action === "low" || action === "default") await changeVerbosity(action, ctx);
-      else if (action !== "status") {
+      if (action === "low" || action === "default") {
+        if (!changeVerbosity(action, ctx)) return;
+      } else if (action === "status") syncVerbosity(ctx);
+      else {
         ctx.ui.notify("Use /verbosity low|default|status", "error");
         return;
       }
-      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "default"}. ${scopeDescription()}\nSupported: ${[...supported].join(", ") || "none"}. Standard-local tools only. Set PI_VERBOSITY_BUILTINS=0 with remote or SDK overrides.`, "info");
+      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "default"}. Global preference; changes sync across open Pi sessions and persist across restarts.\nSupported: ${[...supported].join(", ") || "none"}. Standard-local tools only. Set PI_VERBOSITY_BUILTINS=0 with remote or SDK overrides.`, "info");
     },
   });
 }
