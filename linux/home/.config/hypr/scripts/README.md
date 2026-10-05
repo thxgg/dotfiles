@@ -75,6 +75,29 @@ PYTHONDONTWRITEBYTECODE=1 python tests/hyprpanel-teams-unread.py
 PYTHONDONTWRITEBYTECODE=1 python tests/hyprpanel-teams-tray.py
 ```
 
+# Archon light tray icon
+
+`archon-light-tray.py` launches a checksum-keyed extracted copy of the official
+`~/Applications/Archon.AppImage`. It changes only the RGB values of the two
+bundled tray PNGs to white. It preserves their dimensions and alpha channels,
+the original AppImage, the app's tray menu, and its click behavior. This is a
+static light icon for the dark panel, not repository-wide theme automation.
+
+The local Archon desktop entry must run this script with Python 3 instead of
+running the AppImage directly. Requirements: Python 3, PyGObject, and GdkPixbuf.
+Extracted copies live under `~/.cache/archon-light-tray`. The launcher serializes
+extraction and does not publish incomplete copies. Old copies stay intact for
+running processes. Remove old cache versions only after closing Archon.
+
+AppImage self-updates are unavailable in the extracted copy. To update, replace
+`~/Applications/Archon.AppImage` with an official download and restart Archon.
+The changed checksum causes the launcher to prepare a new white-icon copy.
+If upstream renames the tray assets, preparation fails instead of patching an
+unrelated file. To undo, point the desktop entry at the original AppImage again.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/archon-light-tray.test.py`.
+These tests use generated icons and mocked extraction, with no desktop access.
+
 # HyprPanel tray compatibility
 
 Slack 4.52.155 registers a complete D-Bus bus-name/object-path pair. The installed

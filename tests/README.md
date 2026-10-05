@@ -61,6 +61,16 @@ device arrival, replacement, removal, empty icon names, connection switching,
 and stale subscription cleanup. The same test must fail on the unpatched helper.
 It does not verify real Astal signal timing or GTK rendering.
 
+# Archon tray icon checks
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/archon-light-tray.test.py
+```
+
+Requires Python 3, PyGObject, and GdkPixbuf. Uses generated PNGs and mocked
+AppImage extraction. Checks alpha preservation, cache reuse, version changes,
+and incomplete-extraction cleanup. Does not launch Archon or use the desktop bus.
+
 # HyprPanel tray checks
 
 Run all three suites from the repository root:
