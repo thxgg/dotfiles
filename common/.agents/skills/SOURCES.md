@@ -65,6 +65,19 @@ The trailing blank line in `write-swift/SKILL.md` is removed for whitespace chec
 
 `pick-ui-library` is intentionally excluded by owner decision.
 
+## Matt Silverlock
+
+`wow-addon-development` copies `SKILL.md` and all seven references unchanged from
+[`elithrar/dotfiles@4b38887`](https://github.com/elithrar/dotfiles/commit/4b38887ec969bbc1c97c1434732fac97ea7ff0dd),
+under `.agents/skills/wow-addon-development`. The upstream MIT license is included
+as `wow-addon-development/LICENSE`.
+
+`agents/openai.yaml` is intentionally omitted: it contains Codex interface metadata
+and a skill-invocation prompt, not OpenAI model-specific guidance. Historical
+`.agents/skill-evals/wow-addon-development` records are not part of the imported
+skill. They describe earlier OpenAI model runs, not current model instructions or
+bundled executable tests. All portable development and validation guidance is retained.
+
 ## No upstream
 
 The owner confirmed that these skills have no upstream:
