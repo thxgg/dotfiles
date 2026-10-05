@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
+import { stripVTControlCharacters } from 'node:util';
 
 const root = mkdtempSync(join(tmpdir(), 'pi-codemode-test-'));
 const agentDir = join(root, 'agent');
@@ -18,7 +19,7 @@ for (const name of Object.keys(process.env)) {
 }
 after(() => rmSync(root, { recursive: true, force: true }));
 
-const { createAgentSession, createCodemodeExtension, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } = await import('@earendil-works/pi-coding-agent');
+const { createAgentSession, createCodemodeExtension, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, ToolExecutionComponent, initTheme } = await import('@earendil-works/pi-coding-agent');
 const { fauxProvider, fauxAssistantMessage, fauxToolCall } = await import('@earendil-works/pi-ai/providers/faux');
 const { default: gitGuard } = await import('../agent/extensions/git-interceptor.ts');
 const { default: cloak } = await import('../agent/extensions/pi-cloak/index.ts');
@@ -58,7 +59,8 @@ test('Anthropic request sanitation preserves the canonical session and tool decl
   }
 });
 
-test('native codemode preserves local guards, redaction, structured bash results, and direct tools', async () => {
+test('native codemode preserves guards and execution with renderer-only verbosity, including HTML export', async () => {
+  initTheme('dark', false);
   writeFileSync(join(agentDir, 'cloak.json'), JSON.stringify({ patterns: [{ filePattern: '**/.env', cloakPattern: 'value-to-mask' }] }));
   writeFileSync(join(cwd, '.env'), 'KEY=value-to-mask');
   const settingsManager = SettingsManager.inMemory({
@@ -76,12 +78,23 @@ test('native codemode preserves local guards, redaction, structured bash results
   modelRuntime.registerNativeProvider(faux.provider);
   const { session } = await createAgentSession({
     cwd, agentDir, resourceLoader, settingsManager, modelRuntime,
-    model: faux.getModel(), sessionManager: SessionManager.inMemory(cwd),
+    model: faux.getModel(), sessionManager: SessionManager.create(cwd, join(root, 'sessions')),
   });
   const events = [];
   session.subscribe(event => events.push(event));
   try {
-    await session.bindExtensions({});
+    await session.bindExtensions({ mode: 'tui' });
+    const rows = new Map();
+    session.subscribe(event => {
+      if (event.type === 'tool_execution_start' && !event.parentToolCallId) {
+        const renderers = session.extensionRunner.resolveToolRenderers(event.toolName, () => session.getToolDefinition(event.toolName));
+        rows.set(event.toolCallId, new ToolExecutionComponent(event.toolName, event.toolCallId, event.args, { showImages: false }, renderers, { requestRender() {} }, cwd));
+      } else if ((event.type === 'tool_execution_update' || event.type === 'tool_execution_end') && !event.parentToolCallId) {
+        const result = event.type === 'tool_execution_update' ? event.partialResult : event.result;
+        rows.get(event.toolCallId)?.updateResult({ ...result, isError: event.isError ?? false }, event.type === 'tool_execution_update');
+      }
+    });
+    assert.deepEqual(resourceLoader.getExtensions().extensions.flatMap(extension => [...extension.tools.keys()]), ['codemode']);
     for (const name of ['read', 'bash', 'edit', 'write', 'codemode']) assert.ok(session.getActiveToolNames().includes(name), name);
     faux.setResponses([
       fauxAssistantMessage(fauxToolCall('codemode', { code: `
@@ -115,7 +128,31 @@ test('native codemode preserves local guards, redaction, structured bash results
     assert.equal(nested.length, 3);
     assert.equal(nested.filter(event => event.isError).length, 1);
     assert.deepEqual(session.messages.filter(message => message.role === 'toolResult').map(message => message.toolName), ['codemode']);
+    const row = rows.get('batch');
+    assert.ok(row);
+    const rendered = () => stripVTControlCharacters(row.render(120).join('\n'));
+    assert.match(rendered(), /Codemode · Activity 1 read, 2 commands · 1 FAILED/);
+    assert.doesNotMatch(rendered(), /const masked/);
+    row.setExpanded(true);
+    assert.match(rendered(), /const masked/);
+    assert.match(rendered(), /BLOCKED: --no-verify/);
+    await session.prompt('/verbosity default');
+    assert.doesNotMatch(rendered(), /Codemode · Activity/);
+    await session.prompt('/verbosity low');
+    // HTML renders call and result separately, unlike the combined TUI slots.
+    const exported = await session.exportToHtml(join(root, 'codemode.html'));
+    const html = readFileSync(exported, 'utf8');
+    const encoded = html.match(/<script id="session-data" type="application\/json">([^<]+)<\/script>/)?.[1];
+    assert.ok(encoded);
+    const exportedData = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    assert.match(exportedData.renderedTools.batch.resultHtmlExpanded, /BLOCKED/);
+    assert.match(exportedData.renderedTools.batch.callHtml, /Codemode/);
+    row.setExpanded(false);
+    assert.match(rendered(), /Codemode · Activity/);
+    await session.prompt('/verbosity default');
+    assert.doesNotMatch(rendered(), /Codemode · Activity/, 'HTML export must not replace the live row invalidator');
   } finally {
+    await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'exit' });
     session.dispose();
   }
 });

@@ -1,4 +1,31 @@
 export type Status = "queued" | "running" | "success" | "error" | "cancelled" | "interrupted";
+export interface NestedActivity {
+  readonly name: string;
+  readonly status: Status;
+}
+
+/** Parse saved/live Pi details without retaining arguments, outputs, image data, or costs. */
+function parseCodemodeCalls(details: unknown): readonly NestedActivity[] | undefined {
+  if (!details || typeof details !== "object" || !("calls" in details) || !Array.isArray(details.calls)) return;
+  // Fail open to native rendering for corrupt or unexpectedly large history.
+  if (details.calls.length > 10000) return;
+  const calls: NestedActivity[] = [];
+  const values: readonly unknown[] = details.calls;
+  for (const value of values) {
+    if (!value || typeof value !== "object" || !("name" in value) || !("status" in value) || typeof value.name !== "string" || !value.name || value.name.length > 500) return;
+    let status: Status;
+    switch (value.status) {
+      case "running": status = "running"; break;
+      case "ok": status = "success"; break;
+      case "error": status = "error"; break;
+      case "cancelled": status = "cancelled"; break;
+      default: return;
+    }
+    calls.push({ name: value.name.replace(/[\x00-\x1f\x7f-\x9f]/g, " "), status });
+  }
+  return calls;
+}
+
 export interface Call {
   id: string;
   name: string;
@@ -6,14 +33,16 @@ export interface Call {
   status: Status;
   outside: boolean;
   group: string;
+  nested?: readonly NestedActivity[];
 }
 export interface Group { id: string; calls: Call[]; expanded: boolean }
 export interface Content { type: string; text?: string }
-export interface Result { content: readonly Content[]; isError?: boolean }
+export interface Result { content: readonly Content[]; isError?: boolean; details?: unknown }
 export interface Message {
   role: string;
   content?: string | readonly (Content & { id?: string; name?: string; arguments?: Record<string, unknown> })[];
   toolCallId?: string;
+  details?: unknown;
   isError?: boolean;
   display?: boolean;
 }
@@ -50,6 +79,8 @@ export class Activity {
     if (existing) { existing.label = callLabel(name, args); return existing; }
     if (this.unsupported.has(id)) return;
     if (!this.supported.has(name)) { this.unsupported.add(id); this.boundary(); return; }
+    // Scripts have their own output and errors. Never merge them into adjacent direct rows.
+    if (name === "codemode") this.boundary();
     if (!this.current) {
       this.current = { id, calls: [], expanded: false };
       this.groups.push(this.current);
@@ -57,13 +88,14 @@ export class Activity {
     const call: Call = { id, name, label: callLabel(name, args), status: "queued", outside: false, group: this.current.id };
     this.current.calls.push(call);
     this.calls.set(id, call);
+    if (name === "codemode") this.boundary();
     return call;
   }
   message(message: Message): void {
     if (this.messages.has(message)) return;
     this.messages.add(message);
     if (message.role === "toolResult") {
-      if (message.toolCallId) this.finish(message.toolCallId, { content: Array.isArray(message.content) ? message.content : [], isError: message.isError });
+      if (message.toolCallId) this.finish(message.toolCallId, { content: Array.isArray(message.content) ? message.content : [], isError: message.isError, details: message.details });
       return;
     }
     if (message.role !== "assistant") {
@@ -80,13 +112,19 @@ export class Activity {
     const call = this.add(id, name, args);
     if (call?.status === "queued") call.status = "running";
   }
+  update(id: string, result: Result): void {
+    const call = this.calls.get(id);
+    if (!call) return;
+    if (call.name === "codemode") call.nested = parseCodemodeCalls(result.details);
+    if (result.content.some(p => p.type === "image")) this.exclude(id);
+  }
   finish(id: string, result: Result, cancelled = false): void {
     const call = this.calls.get(id);
     if (!call) return;
     // A final message can refine a result, but cannot undo known cancellation.
     const status = resultStatus(result, cancelled);
     call.status = call.status === "cancelled" && status === "error" ? "cancelled" : status;
-    if (result.content.some(p => p.type === "image")) this.exclude(id);
+    this.update(id, result);
   }
   exclude(id: string): void {
     const call = this.calls.get(id);
@@ -118,7 +156,7 @@ export class Activity {
   members(group: Group): Call[] { return group.calls.filter(c => !c.outside); }
   host(call: Call): boolean { return this.group(call.group)?.calls.find(c => !c.outside)?.id === call.id; }
 }
-export function summary(calls: readonly Call[]): string {
+export function summary(calls: readonly Pick<Call, "name" | "status">[]): string {
   const counts = new Map<string, number>();
   const kinds: Record<string, string> = { read: "read", grep: "search", find: "search", ls: "listing", websearch: "web search", webfetch: "fetch" };
   for (const call of calls) { const kind = kinds[call.name] ?? call.name; counts.set(kind, (counts.get(kind) ?? 0) + 1); }

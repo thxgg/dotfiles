@@ -103,6 +103,38 @@ test("reconstruction uses only supplied active entries, deduplicates retained ta
   const compacted = reconstruct([{ type: "compaction", retainedTail: [assistant(tool("tail")), { role: "toolResult", toolCallId: "tail", ...ok }] } as unknown as SessionEntry], supported());
   assert.equal(compacted.calls.get("tail")!.status, "success");
 });
+test("codemode isolates adjacent rows, projects only nested status, and reconstructs retained history", () => {
+  const names = new Set([...supported(), "codemode"]);
+  const messages = [
+    assistant(tool("before"), tool("script", "codemode"), tool("after")),
+    { role: "toolResult", toolCallId: "before", ...ok },
+    { role: "toolResult", toolCallId: "script", ...ok, details: { calls: [
+      { id: "script/1", name: "read", args: "PRIVATE_ARGUMENTS", status: "ok" },
+      { id: "script/2", name: "mcp__fixture__search", args: "PRIVATE_ARGUMENTS", status: "error" },
+      { id: "script/3", name: "models.classify", args: "PRIVATE_ARGUMENTS", status: "cancelled" },
+    ] } },
+    { role: "toolResult", toolCallId: "after", ...ok },
+  ];
+  const history = reconstruct(messages.map(entry), names);
+  const compacted = reconstruct([{ type: "compaction", retainedTail: messages } as unknown as SessionEntry], names);
+  for (const activity of [history, compacted]) {
+    assert.deepEqual(activity.groups.map(group => group.calls.map(call => call.id)), [["before"], ["script"], ["after"]]);
+    assert.deepEqual(activity.calls.get("script")?.nested, [
+      { name: "read", status: "success" },
+      { name: "mcp__fixture__search", status: "error" },
+      { name: "models.classify", status: "cancelled" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(activity.calls.get("script")), /PRIVATE_ARGUMENTS/);
+  }
+  const running = new Activity(names);
+  running.start("script", "codemode", {});
+  running.update("script", { ...ok, details: { calls: [{ name: "read", status: "running" }] } });
+  running.update("script", { ...ok, details: { calls: [{ name: "read", status: "ok" }] } });
+  assert.equal(running.calls.get("script")?.nested?.length, 1, "progress snapshots replace rather than double-count");
+  running.update("script", { ...ok, details: { calls: [{ name: "read", status: "invalid" }] } });
+  assert.equal(running.calls.get("script")?.nested, undefined, "unknown details fall back to native output");
+});
+
 test("labels are bounded and cannot inject terminal escapes", () => {
   assert.equal(safeLabel("a\x1b[2J\n路"), "a [2J 路");
   assert.equal(safeLabel("x".repeat(900)).length, 500);

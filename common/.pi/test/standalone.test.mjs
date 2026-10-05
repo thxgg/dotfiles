@@ -71,6 +71,30 @@ test('OpenAI extension loads through a Stow leaf symlink without a separately de
   }
 });
 
+test('verbosity renderer loads through the existing Stow leaf links without new deployment', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pi-verbosity-stow-test-'));
+  try {
+    const extensions = join(dir, 'extensions');
+    const verbosity = join(extensions, 'verbosity');
+    mkdirSync(verbosity, { recursive: true });
+    for (const name of ['index.ts', 'adapter.ts', 'config.ts', 'model.ts', 'rebuild.ts', 'render.ts']) {
+      symlinkSync(fileURLToPath(new URL('../agent/extensions/verbosity-level/' + name, import.meta.url)), join(verbosity, name));
+    }
+    const probe = join(dir, 'probe.js');
+    writeFileSync(probe, 'export default function(pi) { pi.registerCommand("probe", {description:"Offline load probe", handler:async()=>{console.log("VERBOSITY_STOW_OK")}}); }');
+    const cli = fileURLToPath(new URL('../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js', import.meta.url));
+    const result = spawnSync(process.execPath, [cli, '-ne', '-e', join(verbosity, 'index.ts'), '-e', probe,
+      '-ns', '-np', '-nc', '--no-session', '--no-approve', '--offline', '--no-tools', '-p', '/probe'], {
+      cwd: dir, env: {...process.env, PI_CODING_AGENT_DIR:dir, PI_OFFLINE:'1'}, encoding:'utf8', timeout:20_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr + result.stdout, /VERBOSITY_STOW_OK/);
+    assert.doesNotMatch(result.stderr + result.stdout, /Failed to load extension|Extension error/);
+  } finally {
+    rmSync(dir, {recursive:true,force:true});
+  }
+});
+
 test('Anthropic sanitation preserves user content and other providers', async () => {
   const { default: extension } = await import('../agent/extensions/anthropic-prompt-sanitizer.ts');
   const h = harness();

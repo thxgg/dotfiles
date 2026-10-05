@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { renderersOf } from "./renderers.ts";
 import test, { beforeEach, afterEach } from "node:test";
 import { execFile } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -7,7 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify, stripVTControlCharacters } from "node:util";
-import { initTheme, ToolExecutionComponent, type ExtensionAPI, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { createCodemodeExtension, createBashToolDefinition, createReadToolDefinition, createEditToolDefinition, createWriteToolDefinition, createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, initTheme, ToolExecutionComponent, type ExtensionAPI, type ToolDefinition, type ToolRenderers, type ToolRendererResolver } from "@earendil-works/pi-coding-agent";
 import verbosityLevel from "../index.ts";
 import { InvalidVerbosityError, loadVerbosity, parseVerbosity, persistVerbosity, statePath, VerbosityStateError } from "../config.ts";
 
@@ -40,7 +41,9 @@ async function waitFor(condition: () => boolean) {
 function harness(mode = "tui", owner = "builtin") {
   const handlers = new Map<string, (event: any, ctx: any) => unknown>();
   const listeners = new Map<string, Set<(value: unknown) => void>>();
-  const definitions = new Map<string, ToolDefinition<any, any>>();
+  const definitions = new Map<string, ToolRenderers>();
+  const registeredTools: ToolDefinition[] = [];
+  const resolvers: ToolRendererResolver[] = [];
   const commands = new Map<string, any>();
   const notifications: string[] = [];
   const flags = new Map<string, Parameters<ExtensionAPI["registerFlag"]>[1]>();
@@ -59,7 +62,8 @@ function harness(mode = "tui", owner = "builtin") {
       },
       emit(name: string, value: unknown) { for (const listener of listeners.get(name) ?? []) listener(value); },
     },
-    registerTool(def: ToolDefinition<any, any>) { definitions.set(def.name, def); },
+    registerTool(def: ToolDefinition) { registeredTools.push(def); },
+    registerToolRenderer(resolver: ToolRendererResolver) { resolvers.push(resolver); },
     getAllTools: () => ["read", "bash", "edit", "write", "grep", "find", "ls"].map(name => ({ name, sourceInfo: { source: owner, path: owner === "builtin" ? fileURLToPath(new URL("../index.ts", import.meta.url)) : "<sdk:tool>" } })),
     registerCommand(name: string, command: any) { commands.set(name, command); },
     registerFlag(name: string, options: Parameters<ExtensionAPI["registerFlag"]>[1]) { flags.set(name, options); },
@@ -67,12 +71,119 @@ function harness(mode = "tui", owner = "builtin") {
     appendEntry() {},
   };
   verbosityLevel(pi as unknown as ExtensionAPI);
+  const resolve = (name: string, base: ToolRenderers | undefined) => {
+    const step = (index: number): ToolRenderers | undefined => resolvers[index]?.(name, () => step(index + 1)) ?? base;
+    return step(0);
+  };
+  for (const tool of [createBashToolDefinition(tmpdir()), createReadToolDefinition(tmpdir()), createEditToolDefinition(tmpdir()), createWriteToolDefinition(tmpdir()), createGrepToolDefinition(tmpdir()), createFindToolDefinition(tmpdir()), createLsToolDefinition(tmpdir())]) {
+    const renderers = resolve(tool.name, renderersOf(tool));
+    if (renderers) definitions.set(tool.name, renderers);
+  }
   shutdowns.push(() => handlers.get("session_shutdown")?.({}, ctx));
-  return { ctx, definitions, notifications, commands, listeners, flags,
+  return { ctx, definitions, registeredTools, resolve, notifications, commands, listeners, flags,
     setFlag(value: string | boolean | undefined) { flagValue = value; }, flagReads: () => flagReads,
     renders: () => renders,
     event: (name: string, value: unknown = { reason: "startup" }) => handlers.get(name)?.(value, ctx) };
 }
+
+function codemodeDefinition(): ToolRenderers {
+  let definition: ToolRenderers | undefined;
+  // SAFETY: the native factory only registers a tool; execute is never called here.
+  createCodemodeExtension({ mode: "on" })({
+    registerTool(tool: ToolDefinition) { definition = tool; },
+  } as unknown as ExtensionAPI);
+  assert.ok(definition);
+  return definition;
+}
+
+test("codemode summarizes live nested calls, keeps caught errors, expands native output, and restores default", async () => {
+  initTheme("dark", false);
+  const h = harness();
+  await h.event("session_start");
+  const base = codemodeDefinition();
+  const renderers = h.resolve("codemode", base);
+  const args = { code: "const x = await tools.read({path: 'fixture'}); return x;" };
+  await h.event("tool_execution_start", { toolCallId: "batch", toolName: "codemode", args });
+  const row = new ToolExecutionComponent("codemode", "batch", args, { showImages: false }, renderers, h.ctx.ui as never, tmpdir());
+  const native = new ToolExecutionComponent("codemode", "native", args, { showImages: false }, base, h.ctx.ui as never, tmpdir());
+  const lines = () => stripVTControlCharacters(row.render(120).join("\n"));
+  assert.match(lines(), /Codemode · Running script/);
+  const calls = [
+    { id: "batch/2", name: "bash", args: "{}", status: "running" },
+    { id: "batch/1", name: "read", args: "{}", status: "ok" },
+  ];
+  const result = { content: [{ type: "text", text: "NATIVE_OUTPUT\n".repeat(20) }], details: { calls }, isError: false };
+  await h.event("tool_execution_update", { toolCallId: "batch", partialResult: result });
+  row.updateResult(result, true);
+  assert.match(lines(), /Codemode · Activity 1 command, 1 read/);
+  calls[0]!.status = "error"; // A caught nested failure does not make the script itself fail.
+  await h.event("tool_execution_end", { toolCallId: "batch", result, isError: false });
+  row.updateResult(result); native.updateResult(result);
+  assert.match(lines(), /1 FAILED/);
+  assert.doesNotMatch(lines(), /NATIVE_OUTPUT|script FAILED/);
+  for (const width of [1, 20, 38, 80]) assert.ok(row.render(width).length);
+  const click = { type: "click", button: "left", x: 0, y: 1, screenX: 0, screenY: 1, width: 120, height: 20, shift: false, alt: false, ctrl: false } as const;
+  row.handleMouse?.(click);
+  assert.match(lines(), /const x/);
+  assert.equal(lines().match(/NATIVE_OUTPUT/g)?.length, 20);
+  row.setExpanded(true);
+  assert.match(lines(), /NATIVE_OUTPUT/);
+  row.setExpanded(false);
+  assert.doesNotMatch(lines(), /NATIVE_OUTPUT/);
+  await h.commands.get("verbosity").handler("default", h.ctx);
+  assert.deepEqual(row.render(120), native.render(120));
+  assert.equal(h.registeredTools.length, 0);
+});
+
+test("codemode failures, cancellation, malformed details, images, and prompts stay visible", async () => {
+  initTheme("dark", false);
+  for (const scenario of ["failed", "cancelled", "missing", "malformed", "image", "prompt", "empty", "interrupted"]) {
+    const h = harness();
+    await h.event("session_start");
+    const args = { code: "return 'NATIVE_SCRIPT';" };
+    await h.event("tool_execution_start", { toolCallId: scenario, toolName: "codemode", args });
+    const row = new ToolExecutionComponent("codemode", scenario, args, { showImages: false }, h.resolve("codemode", codemodeDefinition()), h.ctx.ui as never, tmpdir());
+    const text = scenario === "cancelled" ? "Operation aborted" : "NATIVE_RESULT";
+    const result = {
+      content: scenario === "image" ? [{ type: "image", data: "synthetic", mimeType: "image/png" }, { type: "text", text }] : [{ type: "text", text }],
+      details: scenario === "missing" ? undefined : scenario === "malformed" ? { calls: [{ name: "read", status: "unknown" }] } : { calls: [] },
+      isError: scenario === "failed" || scenario === "cancelled",
+    };
+    if (scenario === "prompt") await h.event("ui_prompt_start");
+    if (scenario === "interrupted") await h.event("agent_settled");
+    else {
+      await h.event("tool_execution_end", { toolCallId: scenario, result, isError: result.isError });
+      row.updateResult(result);
+    }
+    const output = stripVTControlCharacters(row.render(120).join("\n"));
+    if (scenario === "failed") assert.match(output, /script FAILED/);
+    else if (scenario === "cancelled") assert.match(output, /script cancelled/);
+    else if (scenario === "empty") assert.match(output, /Codemode · Script finished/);
+    else assert.match(output, /NATIVE_SCRIPT|NATIVE_RESULT/);
+    await h.event("session_shutdown");
+  }
+});
+
+test("codemode history before reload and tree reconstruction retains its summary and direct-call boundaries", async () => {
+  initTheme("dark", false);
+  const h = harness();
+  const args = { code: "return 'HISTORICAL_SCRIPT';" };
+  const result = { content: [{ type: "text", text: "HISTORICAL_RESULT" }], details: { calls: [{ id: "past/1", name: "read", args: "{}", status: "ok" }] }, isError: false };
+  const row = new ToolExecutionComponent("codemode", "past", args, { showImages: false }, h.resolve("codemode", codemodeDefinition()), h.ctx.ui as never, tmpdir());
+  row.updateResult(result);
+  h.ctx.sessionManager.buildContextEntries = (() => [
+    { type: "message", message: { role: "assistant", content: [{ type: "toolCall", id: "past", name: "codemode", arguments: args }] } },
+    { type: "message", message: { role: "toolResult", toolCallId: "past", ...result } },
+  ]) as never;
+  await h.event("session_start", { reason: "reload" });
+  assert.match(row.render(80).join("\n"), /Codemode · Explored 1 read/);
+  await h.event("session_tree");
+  const replay = new ToolExecutionComponent("codemode", "past", args, { showImages: false }, h.resolve("codemode", codemodeDefinition()), h.ctx.ui as never, tmpdir());
+  replay.updateResult(result);
+  assert.match(replay.render(80).join("\n"), /Codemode · Explored 1 read/);
+  replay.setExpanded(true);
+  assert.match(replay.render(80).join("\n"), /HISTORICAL_RESULT/);
+});
 
 test("verbosity parser accepts only exact CLI choices", () => {
   for (const value of [undefined, "low", "default"]) assert.equal(parseVerbosity(value), value);
@@ -157,7 +268,8 @@ test("first run uses low without writing; local opt-out preserves global command
   await h.commands.get("verbosity").handler("status", h.ctx);
   assert.match(h.notifications.at(-1) ?? "", /Verbosity low/);
   assert.deepEqual(await readdir(testDir), []);
-  assert.equal(h.definitions.size, 0);
+  assert.equal(h.registeredTools.length, 0);
+  assert.notEqual(h.definitions.get("read")?.renderShell, "self");
   for (const action of ["HIGH", "low normal", "low extra", "status extra"]) {
     await h.commands.get("verbosity").handler(action, h.ctx);
     assert.match(h.notifications.at(-1) ?? "", /Use \/verbosity/);
@@ -331,7 +443,7 @@ test("nested codemode calls do not hide the next direct tool row", async () => {
   }
 });
 
-test("eager adapters survive rows constructed before session_start on reload", async () => {
+test("renderer hook survives rows constructed before session_start on reload", async () => {
   const dir = await mkdtemp(join(tmpdir(), "focus-reload-"));
   const oldDir = process.env.PI_CODING_AGENT_DIR;
   const oldEager = process.env.PI_VERBOSITY_BUILTINS;
@@ -363,15 +475,15 @@ test("non-TUI modes do not register overrides or emit UI; extension-owned tools 
     await h.event("session_start");
     await h.commands.get("verbosity").handler("low", h.ctx);
     await h.event("tool_execution_start", { toolCallId: "c", toolName: "read", args: {} });
-    assert.equal(h.definitions.size, process.env.PI_VERBOSITY_BUILTINS === "0" ? 0 : 7);
+    assert.equal(h.registeredTools.length, 0);
     assert.equal(h.notifications.length, 0);
   }
   const h = harness("tui", "sdk");
   await h.event("session_start");
-  assert.equal(h.definitions.size, process.env.PI_VERBOSITY_BUILTINS === "0" ? 0 : 7);
+  assert.equal(h.registeredTools.length, 0);
 });
 
-test("eager registration does not group competing owners or use UI in non-TUI modes", async () => {
+test("renderer registration supports SDK tool owners without replacing execution or using non-TUI state", async () => {
   process.env.PI_VERBOSITY_BUILTINS = "1";
   try {
     for (const mode of ["rpc", "json", "print"]) {
@@ -385,7 +497,8 @@ test("eager registration does not group competing owners or use UI in non-TUI mo
     const h = harness("tui", "sdk");
     await h.event("session_start");
     await h.commands.get("verbosity").handler("status", h.ctx);
-    assert.match(h.notifications[0]!, /Supported: none/);
+    assert.match(h.notifications[0]!, /Supported: read, bash/);
+    assert.equal(h.registeredTools.length, 0);
     await h.event("session_shutdown");
   } finally { delete process.env.PI_VERBOSITY_BUILTINS; }
 });

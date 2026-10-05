@@ -14,7 +14,7 @@ From this worktree:
 ./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh
 ```
 
-Requires the installed `pi` CLI (offline renderer checks pass with 1.0.0). No npm install is needed to
+Requires the installed `pi` CLI (offline renderer checks target 1.0.2). No npm install is needed to
 run the viewer. The launcher uses an empty temporary working directory and agent
 directory. It disables discovered extensions, skills, prompts, context files,
 tools, and session saving. It loads only this viewer and the repository's
@@ -55,7 +55,7 @@ Edit `fixtures.ts`, restart, and use the same controls to inspect changes. Edit 
 
 ## Explicit activation in a real session
 
-From a **standard-local** Pi CLI environment:
+From a Pi CLI environment:
 
 ```sh
 ./common/.pi/agent/extensions/verbosity-level/tools/verbosity-lab/run.sh low
@@ -64,11 +64,9 @@ From a **standard-local** Pi CLI environment:
 
 These commands load the extension and worktree web tools with `-e`, set
 `PI_VERBOSITY_BUILTINS=1` and `PI_VERBOSITY_WEB=1`, and pass `--verbosity low` or `--verbosity default`. They use your normal Pi
-configuration and can execute tools when you submit prompts. Do not use them with
-remote execution, sandbox delegates, SDK base-tool overrides, or competing built-in
-execution extensions. See the extension's README for its ownership limits.
-Low verbosity and web adapters are now enabled by default when the extension is
-deployed. These explicit launchers let you test the worktree version first.
+configuration and can execute tools when you submit prompts. The verbosity hook
+changes rendering only, including for remote and SDK tool owners.
+Low verbosity is enabled by default when the extension is deployed. These explicit launchers let you test the worktree version first.
 These explicit CLI choices and mode commands save the global preference and sync
 with other open interactive sessions. Archived Focus state stays ignored.
 

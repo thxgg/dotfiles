@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
+import { renderersOf } from "./renderers.ts";
 import test from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripVTControlCharacters as plain } from "node:util";
 import { createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition, initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { withVerbosityRendering, type RenderRequest } from "../adapter.ts";
+import { withVerbosityRenderers, type RenderRequest } from "../adapter.ts";
 import { Activity, resultStatus, summary } from "../model.ts";
 import { activityComponent } from "../render.ts";
-import { registerLocalTools } from "../builtins.ts";
 
 const ui = { requestRender() {} };
 test("bash vertical slice executes unchanged, replaces adjacent blocks, expands results inline, splits text, restores native rows", async () => {
@@ -19,11 +19,11 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
     const activity = new Activity(new Set(["bash"]));
     let enabled = true;
     const requests = new Map<string, RenderRequest>();
-    const wrapped = withVerbosityRendering({ events: { emit(_event: string, request: RenderRequest) {
+    const wrapped = withVerbosityRenderers("bash", renderersOf(original), (request: RenderRequest) => {
       requests.set(request.context.toolCallId, request);
-      request.component = activityComponent(activity, request, () => enabled);
-    } } } as never, original);
-    for (const key of ["execute", "parameters", "description", "promptSnippet", "promptGuidelines", "constrainedSampling", "outputSchema"] as const) assert.equal(wrapped[key], original[key]);
+      return activityComponent(activity, request, () => enabled);
+    });
+    assert.equal("execute" in wrapped, false);
     const commands = ["printf 'status-output\\n'", "printf 'validation-output\\n'; printf 'changed' > changed.txt", "printf 'failure-output\\n'; exit 7"];
     const rows: ToolExecutionComponent[] = [];
     const natives: ToolExecutionComponent[] = [];
@@ -36,7 +36,7 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
       const native = new ToolExecutionComponent("bash", `native${i}`, args, { showImages: false }, original, ui as never, dir);
       let result;
       try {
-        const output = await wrapped.execute(id, args, undefined, update => row.updateResult({ ...update, isError: update.isError ?? false }, true), undefined as never);
+        const output = await original.execute(id, args, undefined, update => row.updateResult({ ...update, isError: update.isError ?? false }, true), undefined as never);
         result = { ...output, isError: output.isError ?? false };
       }
       catch (error) { result = { content: [{ type: "text" as const, text: (error as Error).message }], isError: true }; }
@@ -69,29 +69,6 @@ test("bash vertical slice executes unchanged, replaces adjacent blocks, expands 
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test("local bash delegate preserves shell settings, current cwd, session environment, timeout and cancellation", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "focus-shell-settings-"));
-  const previous = process.env.PI_CODING_AGENT_DIR;
-  process.env.PI_CODING_AGENT_DIR = dir;
-  try {
-    await writeFile(join(dir, "settings.json"), JSON.stringify({ shellPath: "/bin/bash", shellCommandPrefix: "export FOCUS_TEST_PREFIX=prefix" }));
-    const tools = new Map<string, any>();
-    registerLocalTools({ registerTool(tool: any) { tools.set(tool.name, tool); }, events: { emit() {} } } as never);
-    const ctx = { cwd: dir, isProjectTrusted: () => false, sessionManager: { getSessionId: () => "isolated", getSessionFile: () => undefined }, model: { provider: "offline", id: "fixture" }, thinkingLevel: "off" };
-    const tool = tools.get("bash");
-    const result = await tool.execute("env", { command: "printf '%s|%s|%s|%s' \"$FOCUS_TEST_PREFIX\" \"$PWD\" \"$PI_SESSION_ID\" \"$PI_MODEL\"" }, undefined, undefined, ctx);
-    assert.equal(result.content[0].text, `prefix|${dir}|isolated|fixture`);
-    await assert.rejects(tool.execute("timeout", { command: "sleep 10", timeout: 0.02 }, undefined, undefined, ctx), /timed out/);
-    const controller = new AbortController();
-    controller.abort();
-    await assert.rejects(tool.execute("cancel", { command: "printf should-not-run" }, controller.signal, undefined, ctx), /Command aborted/);
-    assert.equal(resultStatus({ content: [{ type: "text", text: "partial output\n\nCommand aborted" }], isError: true }), "cancelled");
-  } finally {
-    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
 test("edit and write retain native details, preparation and file execution", async () => {
   initTheme("dark", false);
   const dir = await mkdtemp(join(tmpdir(), "focus-mutations-"));
@@ -99,10 +76,10 @@ test("edit and write retain native details, preparation and file execution", asy
     const write = createWriteToolDefinition(dir);
     const edit = createEditToolDefinition(dir);
     for (const [original, args] of [[write, { path: "文.txt", content: "before\n" }], [edit, { path: "文.txt", edits: [{ oldText: "before", newText: "after" }] }]] as const) {
-      const adapted = withVerbosityRendering({ events: { emit() {} } } as never, original as any);
-      assert.equal(adapted.execute, original.execute);
-      assert.equal(adapted.prepareArguments, original.prepareArguments);
-      const result = { ...await adapted.execute("mutation", args, undefined, undefined, undefined as never), isError: false };
+      const adapted = withVerbosityRenderers(original.name, renderersOf(original), request => request.normal);
+      assert.equal("execute" in adapted, false);
+      // SAFETY: each tuple pairs the factory with its matching arguments.
+      const result = { ...await original.execute("mutation", args as never, undefined, undefined, undefined as never), isError: false };
       const normal = new ToolExecutionComponent(original.name, "native", args, { showImages: false }, original as any, ui as never, dir);
       const row = new ToolExecutionComponent(original.name, "adapted", args, { showImages: false }, adapted, ui as never, dir);
       normal.updateResult(result); row.updateResult(result);

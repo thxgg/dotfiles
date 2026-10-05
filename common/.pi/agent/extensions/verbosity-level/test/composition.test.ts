@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { renderersOf } from "./renderers.ts";
 import test from "node:test";
 import { createReadToolDefinition, createLsToolDefinition, initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { withVerbosityRendering, type RenderRequest } from "../adapter.ts";
+import { withVerbosityRenderers, type RenderRequest } from "../adapter.ts";
 import { Activity } from "../model.ts";
 import { activityComponent } from "../render.ts";
 
@@ -11,18 +12,17 @@ test("vertical slice: twenty read/ls rows, one live group, native restoration, r
   const activity = new Activity(new Set(["read", "ls"]));
   let enabled = true;
   const requests = new Map<string, RenderRequest>();
-  const bus = { emit(_name: string, request: RenderRequest) {
+  const decorate = (request: RenderRequest) => {
     requests.set(request.context.toolCallId, request);
-    request.component = activityComponent(activity, request, () => enabled);
-  } };
+    return activityComponent(activity, request, () => enabled);
+  };
   const read = createReadToolDefinition(process.cwd());
   const ls = createLsToolDefinition(process.cwd());
   assert.equal(typeof read.renderCall, "function");
   assert.equal(typeof read.renderResult, "function");
-  const wrapped = [withVerbosityRendering({ events: bus } as never, read), withVerbosityRendering({ events: bus } as never, ls)];
-  assert.equal(wrapped[0]!.execute, read.execute);
-  assert.equal(wrapped[0]!.parameters, read.parameters);
-  assert.equal(wrapped[0]!.promptGuidelines, read.promptGuidelines);
+  const wrapped = [withVerbosityRenderers("read", renderersOf(read), decorate), withVerbosityRenderers("ls", renderersOf(ls), decorate)];
+  assert.equal("execute" in wrapped[0]!, false);
+  assert.equal("parameters" in wrapped[0]!, false);
   const ui = { requestRender() {} };
   const rows = Array.from({ length: 20 }, (_, i) => {
     const name = i % 2 ? "ls" : "read";

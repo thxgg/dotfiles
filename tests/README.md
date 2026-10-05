@@ -193,7 +193,11 @@ model metadata, OpenAI subscription auth registration, and the unchanged legacy
 provider used by Painter. It also verifies Pi 1.0 grammar-call replay after switching
 from Anthropic or a gateway through our alias wrapper. The codemode SDK tests check
 safe tool-presence probes, missing-member recovery hints, and preservation of the
-codemode documentation path after Anthropic sanitation. Astra Ultrafast requires Pro 500 or another eligible plan.
+codemode documentation path after Anthropic sanitation. They also exercise native
+codemode execution through the verbosity renderer hook, caught-error summaries,
+expansion, and HTML export. The verbosity workspace tests cover live partial results,
+images, prompts, cancellation, resume, and tree reconstruction.
+Astra Ultrafast requires Pro 500 or another eligible plan.
 A live OpenAI OAuth request completed, but returned the `default` tier rather than
 confirming Ultrafast processing. See [configuration and billing notes](../common/.pi/README.md#optional-astra-ultrafast).
 

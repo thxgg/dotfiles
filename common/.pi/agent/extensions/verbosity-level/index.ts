@@ -1,8 +1,6 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { DISCOVER_EVENT, RENDER_EVENT, type RenderRequest } from "./adapter.ts";
-import { registerLocalTools } from "./builtins.ts";
+import type { ExtensionAPI, ExtensionContext, ToolRenderers } from "@earendil-works/pi-coding-agent";
+import type { Component } from "@earendil-works/pi-tui";
+import { withVerbosityRenderers, type RenderRequest } from "./adapter.ts";
 import { InvalidVerbosityError, loadVerbosity, parseVerbosity, persistVerbosity, statePath, VerbosityStateError, watchVerbosity, type Verbosity } from "./config.ts";
 import { Activity, type Content } from "./model.ts";
 import { BOUNDARY_ENTRY, OUTSIDE_ENTRY, reconstruct } from "./rebuild.ts";
@@ -19,10 +17,13 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     description: "Save global tool display: low (grouped) or default (native)",
     type: "string",
   });
-  // CLI extension flags are applied after factories run. An explicit process option
-  // is needed here because Pi also rebuilds historical rows before session_start.
-  const eager = process.env.PI_VERBOSITY_BUILTINS !== "0";
-  const supported = new Set<string>();
+  // Register presentation before session_start so resumed/reloaded rows use the same hook.
+  // These legacy switches now disable display only; no tool is ever replaced.
+  const supported = new Set([
+    ...(process.env.PI_VERBOSITY_BUILTINS === "0" ? [] : ["read", "bash", "edit", "write", "ls", "grep", "find"]),
+    ...(process.env.PI_VERBOSITY_WEB === "0" ? [] : ["webfetch", "websearch"]),
+    "codemode",
+  ]);
   let activity = new Activity(supported);
   let mode: ModeState = { kind: "inactive" };
   const isEnabled = () => mode.kind === "ready" && mode.verbosity === "low";
@@ -33,7 +34,20 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
   let animation: ReturnType<typeof setInterval> | undefined;
   let disposed = false;
   let lastEntry: string | undefined;
-  const invalidators = new Map<string, () => void>();
+  // A call can have both a live TUI row and an HTML-export row. Keep their
+  // invalidators separate without retaining discarded render contexts.
+  const invalidators = new Map<string, Set<WeakRef<{ invalidate: () => void }>>>();
+  const renderStates = new WeakMap<object, { invalidate: () => void }>();
+  const invalidateCall = (id: string) => {
+    const refs = invalidators.get(id);
+    if (!refs) return;
+    for (const ref of refs) {
+      const state = ref.deref();
+      if (state) state.invalidate();
+      else refs.delete(ref);
+    }
+    if (!refs.size) invalidators.delete(id);
+  };
   let streamedParts: Set<number> | undefined;
   const streamAssistant = (message: { content: readonly { type: string; text?: string; id?: string; name?: string; arguments?: Record<string, unknown> }[] }, ctx: ExtensionContext) => {
     message.content.forEach((part, index) => {
@@ -49,30 +63,52 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
       }
     });
   };
-  const redraw = () => { for (const invalidate of [...invalidators.values()]) invalidate(); };
+  const redraw = () => { for (const id of [...invalidators.keys()]) invalidateCall(id); };
   const refreshCall = (id: string) => {
-    invalidators.get(id)?.();
+    invalidateCall(id);
     const call = activity.calls.get(id);
     if (call) {
       const group = activity.group(call.group);
       const host = group && activity.members(group)[0];
-      if (host && host.id !== id) invalidators.get(host.id)?.();
+      if (host && host.id !== id) invalidateCall(host.id);
     }
   };
-  const disposeRender = pi.events.on(RENDER_EVENT, value => {
-    const request = value as RenderRequest;
-    if (disposed || !request?.context) return;
-    invalidators.set(request.context.toolCallId, request.context.invalidate);
-    // Resolve the current model on render: /reload constructs rows before session_start.
-    request.component = {
+  const decorate = (request: RenderRequest): Component => {
+    if (disposed) return request.normal;
+    let state = renderStates.get(request.context.state);
+    if (!state) {
+      state = { invalidate: request.context.invalidate };
+      renderStates.set(request.context.state, state);
+    }
+    let refs = invalidators.get(request.context.toolCallId);
+    if (!refs) {
+      refs = new Set();
+      invalidators.set(request.context.toolCallId, refs);
+    }
+    for (const ref of refs) {
+      if (!ref.deref()) refs.delete(ref);
+    }
+    if (![...refs].some(ref => ref.deref() === state)) refs.add(new WeakRef(state));
+    // Resolve the current activity on render: /reload constructs rows before session_start.
+    return {
       invalidate() {},
-      render(width) { return activityComponent(activity, request, () => terminal && isEnabled() && supported.has(request.name), id => invalidators.has(id)).render(width); },
+      render(width: number) { return activityComponent(activity, request, () => terminal && isEnabled() && supported.has(request.name), id => invalidators.has(id)).render(width); },
       handleMouse(event) {
         const result = activityComponent(activity, request, () => terminal && isEnabled() && supported.has(request.name), id => invalidators.has(id)).handleMouse?.(event);
         if (result?.handled) redraw();
         return result;
       },
     };
+  };
+  const renderers = new Map<string, { base: ToolRenderers; wrapped: ToolRenderers }>();
+  pi.registerToolRenderer((name, next) => {
+    const base = next();
+    if (!supported.has(name) || !base?.renderCall || !base.renderResult) return base;
+    const cached = renderers.get(name);
+    if (cached && cached.base.renderCall === base.renderCall && cached.base.renderResult === base.renderResult && cached.base.renderShell === base.renderShell) return cached.wrapped;
+    const wrapped = withVerbosityRenderers(name, base, decorate);
+    renderers.set(name, { base, wrapped });
+    return wrapped;
   });
   const rebuild = (ctx: ExtensionContext, keepRows = false) => {
     if (!keepRows) invalidators.clear();
@@ -101,7 +137,6 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
       redraw();
     }
   };
-  const localNames = eager ? registerLocalTools(pi) : [];
   pi.on("session_start", async (event, ctx) => {
     stopWatching?.();
     stopWatching = undefined;
@@ -135,17 +170,6 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
       if (isEnabled() && [...activity.calls.values()].some(call => call.status === "running" || call.status === "queued")) redraw();
     }, 80);
     animation.unref();
-    supported.clear();
-    for (const tool of pi.getAllTools()) {
-      if (!localNames.includes(tool.name)) continue;
-      try {
-        if (realpathSync(tool.sourceInfo.path) === realpathSync(fileURLToPath(import.meta.url))) supported.add(tool.name);
-      } catch { /* Unknown or competing owner: normal rows. */ }
-    }
-    // Owners respond synchronously through the documented shared event bus.
-    const discovery = { names: new Set<string>() };
-    pi.events.emit(DISCOVER_EVENT, discovery);
-    for (const name of discovery.names) supported.add(name);
     rebuild(ctx, true);
     redraw();
   });
@@ -176,8 +200,9 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
   });
   pi.on("tool_execution_update", event => {
     if (!terminal || event.parentToolCallId) return;
-    // No partial-result copies. Native renderers still receive all progress updates.
-    if (event.partialResult.content.some((p: Content) => p.type === "image")) { activity.exclude(event.toolCallId); redraw(); }
+    // Keep only parsed nested names/statuses, never partial output or image payloads.
+    activity.update(event.toolCallId, event.partialResult);
+    if (event.partialResult.content.some((p: Content) => p.type === "image")) redraw();
     else refreshCall(event.toolCallId);
   });
   pi.on("tool_execution_end", (event, ctx) => {
@@ -204,7 +229,7 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     animation = undefined;
     terminal = false;
     mode = { kind: "inactive" };
-    disposeRender();
+    renderers.clear();
     invalidators.clear();
     activity = new Activity(supported);
   });
@@ -240,7 +265,7 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
         ctx.ui.notify("Use /verbosity low|default|status", "error");
         return;
       }
-      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "default"}. Global preference; changes sync across open Pi sessions and persist across restarts.\nSupported: ${[...supported].join(", ") || "none"}. Standard-local tools only. Set PI_VERBOSITY_BUILTINS=0 with remote or SDK overrides.`, "info");
+      ctx.ui.notify(`Verbosity ${isEnabled() ? "low" : "default"}. Global preference; changes sync across open Pi sessions and persist across restarts.\nSupported: ${[...supported].join(", ") || "none"}. Rendering only; tool execution is unchanged.`, "info");
     },
   });
 }

@@ -1,8 +1,9 @@
 # Verbosity level
 
 Active Pi extension. Verbosity is a global, persistent preference. Low verbosity
-groups standard local built-ins and opted-in repository web tools without changing
-model messages, tool execution, permissions, or results.
+groups built-in and repository web-tool rows and summarizes codemode scripts.
+It uses Pi 1.0.2's `registerToolRenderer()` without changing model messages,
+tool execution, permissions, or results.
 
 ```text
 /verbosity low
@@ -41,20 +42,28 @@ disable grouping and show an error; they do not terminate Pi.
 - Images and input requests stay normal. Thinking blocks, assistant/user text, and
   unsupported tools separate groups. Tool groups stay in transcript order, even
   when thinking is hidden. Agent, workflow, and MCP tools are not adapted.
-- Native codemode owns its nested-call display. Nested execution events do not
-  join direct-tool groups or hide later direct rows.
+- Each codemode script has its own summary, such as `Codemode · Explored 3 reads`.
+  Counts come from native result details, not from parsing the script. Nested tools,
+  MCP calls, and model calls appear in these counts but do not become separate rows.
+- Expand a codemode summary to see the full native script, nested-call details,
+  and output. Caught nested failures remain marked `FAILED`, even if the script
+  succeeds. Script failures and cancellations have separate status labels.
+- Images and user-input prompts keep normal codemode rows. Missing or malformed
+  saved details fall back to native rendering instead of hiding output.
 
 ## Execution scope
 
-Built-in delegates use Pi's public standard-local factories. Do not use these
-with remote/sandbox execution, SDK base overrides, or competing built-in execution
-extensions. Set `PI_VERBOSITY_BUILTINS=0` before starting those processes to disable
-local delegate registration. This guard must be set before extension loading.
-Ownership checks fail open to normal rows when another owner replaces a tool.
+The extension registers a renderer resolver, never executable tools. It composes
+with `next()` so remote, sandbox, SDK, and other extension tool owners keep their
+execution and native renderers. Web tools no longer import the verbosity adapter.
 
-Web tools adapt rendering by default. `PI_VERBOSITY_WEB=0` disables their adapter.
-Normal verbosity restores native rendering. Non-TUI runs do not use verbosity UI;
-local delegate registration still occurs unless explicitly disabled.
+`PI_VERBOSITY_BUILTINS=0` and `PI_VERBOSITY_WEB=0` remain optional display opt-outs.
+They are no longer needed to protect remote or SDK execution. Set them before
+extension loading. Codemode summaries remain available independently.
+
+Default verbosity restores native output. Non-TUI runs do not use verbosity UI
+or preferences. HTML exports retain native result content in their separate
+call/result slots.
 
 ## Iteration lab
 
@@ -76,8 +85,9 @@ Deployment uses `safe-stow.sh`; committing these files does not deploy them.
 
 ## Limits
 
-The workspace targets Pi 1.0.0. Pi owns transcript layout and scrollback. Regular terminal
+The workspace targets Pi 1.0.2. Pi owns transcript layout and scrollback. Regular terminal
 scrollback can retain previous rendering. Only fullscreen mode supports mouse
 interaction. Reload/resume reconstructs active-branch groups, including compaction
-context; group expansion is session-local. No global arbitrary-tool rendering hook
-exists. The details viewer reads saved results on demand with bounded previews.
+context; group expansion is session-local. Nested codemode calls are summarized
+inside their parent only. Direct Agent, workflow, and MCP rows stay native.
+The details viewer reads saved results on demand with bounded previews.

@@ -14,7 +14,7 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-The workspace targets Pi `1.0.0`. Vite+ owns the CLI installation.
+The workspace targets Pi `1.0.2`. Vite+ owns the CLI installation.
 Keep workspace pins aligned with the CLI when validating upgrades;
 a successful check against older workspace dependencies does not validate a newer CLI.
 
@@ -95,8 +95,10 @@ Merge these preferences with existing settings. Do not replace the file or stow 
 Use codemode for bounded tool batches and native MCP calls, and keep `Agent` and
 `workflow` for isolated model work. SDK child sessions still opt out of parent extensions.
 
-Nested calls pass through the Git guard and cloak hook. Verbosity grouping ignores nested
-execution events because codemode owns their display; direct tool rows remain grouped.
+Nested calls pass through the Git guard and cloak hook. Verbosity uses native renderer
+hooks without replacing executable tools. It groups direct tool rows and summarizes each
+codemode script from its nested-call details. Expansion shows the native script and output;
+nested execution events never create separate rows.
 The aggregate check runs an offline SDK test with a scripted provider, real codemode,
 local tools, and these hooks. It does not contact providers or start MCP servers.
 
