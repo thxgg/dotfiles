@@ -58,6 +58,16 @@ class CommonConfigTests(unittest.TestCase):
                 pipelines.append(clipboard)
         self.assertEqual(pipelines[0], pipelines[1])
 
+    def test_main_monitor_uses_4k_240hz_in_both_configs(self):
+        config = ROOT / 'linux/home/.config/hypr'
+        self.assertIn(
+            'monitor = DP-3, 3840x2160@239.91, 0x0, 1\n',
+            (config / 'hyprland.conf').read_text())
+        self.assertIn(
+            'hl.monitor({ output = "DP-3", mode = "3840x2160@239.91", '
+            'position = "0x0", scale = 1 })',
+            (config / 'hyprland.lua').read_text())
+
     def test_shared_and_macos_dark_theme_defaults(self):
         config = ROOT / 'common/.config'
         macos = ROOT / 'macos/home/Library/Application Support'
