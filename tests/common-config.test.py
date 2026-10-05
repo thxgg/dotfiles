@@ -68,6 +68,18 @@ class CommonConfigTests(unittest.TestCase):
             'position = "0x0", scale = 1 })',
             (config / 'hyprland.lua').read_text())
 
+    def test_wow_fullscreen_rule_matches_only_the_game_in_both_configs(self):
+        config = ROOT / 'linux/home/.config/hypr'
+        legacy = (config / 'hyprland.conf').read_text()
+        lua = (config / 'hyprland.lua').read_text()
+        self.assertIn(
+            'windowrule = fullscreen 1, match:initial_title ^World of Warcraft$\n',
+            legacy)
+        self.assertIn(
+            'name = "fullscreen-world-of-warcraft",\n'
+            '    match = { initial_title = "^World of Warcraft$" },\n'
+            '    fullscreen = true,', lua)
+
     def test_shared_and_macos_dark_theme_defaults(self):
         config = ROOT / 'common/.config'
         macos = ROOT / 'macos/home/Library/Application Support'

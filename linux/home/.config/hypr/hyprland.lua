@@ -230,6 +230,13 @@ hl.window_rule({
     no_focus = true,
 })
 
+-- Match the game title, not the generic Wine class shared by other apps.
+hl.window_rule({
+    name = "fullscreen-world-of-warcraft",
+    match = { initial_title = "^World of Warcraft$" },
+    fullscreen = true,
+})
+
 hl.window_rule({
     name = "tile-managed-pwas",
     match = { class = "^(Amp|Linear|MicrosoftTeams|Outlook)$" },
