@@ -14,7 +14,7 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-The workspace targets Pi `1.0.2`. Vite+ owns the CLI installation.
+The workspace targets Pi `1.0.3`. Vite+ owns the CLI installation.
 Keep workspace pins aligned with the CLI when validating upgrades;
 a successful check against older workspace dependencies does not validate a newer CLI.
 
@@ -111,8 +111,9 @@ Pi 1.0 throws when a script reads an unknown member, including through `typeof`.
 Pi 1.0 compatibility checks also cover grammar-call history replay through our OpenAI
 alias wrapper after switching from Anthropic or a gateway. Keep the WebSocket wrapper,
 Painter's ChatGPT-backed image path, child-session extension isolation, and static themes:
-Pi 1.0 does not replace these behaviors. Native image generation is an additional provider
-path and does not save artifacts automatically.
+Pi 1.0.3 does not replace these behaviors. Native image generation is an additional provider
+path. Codemode `image()` now saves images to user-private temporary files and returns their
+paths; this does not replace Painter's persistent artifact storage or subscription-backed image path.
 
 ## OpenAI chat models and speed aliases
 
