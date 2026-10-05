@@ -59,7 +59,13 @@ The panel tests check both fallback failures and the complete generated patch.
 They run the patched network helper in a mock reactive runtime. This checks late
 device arrival, replacement, removal, empty icon names, connection switching,
 and stale subscription cleanup. The same test must fail on the unpatched helper.
-It does not verify real Astal signal timing or GTK rendering.
+The suite also runs the injected WoW bar visibility controller with mock signals
+and asynchronous compositor responses. It checks actual window visibility calls,
+startup, empty/special workspace restoration, fullscreen versus maximized state,
+game close/move, multiple monitors, manual visibility preferences, bar recreation,
+query failures, stale results, and shutdown cleanup. The generated-runtime checks
+require the upstream auto-hide initialization target exactly once.
+It does not verify real Astal signal timing, GTK rendering, or Wayland input regions.
 
 # Archon tray icon checks
 

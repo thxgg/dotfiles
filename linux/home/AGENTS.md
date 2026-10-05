@@ -4,7 +4,7 @@ Linux desktop contracts in addition to the root repository rules.
 
 ## Current Configuration
 - GTK, Kvantum, Hyprland, and Rofi select Catppuccin Mocha with Lavender accents. OS-wide appearance remains a native, machine-local setting.
-- HyprPanel intentionally keeps its black-and-white OLED overrides.
+- HyprPanel intentionally keeps its black-and-white OLED overrides. Its compatibility launcher unmaps the bar on a monitor whose active workspace contains fullscreen World of Warcraft; it restores only automatically hidden bars.
 - Wofi clipboard menus explicitly select `~/.config/wofi/style-dark.css`.
 - Wallpaper management is disabled by default.
 

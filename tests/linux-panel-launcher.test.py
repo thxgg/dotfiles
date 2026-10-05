@@ -18,6 +18,10 @@ class PanelFallback(unittest.TestCase):
         self.root = Path(self.temp.name)
         # Do not inherit BASH_ENV, exported functions, or desktop session state.
         self.env = {'HOME': str(self.root), 'PATH': '/usr/bin:/bin'}
+        self.visibility = (ROOT / 'linux/home/.config/hypr/scripts/hyprpanel-bar-visibility.js').read_text()
+        helper = self.root / '.config/hypr/scripts/hyprpanel-bar-visibility.js'
+        helper.parent.mkdir(parents=True)
+        helper.write_text(self.visibility)
 
     def check_launcher(self, content, expected='FALLBACK'):
         launcher = self.root / 'launcher'
@@ -43,6 +47,12 @@ class PanelFallback(unittest.TestCase):
                     config['hyprpanel.restartCommand'],
                     'hyprpanel -q; "$HOME/.config/hypr/scripts/start-hyprpanel.sh"',
                 )
+
+    def test_wow_visibility_lifecycle(self):
+        harness = (ROOT / 'tests/fixtures/hyprpanel-bar-visibility-harness.js').read_text()
+        result = subprocess.run(['node', '-e', self.visibility + '\n' + harness],
+                                env=self.env, capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_changed_launcher_format(self):
         self.check_launcher('#!/bin/sh\necho upstream-format-changed\n')
@@ -88,7 +98,7 @@ const commands = [
 ];
 '''
         network = (ROOT / 'tests/fixtures/hyprpanel-network.js').read_text()
-        source += network
+        source += network + '\n  autoHide2.initialize();\n'
         # Apply the production patch dictionary independently to the fixture.
         patcher = SOURCE.split("<<'PY' || return 1\n", 1)[1].split('\nPY', 1)[0]
         import ast
@@ -99,7 +109,8 @@ const commands = [
         patched_network = network
         for old, new in replacements.items():
             patched_network = patched_network.replace(old, new)
-        expected += patched_network
+        expected += patched_network + '\n' + replacements['  autoHide2.initialize();'] + '\n'
+        expected = self.visibility + '\n' + expected
         launcher = self.encoded_launcher(source)
         runtime = self.root / 'hyprpanel-ags.js'
         self.check_launcher(launcher, f'PATCHED\n{runtime}')
@@ -114,6 +125,8 @@ const commands = [
                                   capture_output=True, text=True, timeout=5)
         self.assertNotEqual(original.returncode, 0)
         # A changed or duplicated target must not generate a partial patch.
+        self.check_launcher(self.encoded_launcher(source.replace('  autoHide2.initialize();', '  autoHide3.initialize();')))
+        self.check_launcher(self.encoded_launcher(source + '\n  autoHide2.initialize();'))
         self.check_launcher(self.encoded_launcher(source.replace('    wiredIcon.set(icon14);', '    wiredIcon.set(newIcon);')))
         self.check_launcher(self.encoded_launcher(source + '\nvar wiredIcon = Variable("");'))
 

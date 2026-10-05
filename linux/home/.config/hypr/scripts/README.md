@@ -27,6 +27,37 @@ On Linux, record a short video, stop it, and test file paste in a file manager
 and Copy Path in a text editor. Repeat after starting another recording to check
 that the earlier notification still opens the original file.
 
+# Fullscreen World of Warcraft bar visibility
+
+`start-hyprpanel.sh` injects `hyprpanel-bar-visibility.js` into its private runtime.
+It replaces the upstream auto-hide initialization with one event-driven controller.
+When fullscreen WoW occupies a monitor's active workspace, the controller calls
+GTK `set_visible(false)` on that monitor's bar. This unmaps the layer surface and
+its input region instead of relying on Hyprland's fullscreen opacity fade.
+
+The controller matches `initialTitle == "World of Warcraft"` and Hyprland's
+internal fullscreen value `2`. Maximized windows do not match. An open special
+workspace takes precedence over the regular workspace below it. Leaving the
+workspace, exiting fullscreen, moving the game, or closing it restores only bars
+that the controller hid, subject to HyprPanel's manual visibility preference.
+Other monitors are unchanged. The existing `bar.autoHide` modes remain available;
+WoW hiding also applies when that option is `never`.
+
+Compositor events trigger coalesced asynchronous state queries. Startup and bar
+recreation also trigger a check. There is no polling or separate daemon. Stale
+query results are discarded, and failed queries retain the current visibility
+until the next event. Shutdown removes subscriptions. This patch shares the
+launcher's version checks and unmodified-upstream fallback; a fallback warning
+means the WoW input fix is not active.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-panel-launcher.test.py` for the
+mocked lifecycle checks. After an authorized panel restart, verify that
+`hyprpanel isWindowVisible bar-0` returns `false` while fullscreen WoW is on
+monitor 0's active workspace. Its `bar-0` surface should leave `hyprctl -j layers`
+after any fade completes. Test clicks at the old bar position in-game, workspace
+switching (including empty and special workspaces), fullscreen exit, game close,
+and independent behavior on the second monitor. Do not use opacity alone as proof.
+
 # Network icon recovery
 
 `start-hyprpanel.sh` patches the generated network helper in the private session

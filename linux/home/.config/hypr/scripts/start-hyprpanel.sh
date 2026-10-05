@@ -93,13 +93,23 @@ prepare_lua_compatible_runtime() {
     ' "$launcher" | base64 --decode > "$runtime_file" || return 1
     [[ -s "$runtime_file" ]] || return 1
 
-    python3 - "$runtime_file" <<'PY' || return 1
+    python3 - "$runtime_file" "$HOME/.config/hypr/scripts/hyprpanel-bar-visibility.js" <<'PY' || return 1
 from pathlib import Path
 import sys
 
 runtime_path = Path(sys.argv[1])
 source = runtime_path.read_text()
 replacements = {
+    # Replace the focused-client auto-hide subscriptions with one event controller.
+    '  autoHide2.initialize();':
+        '''  startWoWBarVisibility({
+    app: app_default,
+    hyprland: autoHide2._hyprlandService,
+    visibility: BarVisibility,
+    autoHide: autoHide2._autoHide,
+    schedule: (callback) => timeout(25, callback),
+    cancel: (timer) => timer.cancel()
+  });''',
     # Device objects can appear or be replaced without a connectivity change.
     # Reset removed devices and never pass an empty icon to Gtk.Image.
     'var wiredIcon = Variable("");':
@@ -164,7 +174,7 @@ if count != 4:
     raise SystemExit(f"Expected four HyprPanel recorder commands, found {count}")
 source = source.replace(recorder_command, '$HOME/.local/bin/hyprpanel-screen-record')
 
-runtime_path.write_text(source)
+runtime_path.write_text(Path(sys.argv[2]).read_text() + '\n' + source)
 PY
 
     printf '%s\n' "$runtime_file"
@@ -173,7 +183,7 @@ PY
 # Upstream builds can change their generated symbols. Keep the bar available
 # instead of aborting login when an optional compatibility patch no longer fits.
 if ! runtime_file="$(prepare_lua_compatible_runtime)"; then
-    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions and network icon recovery may be unavailable.\n' >&2
+    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions, network icon recovery, and fullscreen WoW bar hiding may be unavailable.\n' >&2
     exec /usr/share/hyprpanel/hyprpanel-app
 fi
 
