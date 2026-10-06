@@ -56,6 +56,9 @@ Their shell subprocesses use a temporary `HOME` and a minimal environment. They
 do not inherit `BASH_ENV`, exported shell functions, or desktop session variables.
 The recording tests use a temporary recording state file and a mock action helper.
 The panel tests check both fallback failures and the complete generated patch.
+They also use a mock wallpaper daemon to check detached startup, pipe closure,
+restart reuse, argument forwarding, startup failure, and missing runtime state.
+These daemon checks require `flock` and `nohup`; they never contact Wayland.
 They run the patched network helper in a mock reactive runtime. This checks late
 device arrival, replacement, removal, empty icon names, connection switching,
 and stale subscription cleanup. The same test must fail on the unpatched helper.

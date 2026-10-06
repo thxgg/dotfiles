@@ -2,11 +2,54 @@
 
 set -euo pipefail
 
-if [[ -x /usr/bin/swww-daemon ]]; then
-	exec /usr/bin/swww-daemon "$@"
-elif [[ -x /usr/bin/awww-daemon ]]; then
-	exec /usr/bin/awww-daemon "$@"
+if [[ -x /usr/bin/swww-daemon && -x /usr/bin/swww ]]; then
+    daemon=/usr/bin/swww-daemon
+    client=/usr/bin/swww
+elif [[ -x /usr/bin/awww-daemon && -x /usr/bin/awww ]]; then
+    daemon=/usr/bin/awww-daemon
+    client=/usr/bin/awww
 else
-	echo "Neither swww-daemon nor awww-daemon is installed" >&2
-	exit 127
+    echo "Neither a complete swww nor awww installation is available" >&2
+    exit 127
 fi
+
+# Preserve explicit CLI requests such as --help. HyprPanel calls without arguments.
+if (( $# > 0 )); then
+    exec "$daemon" "$@"
+fi
+
+# HyprPanel awaits this command. Do not keep its subprocess pipes open for the
+# daemon's lifetime or let a panel restart close the daemon's output streams.
+runtime_dir="${XDG_RUNTIME_DIR:?A private XDG_RUNTIME_DIR is required}"
+if [[ ! -d "$runtime_dir" || ! -O "$runtime_dir" || -L "$runtime_dir" ]]; then
+    printf 'Invalid session runtime directory: %s\n' "$runtime_dir" >&2
+    exit 1
+fi
+: "${WAYLAND_DISPLAY:?A Wayland display is required}"
+umask 077
+# Include the display without allowing path separators in session filenames.
+display_key="${WAYLAND_DISPLAY//\//_}"
+exec 9>"$runtime_dir/hyprpanel-wallpaper-$display_key.lock"
+flock -x 9
+if "$client" query >/dev/null 2>&1; then
+    exit 0
+fi
+
+log_file="$runtime_dir/hyprpanel-wallpaper-$display_key.log"
+nohup "$daemon" >"$log_file" 2>&1 </dev/null 9>&- &
+daemon_pid=$!
+for (( attempt = 0; attempt < 50; attempt++ )); do
+    if "$client" query >/dev/null 2>&1; then
+        exit 0
+    fi
+    if ! kill -0 "$daemon_pid" 2>/dev/null; then
+        break
+    fi
+    sleep 0.1
+done
+
+# Do not leave an unready daemon behind. Only stop the process we started.
+kill "$daemon_pid" 2>/dev/null || true
+wait "$daemon_pid" 2>/dev/null || true
+printf 'Wallpaper daemon did not become ready; see %s\n' "$log_file" >&2
+exit 1

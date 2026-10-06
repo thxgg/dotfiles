@@ -58,6 +58,25 @@ after any fade completes. Test clicks at the old bar position in-game, workspace
 switching (including empty and special workspaces), fullscreen exit, game close,
 and independent behavior on the second monitor. Do not use opacity alone as proof.
 
+# Wallpaper daemon lifecycle
+
+The `swww` wrappers support the installed `awww` replacement. HyprPanel waits for
+its daemon launch command to finish. The no-argument `swww-daemon` wrapper therefore
+starts the daemon with `nohup`, redirects all standard streams, and returns only
+when the matching client's `query` succeeds. The daemon does not keep HyprPanel's
+subprocess pipes open. A per-display lock prevents duplicate starts, and panel
+restarts reuse a responsive daemon. Explicit arguments such as `--help` run directly.
+
+Logs are stored in `$XDG_RUNTIME_DIR/hyprpanel-wallpaper-<display>.log`. Startup
+failure returns a nonzero status and stops only the process that the wrapper
+started. Wallpaper selection remains in HyprPanel; this does not add a theme
+controller or deploy a personal background symlink.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-panel-launcher.test.py` for
+isolated daemon startup, reuse, argument forwarding, and failure checks. On Linux,
+check a cold daemon start and panel restart with `awww query` (or `swww query`).
+The same daemon should survive the panel restart and retain the selected image.
+
 # Network icon recovery
 
 `start-hyprpanel.sh` patches the generated network helper in the private session

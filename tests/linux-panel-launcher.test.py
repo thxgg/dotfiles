@@ -1,6 +1,8 @@
 """Check compatibility patches and fallback without starting a desktop."""
 import base64
 import json
+import os
+import signal
 from pathlib import Path
 import subprocess
 import tempfile
@@ -129,6 +131,82 @@ const commands = [
         self.check_launcher(self.encoded_launcher(source + '\n  autoHide2.initialize();'))
         self.check_launcher(self.encoded_launcher(source.replace('    wiredIcon.set(icon14);', '    wiredIcon.set(newIcon);')))
         self.check_launcher(self.encoded_launcher(source + '\nvar wiredIcon = Variable("");'))
+
+
+class WallpaperDaemon(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.env = {'HOME': str(self.root), 'PATH': '/usr/bin:/bin',
+                    'XDG_RUNTIME_DIR': str(self.root), 'WAYLAND_DISPLAY': 'wayland-test'}
+        self.daemon = self.root / 'daemon'
+        self.client = self.root / 'client'
+        self.daemon.write_text('''#!/usr/bin/env python3
+import os, pathlib, signal, sys, time
+root = pathlib.Path(os.environ['HOME'])
+if len(sys.argv) > 1:
+    print(' '.join(sys.argv[1:]))
+    sys.exit(0)
+(root / 'pid').write_text(str(os.getpid()))
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+(root / 'ready').touch()
+while True:
+    print('daemon alive', flush=True)
+    time.sleep(0.1)
+''')
+        self.client.write_text('#!/bin/sh\ntest -f "$HOME/ready"\n')
+        self.daemon.chmod(0o755)
+        self.client.chmod(0o755)
+        source = (ROOT / 'linux/home/.config/hypr/scripts/swww-daemon').read_text()
+        # Always test the awww fallback, without touching the desktop or system binaries.
+        source = source.replace('/usr/bin/swww-daemon', str(self.root / 'missing-daemon'))
+        source = source.replace('/usr/bin/swww', str(self.root / 'missing-client'))
+        source = source.replace('/usr/bin/awww-daemon', str(self.daemon))
+        source = source.replace('/usr/bin/awww', str(self.client))
+        self.wrapper = self.root / 'wrapper'
+        self.wrapper.write_text(source)
+        self.addCleanup(self.stop_daemon)
+
+    def stop_daemon(self):
+        pid_file = self.root / 'pid'
+        if pid_file.exists():
+            try:
+                os.kill(int(pid_file.read_text()), signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+
+    def run_wrapper(self, *args):
+        return subprocess.run(['bash', '--noprofile', '--norc', str(self.wrapper), *args],
+                              env=self.env, capture_output=True, text=True, timeout=8)
+
+    def test_detached_start_and_restart_reuse(self):
+        result = self.run_wrapper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        pid = int((self.root / 'pid').read_text())
+        os.kill(pid, 0)
+        result = self.run_wrapper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(int((self.root / 'pid').read_text()), pid)
+        self.assertTrue((self.root / 'hyprpanel-wallpaper-wayland-test.log').exists())
+
+    def test_explicit_arguments_are_forwarded(self):
+        result = self.run_wrapper('--help')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '--help')
+        self.assertFalse((self.root / 'pid').exists())
+
+    def test_failed_start_is_reported(self):
+        self.daemon.write_text('#!/bin/sh\nexit 1\n')
+        result = self.run_wrapper()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('did not become ready', result.stderr)
+
+    def test_missing_runtime_is_rejected(self):
+        del self.env['XDG_RUNTIME_DIR']
+        result = self.run_wrapper()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root / 'pid').exists())
 
 
 if __name__ == '__main__':
