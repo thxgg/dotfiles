@@ -237,6 +237,7 @@ hl.window_rule({
     name = "fullscreen-world-of-warcraft",
     match = { initial_title = "^World of Warcraft$" },
     fullscreen = true,
+    sync_fullscreen = false,
     idle_inhibit = "always",
 })
 
