@@ -1,6 +1,10 @@
 hyprland
 hypridle
 hyprlock
+# Private Hyprlock video build dependencies (stock locker stays installed).
+mpv
+cmake
+ninja
 hyprpolkitagent
 ags-hyprpanel-git
 python-gobject

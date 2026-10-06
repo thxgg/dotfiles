@@ -30,6 +30,8 @@ hl.on("hyprland.start", function()
         "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY",
         "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY",
         "systemctl --user start hyprland-session.target",
+        -- The service stays inactive until session-control.py enable-idle.
+        "systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY && systemctl --user start hypr-session-idle.service",
         "systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service",
         "systemctl --user start hyprpolkitagent",
         "udiskie",
@@ -146,7 +148,7 @@ hl.bind(mainMod .. " + V", hl.dsp.exec_cmd('cliphist list | wofi --style "$HOME/
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd('cliphist list | wofi --style "$HOME/.config/wofi/style-dark.css" --dmenu --prompt="Delete clipboard entry" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist delete'))
 hl.bind(mainMod .. " + C", hl.dsp.window.center())
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
-hl.bind("CTRL + ALT + SPACE", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/switch-keyboard-layout.sh"))
+hl.bind("CTRL + ALT + SPACE", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/switch-keyboard-layout.sh"), { locked = true })
 
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
@@ -235,6 +237,7 @@ hl.window_rule({
     name = "fullscreen-world-of-warcraft",
     match = { initial_title = "^World of Warcraft$" },
     fullscreen = true,
+    idle_inhibit = "always",
 })
 
 hl.window_rule({

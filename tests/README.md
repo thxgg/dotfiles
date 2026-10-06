@@ -70,6 +70,25 @@ query failures, stale results, and shutdown cleanup. The generated-runtime check
 require the upstream auto-hide initialization target exactly once.
 It does not verify real Astal signal timing, GTK rendering, or Wayland input regions.
 
+# Linux locking checks
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-locking.test.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-lock-diagnostics.test.py
+```
+
+These tests mock every process launch and use temporary paths. They check the
+video/static selection, zero grace period, duplicate-lock handling, startup
+fallback, lock-confirmed suspend, timeout cancellation, DPMS dispatch, activation
+rollback, and both HyprPanel configurations. They do not lock, suspend, start idle
+timers, or contact the desktop. A separate parser-only binary from
+`build-hyprlock-video.sh` checks real Hyprlock config syntax without a Wayland or
+authentication startup path. See
+[`LOCKING.md`](../linux/home/.config/hypr/LOCKING.md) for staged activation and the
+required later live tests. The diagnostic suite checks render-only patch targets,
+no partial patch writes, a separate binary path, safe preflight, and log filtering.
+It does not start a lock or measure actual GPU/rendering performance.
+
 # Archon tray icon checks
 
 ```sh

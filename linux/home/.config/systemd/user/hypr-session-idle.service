@@ -1,0 +1,13 @@
+[Unit]
+Description=Opt-in Hyprland locking and display idle policy
+Documentation=https://wiki.hypr.land/Hypr-Ecosystem/hypridle/
+PartOf=hyprland-session.target
+After=hyprland-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionPathExists=%h/.local/state/hypr-lock/idle-enabled
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/hypridle --config %h/.config/hypr/hypridle.conf
+Restart=on-failure
+RestartSec=3

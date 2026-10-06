@@ -6,7 +6,9 @@ Linux desktop contracts in addition to the root repository rules.
 - GTK, Kvantum, Hyprland, and Rofi select Catppuccin Mocha with Lavender accents. OS-wide appearance remains a native, machine-local setting.
 - HyprPanel intentionally keeps its black-and-white OLED overrides. Its compatibility launcher unmaps the bar on a monitor whose active workspace contains fullscreen World of Warcraft; it restores only automatically hidden bars.
 - Wofi clipboard menus explicitly select `~/.config/wofi/style-dark.css`.
-- Wallpaper management is disabled by default.
+- HyprPanel manages the static wallpaper through the swww/awww compatibility wrappers. Personal wallpaper files remain machine-local.
+- Locking uses an optional private, pinned Hyprlock video build with a stock static fallback. See `.config/hypr/LOCKING.md` for build and live-test instructions.
+- The 15-minute lock / 30-minute display-off policy is opt-in through `session-control.py enable-idle`. No automatic suspend or manual lock keybinding is configured. WoW inhibits idle whenever its matching game window exists.
 
 ## Desktop Contracts
 - Keep Hyprland Lua and legacy `.conf` configuration changes aligned where supported, including stylesheet selection. Use installed launcher commands, not retired `~/.local/bin/rofi` or `~/.local/bin/wofi` wrappers.
