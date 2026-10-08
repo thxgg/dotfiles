@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Handy
+Comment=Offline speech-to-text with the Wayland overlay workaround
+Exec=sh -c "exec \\"\\$HOME/.config/handy-launcher/launch\\""
+StartupWMClass=handy
+Icon=handy
+Terminal=false
+Type=Application
+Categories=Utility;

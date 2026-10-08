@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Handy-only workaround for https://github.com/cjpais/Handy/issues/2166.
+set -euo pipefail
+
+source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/handy-launcher"
+source_file="$source_dir/keep-dmabuf.c"
+
+# LD_PRELOAD splits paths on spaces and colons even when the shell quotes them.
+if [[ "$cache_dir" == *[[:space:]:]* ]]; then
+    printf '%s\n' 'handy-launcher: cache path must not contain whitespace or colons' >&2
+    exit 1
+fi
+
+# Do not let Tauri mistake Handy for the AppImage that launched this shell.
+unset APPIMAGE APPDIR OWD
+
+# Explicit escape hatch for systems affected by the original DMA-BUF crash.
+if [[ "${HANDY_DMABUF_WORKAROUND:-1}" == 0 ]]; then
+    exec handy "$@"
+fi
+
+umask 077
+mkdir -p -- "$cache_dir"
+digest=$(sha256sum "$source_file")
+library="$cache_dir/keep-dmabuf-${digest%% *}.so"
+if [[ ! -f "$library" ]]; then
+    temporary=$(mktemp "$cache_dir/.build.XXXXXX.so")
+    trap 'rm -f -- "$temporary"' EXIT
+    cc -shared -fPIC -O2 -Wall -Wextra -Werror \
+        -o "$temporary" "$source_file" -ldl -pthread
+    mv -f -- "$temporary" "$library"
+    trap - EXIT
+fi
+
+export WEBKIT_DISABLE_DMABUF_RENDERER=0
+export LD_PRELOAD="$library${LD_PRELOAD:+:$LD_PRELOAD}"
+exec handy "$@"

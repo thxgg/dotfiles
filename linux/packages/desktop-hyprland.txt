@@ -19,6 +19,7 @@ xdg-desktop-portal-gnome
 xwaylandvideobridge
 xorg-setxkbmap
 wl-clip-persist
+wtype
 brightnessctl
 playerctl
 hyprsome-git
