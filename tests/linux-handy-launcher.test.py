@@ -31,7 +31,7 @@ class HandyLauncherTests(unittest.TestCase):
         (self.bin / 'handy').write_text('''#!/usr/bin/python3
 import json, os, sys
 print(json.dumps({"args": sys.argv[1:], "env": {k: os.environ.get(k) for k in
-    ["APPIMAGE", "APPDIR", "OWD", "WEBKIT_DISABLE_DMABUF_RENDERER", "LD_PRELOAD"]}}))
+    ["APPIMAGE", "APPDIR", "OWD", "WEBKIT_DISABLE_DMABUF_RENDERER", "LD_PRELOAD", "HANDY_DISABLE_UPDATER"]}}))
 ''')
         (self.bin / 'handy').chmod(0o755)
 
@@ -80,6 +80,21 @@ int main(void) {
                        env=self.env, check=True)
         subprocess.run([str(probe)], env=self.env | {
             'LD_PRELOAD': library, 'WEBKIT_DISABLE_DMABUF_RENDERER': '0'}, check=True)
+
+    def test_private_build_selection_and_packaged_fallback(self):
+        custom = self.home / '.local/share/handy-catppuccin/current/bin/handy'
+        custom.parent.mkdir(parents=True)
+        shutil.copy2(self.bin / 'handy', custom)
+        result = self.run_launcher('--start-hidden')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['env']['HANDY_DISABLE_UPDATER'], '1')
+        packaged = self.run_launcher(HANDY_USE_PACKAGED='1')
+        self.assertEqual(packaged.returncode, 0, packaged.stderr)
+        self.assertIsNone(json.loads(packaged.stdout)['env']['HANDY_DISABLE_UPDATER'])
+        custom.unlink()
+        fallback = self.run_launcher()
+        self.assertEqual(fallback.returncode, 0, fallback.stderr)
+        self.assertIsNone(json.loads(fallback.stdout)['env']['HANDY_DISABLE_UPDATER'])
 
     def test_opt_out_needs_no_build(self):
         result = self.run_launcher('--start-hidden', HANDY_DMABUF_WORKAROUND='0')

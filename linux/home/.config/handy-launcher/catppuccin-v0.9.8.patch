@@ -1,0 +1,78 @@
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -7,4 +7,4 @@
+-  --light-color-text: #0f0f0f;
+-  --light-color-background: #fbfbfb;
+-  --light-color-logo-primary: #faa2ca;
+-  --light-color-logo-stroke: #382731;
++  --light-color-text: #4c4f69;
++  --light-color-background: #eff1f5;
++  --light-color-logo-primary: #7287fd;
++  --light-color-logo-stroke: #4c4f69;
+@@ -12,4 +12,4 @@
+-  --dark-color-text: #fbfbfb;
+-  --dark-color-background: #2c2b29;
+-  --dark-color-logo-primary: #f28cbb;
+-  --dark-color-logo-stroke: #fad1ed;
++  --dark-color-text: #cdd6f4;
++  --dark-color-background: #1e1e2e;
++  --dark-color-logo-primary: #b4befe;
++  --dark-color-logo-stroke: #cdd6f4;
+@@ -20,4 +20,4 @@
+-  --light-color-warning: #d97706;
+-  --light-color-error: #dc2626;
+-  --dark-color-warning: #fbbf24;
+-  --dark-color-error: #f87171;
++  --light-color-warning: #df8e1d;
++  --light-color-error: #d20f39;
++  --dark-color-warning: #f9e2af;
++  --dark-color-error: #f38ba8;
+@@ -26,3 +26,4 @@
+-  --color-background-ui: #da5893;
+-  --color-text-stroke: #f6f6f6;
+-  --color-mid-gray: #808080;
++  --color-background-ui: var(--color-logo-primary);
++  --color-on-accent: #11111b;
++  --color-text-stroke: var(--color-background);
++  --color-mid-gray: #7f849c;
+--- a/src/overlay/RecordingOverlay.css
++++ b/src/overlay/RecordingOverlay.css
+@@ -28,4 +28,4 @@
+-  --light-s-muted: #6e6e6e;
+-  --dark-s-muted: #a3a09a;
+-  --light-s-faint: #9a9a9a;
+-  --dark-s-faint: #6f6c66;
++  --light-s-muted: #5c5f77;
++  --dark-s-muted: #bac2de;
++  --light-s-faint: #6c6f85;
++  --dark-s-faint: #a6adc8;
+--- a/src/components/icons/TranscriptionIcon.tsx
++++ b/src/components/icons/TranscriptionIcon.tsx
+@@ -13 +13 @@
+-  color = "#FAA2CA",
++  color = "var(--color-logo-primary)",
+--- a/src/components/icons/MicrophoneIcon.tsx
++++ b/src/components/icons/MicrophoneIcon.tsx
+@@ -13 +13 @@
+-  color = "#FAA2CA",
++  color = "var(--color-logo-primary)",
+--- a/src/components/icons/CancelIcon.tsx
++++ b/src/components/icons/CancelIcon.tsx
+@@ -13 +13 @@
+-  color = "#FAA2CA",
++  color = "var(--color-logo-primary)",
+--- a/src/components/icons/HandyTextLogo.tsx
++++ b/src/components/icons/HandyTextLogo.tsx
+@@ -85 +85 @@
+-        fill="#F9C5E8"
++        fill="var(--color-logo-primary)"
+--- a/src/components/ui/AudioPlayer.tsx
++++ b/src/components/ui/AudioPlayer.tsx
+@@ -312 +312 @@
+-            background: `linear-gradient(to right, #FAA2CA 0%, #FAA2CA ${progressPercent}%, rgba(128, 128, 128, 0.2) ${progressPercent}%, rgba(128, 128, 128, 0.2) 100%)`,
++            background: `linear-gradient(to right, var(--color-logo-primary) 0%, var(--color-logo-primary) ${progressPercent}%, color-mix(in srgb, var(--color-mid-gray) 20%, transparent) ${progressPercent}%, color-mix(in srgb, var(--color-mid-gray) 20%, transparent) 100%)`,
+--- a/src/components/ui/Button.tsx
++++ b/src/components/ui/Button.tsx
+@@ -27 +27 @@
+-      "text-white bg-background-ui border-background-ui hover:bg-background-ui/80 hover:border-background-ui/80 focus:ring-1 focus:ring-background-ui",
++      "text-[var(--color-on-accent)] bg-background-ui border-background-ui hover:bg-background-ui/80 hover:border-background-ui/80 focus:ring-1 focus:ring-background-ui",

@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Private build only. Does not replace the Arch package or select the build.
+# Usage: build-catppuccin /path/to/Handy /path/to/SPIRV-Headers
+set -euo pipefail
+[[ $# == 2 ]] || { echo 'Usage: build-catppuccin /path/to/Handy /path/to/SPIRV-Headers' >&2; exit 2; }
+source_repo=$1
+spirv_repo=$2
+revision=14f6f0d31cb22a4268acfbddba3052820fd0a06e # Handy v0.9.8
+spirv_revision=b824a462d4256d720bebb40e78b9eb8f78bbb305 # Vulkan SDK 1.4.335.0
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+patch_file="$script_dir/catppuccin-v0.9.8.patch"
+digest=$(sha256sum "$patch_file")
+version="0.9.8-${digest:0:12}"
+root="${XDG_CACHE_HOME:-$HOME/.cache}/handy-catppuccin"
+target="${XDG_DATA_HOME:-$HOME/.local/share}/handy-catppuccin/$version"
+
+# Runtime supplied by handy-bin 0.9.8. Fail rather than silently change the ABI.
+runtime=/usr/lib/Handy/libonnxruntime.so.1
+printf '%s  %s\n' 580205078d2536897831cb348afac7c9870db4325dd06070f1a930fff4a8587e "$runtime" | sha256sum -c -
+for cmd in bun cargo cmake cc git patch pkg-config; do command -v "$cmd" >/dev/null; done
+pkg-config --exists gtk+-3.0 webkit2gtk-4.1 gtk-layer-shell-0 alsa openssl
+[[ ! -e "$target" ]] || { echo "Build already installed: $target" >&2; exit 1; }
+mkdir -p "$root"
+work=$(mktemp -d "$root/source.XXXXXX")
+# Keep source/build logs on failure so an expensive build can be diagnosed.
+printf 'Build source: %s\n' "$work"
+git -C "$source_repo" archive "$revision" | tar -x -C "$work"
+patch --directory="$work" --strip=1 --fuzz=0 < "$patch_file"
+mkdir -p "$work/deps/spirv" "$work/deps/ort"
+git -C "$spirv_repo" archive "$spirv_revision" | tar -x -C "$work/deps/spirv"
+cmake -S "$work/deps/spirv" -B "$work/deps/spirv-build" -DCMAKE_INSTALL_PREFIX="$work/deps/prefix"
+cmake --install "$work/deps/spirv-build"
+cp "$runtime" "$work/deps/ort/"
+ln -s libonnxruntime.so.1 "$work/deps/ort/libonnxruntime.so"
+
+unset APPIMAGE APPDIR OWD LD_PRELOAD
+export RUSTUP_TOOLCHAIN=1.97.1
+export CMAKE_PREFIX_PATH="$work/deps/prefix${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+# ggml's Vulkan target does not propagate the non-system SPIR-V include path.
+export CPATH="$work/deps/prefix/include${CPATH:+:$CPATH}"
+export ORT_LIB_LOCATION="$work/deps/ort" ORT_PREFER_DYNAMIC_LINK=1
+export CARGO_BUILD_JOBS=4 CMAKE_BUILD_PARALLEL_LEVEL=4
+# Reuse compiled dependencies across rebuilds without mixing source trees.
+export CARGO_TARGET_DIR="$root/target"
+cd "$work"
+bun install --frozen-lockfile
+bun run lint
+# Check only project inputs, not the third-party files under deps/.
+bunx --no-install prettier --check src/styles/theme.css src/overlay/RecordingOverlay.css \
+    src/components/icons/{TranscriptionIcon,MicrophoneIcon,CancelIcon,HandyTextLogo}.tsx \
+    src/components/ui/{AudioPlayer,Button}.tsx
+(cd src-tauri && cargo fmt -- --check)
+bun run tauri build --no-bundle -- --locked
+
+# Package resources and matching inference libraries beside the private binary.
+# Tauri finds resources in ../lib/Handy and the executable has that same rpath.
+mkdir -p "$(dirname -- "$target")"
+staging=$(mktemp -d "$(dirname -- "$target")/.install.XXXXXX")
+trap 'rm -rf -- "$staging"' EXIT
+mkdir -p "$staging/bin" "$staging/lib/Handy"
+install -m 755 "$CARGO_TARGET_DIR/release/handy" "$staging/bin/handy"
+cp -a src-tauri/resources "$staging/lib/Handy/"
+cp -a src-tauri/transcribe-libs/. "$staging/lib/Handy/"
+cp "$runtime" "$staging/lib/Handy/"
+printf '%s\n' "$revision" "$digest" > "$staging/BUILD-INFO"
+ldd "$staging/bin/handy" > "$staging/ldd.txt"
+if grep -q 'not found' "$staging/ldd.txt"; then
+    echo 'Missing runtime libraries; refusing installation' >&2
+    exit 1
+fi
+"$staging/bin/handy" --help >/dev/null
+mv -- "$staging" "$target"
+trap - EXIT
+printf 'Built %s\nNo running app or launcher selection was changed.\n' "$target"
+printf 'After testing, select this build with: ln -sfn %q %q\n' "$version" "$(dirname -- "$target")/current"

@@ -15,9 +15,18 @@ fi
 # Do not let Tauri mistake Handy for the AppImage that launched this shell.
 unset APPIMAGE APPDIR OWD
 
+# A selected private theme build is optional. The Arch package remains a fallback.
+handy_binary=handy
+custom_binary="${XDG_DATA_HOME:-$HOME/.local/share}/handy-catppuccin/current/bin/handy"
+if [[ "${HANDY_USE_PACKAGED:-0}" != 1 && -x "$custom_binary" ]]; then
+    handy_binary=$custom_binary
+    # An upstream self-update would discard the private palette.
+    export HANDY_DISABLE_UPDATER=1
+fi
+
 # Explicit escape hatch for systems affected by the original DMA-BUF crash.
 if [[ "${HANDY_DMABUF_WORKAROUND:-1}" == 0 ]]; then
-    exec handy "$@"
+    exec "$handy_binary" "$@"
 fi
 
 umask 077
@@ -35,4 +44,4 @@ fi
 
 export WEBKIT_DISABLE_DMABUF_RENDERER=0
 export LD_PRELOAD="$library${LD_PRELOAD:+:$LD_PRELOAD}"
-exec handy "$@"
+exec "$handy_binary" "$@"
