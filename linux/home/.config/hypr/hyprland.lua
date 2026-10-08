@@ -135,6 +135,7 @@ hl.device({ name = "epic-mouse-v1", sensitivity = -0.5 })
 
 local mainMod = "SUPER"
 local home = os.getenv("HOME")
+local exclusive = require("exclusive-workspace").setup(hl)
 
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser))
@@ -143,7 +144,7 @@ hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd(discord))
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("slack"))
-hl.bind(mainMod .. " + F", hl.dsp.exec_cmd('hyprctl --batch "dispatch togglefloating ; dispatch centerwindow 1"'))
+hl.bind(mainMod .. " + F", exclusive.toggle_float)
 hl.bind(mainMod .. " + V", hl.dsp.exec_cmd('cliphist list | wofi --style "$HOME/.config/wofi/style-dark.css" --dmenu --prompt="Clipboard" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist decode | wl-copy'))
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd('cliphist list | wofi --style "$HOME/.config/wofi/style-dark.css" --dmenu --prompt="Delete clipboard entry" --width=760 --height=520 --sort-order=default --cache-file /dev/null --no-custom-entry | cliphist delete'))
 hl.bind(mainMod .. " + C", hl.dsp.window.center())
@@ -172,7 +173,7 @@ for workspace = 1, 5 do
 end
 
 hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"))
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
+hl.bind(mainMod .. " + SHIFT + S", exclusive.special)
 -- Consume every Super+wheel event, but move at most once per 250 ms.
 -- Keep Hyprland's scroll_event_delay at zero so apps receive no skipped events.
 local scrollCooldownMs = 250
@@ -194,8 +195,8 @@ end
 
 hl.bind(mainMod .. " + mouse_down", function() scrollWorkspace("r", "e+1") end)
 hl.bind(mainMod .. " + mouse_up", function() scrollWorkspace("l", "e-1") end)
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+hl.bind(mainMod .. " + mouse:272", exclusive.mouse(hl.dsp.window.drag()))
+hl.bind(mainMod .. " + mouse:273", exclusive.mouse(hl.dsp.window.resize()))
 
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/volume-step.sh up"), { locked = true, repeating = true })
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/volume-step.sh down"), { locked = true, repeating = true })
@@ -237,6 +238,7 @@ hl.window_rule({
     name = "fullscreen-world-of-warcraft",
     match = { initial_title = "^World of Warcraft$" },
     fullscreen = true,
+    tile = true,
     sync_fullscreen = false,
     idle_inhibit = "always",
 })

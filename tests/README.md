@@ -70,6 +70,21 @@ query failures, stale results, and shutdown cleanup. The generated-runtime check
 require the upstream auto-hide initialization target exactly once.
 It does not verify real Astal signal timing, GTK rendering, or Wayland input regions.
 
+# Hyprland exclusive workspace checks
+
+```sh
+lua tests/linux-exclusive-workspace.test.lua
+Hyprland --verify-config -c "$PWD/linux/home/.config/hypr/hyprland.lua"
+```
+
+The Lua suite mocks the compositor API. It checks launch placement, occupied
+slots, both monitor ranges, source-workspace eviction, incoming apps, reloads,
+close events, deferred and stale moves, multiple owners, and guarded controls.
+It runs no shell or live desktop commands. The parser check requires Hyprland
+0.56 with Lua support and does not launch a compositor. Real mouse press/release
+routing and Wine window timing still require a desktop check. See
+[`EXCLUSIVE-WORKSPACE.md`](../linux/home/.config/hypr/EXCLUSIVE-WORKSPACE.md).
+
 # Linux locking checks
 
 ```sh
