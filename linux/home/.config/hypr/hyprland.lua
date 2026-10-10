@@ -7,7 +7,8 @@ local theme = require("mocha")
 --- MONITORS ---
 ----------------
 
-hl.monitor({ output = "DP-3", mode = "3840x2160@239.91", position = "0x0", scale = 1 })
+local mainMonitor = "DP-3"
+hl.monitor({ output = mainMonitor, mode = "3840x2160@239.91", position = "0x0", scale = 1 })
 hl.monitor({ output = "HDMI-A-1", mode = "1920x1080", position = "3840x0", scale = 1 })
 
 -------------------
@@ -136,7 +137,7 @@ hl.device({ name = "epic-mouse-v1", sensitivity = -0.5 })
 
 local mainMod = "SUPER"
 local home = os.getenv("HOME")
-local exclusive = require("exclusive-workspace").setup(hl)
+local exclusive = require("exclusive-workspace").setup(hl, mainMonitor)
 
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + O", hl.dsp.exec_cmd(home .. "/.config/handy-launcher/launch --toggle-transcription"))
@@ -262,7 +263,7 @@ hl.window_rule({
 for workspace = 1, 5 do
     hl.workspace_rule({
         workspace = tostring(workspace),
-        monitor = "DP-3",
+        monitor = mainMonitor,
         default = workspace == 1,
         layout = workspace == 1 and "master" or nil,
     })

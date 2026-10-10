@@ -63,10 +63,12 @@ class CommonConfigTests(unittest.TestCase):
         self.assertIn(
             'monitor = DP-3, 3840x2160@239.91, 0x0, 1\n',
             (config / 'hyprland.conf').read_text())
+        lua = (config / 'hyprland.lua').read_text()
+        self.assertIn('local mainMonitor = "DP-3"', lua)
         self.assertIn(
-            'hl.monitor({ output = "DP-3", mode = "3840x2160@239.91", '
-            'position = "0x0", scale = 1 })',
-            (config / 'hyprland.lua').read_text())
+            'hl.monitor({ output = mainMonitor, mode = "3840x2160@239.91", '
+            'position = "0x0", scale = 1 })', lua)
+        self.assertIn('require("exclusive-workspace").setup(hl, mainMonitor)', lua)
 
     def test_wow_fullscreen_rule_matches_only_the_game_in_both_configs(self):
         config = ROOT / 'linux/home/.config/hypr'

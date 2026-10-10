@@ -10,6 +10,7 @@ end
 local function fixture()
     local f = { windows = {}, events = {}, timers = {}, calls = {}, warnings = 0,
         cursor = { x = 10, y = 10 }, monitor = { name = "DP-3", active_workspace = { id = 3 } } }
+    f.main_monitor = f.monitor
     local function emit(name, ...)
         if f.events[name] then f.events[name](...) end
     end
@@ -18,6 +19,10 @@ local function fixture()
         get_active_window = function() return f.active end,
         get_monitor_at_cursor = function() return f.monitor end,
         get_active_monitor = function() return f.monitor end,
+        get_monitor = function(name)
+            assert(name == "DP-3")
+            return f.main_monitor
+        end,
         get_cursor_pos = function() return f.cursor end,
         on = function(event, callback) f.events[event] = callback end,
         timer = function(callback) f.timers[#f.timers + 1] = callback end,
@@ -71,27 +76,47 @@ local function fixture()
     end
     f.emit = emit
     f.hl = hl
-    f.controls = policy.setup(hl)
+    f.controls = policy.setup(hl, "DP-3")
     return f
 end
 
 local function at(w, id) assert(w.workspace.id == id, tostring(w.workspace.id) .. " ~= " .. id) end
 
-test("launch skips occupied workspaces and follows", function()
+test("launch uses main active workspace and sends occupants to next slot", function()
     local f = fixture()
-    f.add(2); f.add(3)
+    local source, occupant, next_app = f.add(2), f.add(3), f.add(4)
     local game = f.add(2, true)
     f.open(game)
-    at(game, 4)
+    at(game, 3); at(source, 2); at(occupant, 4); at(next_app, 4)
     assert(f.active == game and game.fullscreen == 2)
 end)
 
-test("launch wraps and stays in its monitor range", function()
+test("secondary launch and focus still use the main current workspace", function()
     local f = fixture()
+    f.main_monitor.active_workspace.id = 5
+    f.monitor = { name = "HDMI-A-1", active_workspace = { id = 15 } }
+    local occupant = f.add(5)
     local game = f.add(15, true)
-    f.add(11)
+    game.monitor = f.monitor
     f.open(game)
-    at(game, 12)
+    at(game, 5); at(occupant, 1)
+end)
+
+test("missing main monitor falls back to the launch monitor", function()
+    local f = fixture()
+    f.main_monitor = nil
+    f.monitor = { name = "HDMI-A-1", active_workspace = { id = 15 } }
+    local game, app = f.add(11, true), f.add(15)
+    game.monitor = f.monitor
+    f.open(game)
+    at(game, 15); at(app, 11)
+end)
+
+test("launch on the main current workspace evicts without moving to another slot", function()
+    local f = fixture()
+    local game, app = f.add(3, true), f.add(3)
+    f.open(game)
+    at(game, 3); at(app, 4)
 end)
 
 test("move evicts all destination occupants to the source", function()
@@ -161,12 +186,30 @@ test("closed games release workspace and pending callbacks ignore dead windows",
     f.open(app); at(app, 3)
 end)
 
-test("no empty launch slot reports rather than displacing occupied windows", function()
+test("occupied main range still launches on the current workspace", function()
     local f = fixture()
-    for id = 1, 5 do f.add(id) end
-    local game = f.add(3, true)
+    local apps = {}
+    for id = 1, 5 do apps[id] = f.add(id) end
+    local game = f.add(12, true)
     f.open(game)
-    at(game, 3)
+    at(game, 3); at(apps[3], 4)
+    assert(f.warnings == 0)
+end)
+
+test("another game on main current workspace uses the next empty main slot", function()
+    local f = fixture()
+    local existing, app = f.add(3, true), f.add(4)
+    local game = f.add(12, true)
+    f.open(game)
+    at(existing, 3); at(app, 4); at(game, 5)
+end)
+
+test("game collision without an empty slot warns without moving windows", function()
+    local f = fixture()
+    for id = 1, 5 do f.add(id, id == 3) end
+    local game = f.add(12, true)
+    f.open(game)
+    at(game, 12)
     assert(f.warnings == 1 and #f.calls == 0)
 end)
 
@@ -229,12 +272,14 @@ test("game on a hidden workspace does not block ordinary windows at the same coo
     assert(#f.calls == 4)
 end)
 
-test("launch from the scratchpad uses the monitor regular workspace range", function()
+test("launch from the scratchpad uses the main regular active workspace", function()
     local f = fixture()
-    f.monitor.active_workspace.id = 13
+    f.main_monitor.active_special_workspace = { id = -99 }
+    f.monitor = { name = "HDMI-A-1", active_workspace = { id = 13 } }
     local game = f.add(-99, true)
+    game.monitor = f.monitor
     f.open(game)
-    at(game, 14)
+    at(game, 3)
 end)
 
 test("unrelated Wine and special workspace windows are unchanged", function()

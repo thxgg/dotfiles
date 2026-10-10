@@ -6,7 +6,7 @@ function M.is_game(window)
     return window ~= nil and window.initial_title == "World of Warcraft"
 end
 
-function M.setup(hl)
+function M.setup(hl, main_monitor)
     local locations = {}
     local pending = {}
     local scheduled = false
@@ -35,12 +35,12 @@ function M.setup(hl)
         end
     end
 
-    local function next_workspace(id, empty)
+    local function next_workspace(id, empty, except)
         local first = range(id)
         if not first then return nil end
         for step = 1, 4 do
             local candidate = first + (id - first + step) % 5
-            if not owner(candidate) and (not empty or #windows(candidate) == 0) then
+            if not owner(candidate, except) and (not empty or #windows(candidate) == 0) then
                 return candidate
             end
         end
@@ -76,20 +76,24 @@ function M.setup(hl)
         local window = item.window
         if not window.mapped or not window.address then return end
         local id = workspace_id(window)
-        if item.kind == "open" and M.is_game(window) and not range(id) then
-            local monitor = window.monitor or hl.get_active_monitor()
+        if item.kind == "open" and M.is_game(window) then
+            local monitor = hl.get_monitor(main_monitor) or window.monitor or hl.get_active_monitor()
             id = monitor and monitor.active_workspace and monitor.active_workspace.id
         end
         if not range(id) then return end
         if item.to and item.to ~= id then return end -- superseded move
         if M.is_game(window) then
             if item.kind == "open" then
-                local destination = next_workspace(id, true)
+                -- Use the main monitor's current workspace, not the launcher's.
+                -- Keep another game in place and use an empty slot in that case.
+                local destination = id
+                if owner(id, window.address) then destination = next_workspace(id, true) end
                 if destination then
+                    local overflow = next_workspace(destination, false, window.address)
+                    if not overflow then warn(); return end
                     move(window, destination, true)
-                    fullscreen(window)
+                    evict(window, overflow)
                 else
-                    -- Do not displace occupied workspaces merely to launch a game.
                     warn()
                 end
             elseif item.kind == "move" and item.from and item.from ~= id then

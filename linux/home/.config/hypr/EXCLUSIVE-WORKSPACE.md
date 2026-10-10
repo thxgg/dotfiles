@@ -6,10 +6,12 @@ Wine apps keep their normal controls.
 
 ## Behavior
 
-- On launch, WoW moves to the next empty workspace and focus follows it. Search
-  wraps within `1–5` or `11–15`. The launch workspace itself is not a candidate.
-  A launch from the special scratchpad uses the monitor's active regular workspace
-  as the search origin.
+- On launch, WoW moves to the main monitor's active regular workspace and focus
+  follows it, even when launched from the secondary monitor or scratchpad.
+  `mainMonitor` in `hyprland.lua` selects the main output (`DP-3`). If that output
+  is disconnected, the launch monitor (or focused monitor) is used instead.
+  Ordinary destination occupants move to the next numbered workspace on that
+  monitor, skipping other games. This also applies if WoW opens on the target.
 - When WoW moves from A to B, B's other windows move silently to A. WoW becomes
   tiled and fullscreen on B. Repeated moves use the immediately previous source,
   not the original launch workspace. Cross-monitor moves return occupants to the
@@ -27,10 +29,12 @@ Wine apps keep their normal controls.
 
 ## Boundaries
 
-If all other slots in the monitor's five-workspace range are occupied, launching
-WoW leaves it at its initial location and shows a warning. It does not displace
-existing windows to manufacture an empty launch slot. Free a slot and move WoW
-there with Super+Shift+number. This is a deliberate exception to exclusivity.
+If another WoW window owns the main monitor's active workspace, a new game uses
+the next empty slot in that monitor's five-workspace range, wrapping within
+`1–5` or `11–15`. If none is empty, it stays at its initial location and warns.
+If no slot is available for ordinary occupant routing because every other slot
+contains a game, launch also stays in place and warns. These are exceptions to
+exclusivity. An unsupported workspace outside these ranges is left unchanged.
 
 Multiple WoW windows cannot share a workspace. An incoming game returns to its
 source if the destination already contains a game. If every candidate workspace
@@ -67,8 +71,10 @@ Aquamarine could not create its backend (`CBackend::create() failed!`).
 
 Manual desktop checks:
 
-1. Launch WoW from an occupied workspace. Confirm that it appears fullscreen on
-   the next empty slot on that monitor.
+1. Launch WoW with focus on the secondary monitor. Confirm that it appears
+   fullscreen on the main monitor's active regular workspace. Its ordinary
+   occupants must move to the next numbered main-monitor workspace. Repeat from
+   the main monitor and scratchpad.
 2. Try Super+left drag, Super+right drag, Super+F, and Super+Shift+S. WoW must stay
    fullscreen in place. Test normal drag/resize/floating on a non-game window too.
 3. Move WoW onto a workspace containing ordinary windows. Confirm that those
