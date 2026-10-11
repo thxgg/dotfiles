@@ -100,7 +100,7 @@ ${BOLD}USAGE:${RESET}
 
 ${BOLD}COMMANDS:${RESET}
     init              Run full machine setup via ./setup.sh
-    update            Pull latest changes and update OS/global JS packages, Neovim, pi, and Herdr
+    update            Update packages and CLIs, commit dependency changes, and push
     stow              Apply links via ./safe-stow.sh
     unstow            Remove links via ./unstow.sh
     doctor            Validate symlinks and setup health via ./doctor.sh
@@ -229,6 +229,113 @@ update_repo() {
 
 	git -C "$DOTFILES_DIR" pull --ff-only || return
 	success "Repository updated with git"
+}
+
+check_update_git() {
+	# These locals are set by cmd_update. Keep the existing jj pull-only path
+	# available when both Git automation options are disabled.
+	if [[ $skip_commit -eq 1 && $skip_push -eq 1 ]]; then
+		return 0
+	fi
+	if [[ -d "$DOTFILES_DIR/.jj" ]]; then
+		error "Automatic commits/push require Git; use --skip-commit --skip-push with jj"
+		return 1
+	fi
+	git -C "$DOTFILES_DIR" symbolic-ref --quiet HEAD >/dev/null || {
+		error "Automatic commits/push require an attached Git branch"
+		return 1
+	}
+	local state state_path
+	for state in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply sequencer; do
+		state_path="$(git -C "$DOTFILES_DIR" rev-parse --git-path "$state")" || return
+		[[ "$state_path" == /* ]] || state_path="$DOTFILES_DIR/$state_path"
+		if [[ -e "$state_path" ]]; then
+			error "Finish the current Git operation before updating"
+			return 1
+		fi
+	done
+	if [[ $skip_push -eq 0 ]]; then
+		git -C "$DOTFILES_DIR" rev-parse --verify '@{upstream}' >/dev/null || {
+			error "Configure this branch's upstream, or use --skip-push"
+			return 1
+		}
+	fi
+	if [[ $skip_commit -eq 0 ]]; then
+		local -a dependency_files=()
+		[[ $skip_nvim -eq 1 ]] || dependency_files+=("${nvim_files[@]}")
+		[[ $skip_pi -eq 1 ]] || dependency_files+=("${pi_files[@]}")
+		if [[ ${#dependency_files[@]} -gt 0 ]]; then
+			local changes
+			changes="$(git -C "$DOTFILES_DIR" status --porcelain --untracked-files=all -- "${dependency_files[@]}")" || return
+			if [[ -n "$changes" ]]; then
+				error "Dependency files have local changes; commit them first or use --skip-commit"
+				printf '%s\n' "$changes" >&2
+				return 1
+			fi
+		fi
+	fi
+}
+
+commit_dependency_updates() {
+	local scope="$1"
+	shift
+	local diff_status=0
+	git -C "$DOTFILES_DIR" diff --quiet HEAD -- "$@" || diff_status=$?
+	if [[ $diff_status -eq 0 ]]; then
+		info "No $scope dependency changes to commit"
+		return 0
+	elif [[ $diff_status -ne 1 ]]; then
+		return $diff_status
+	fi
+	# --only commits these working-tree paths and preserves unrelated staging.
+	# Do not bypass hooks or stage the whole tree.
+	git -C "$DOTFILES_DIR" commit --only -m "chore($scope): update dependencies" -- "$@"
+}
+
+push_update_commits() {
+	local branch remote ref
+	branch="$(git -C "$DOTFILES_DIR" symbolic-ref --quiet HEAD)" || return
+	remote="$(git -C "$DOTFILES_DIR" for-each-ref --format='%(upstream:remotename)' "$branch")" || return
+	ref="$(git -C "$DOTFILES_DIR" for-each-ref --format='%(upstream:remoteref)' "$branch")" || return
+	if [[ -z "$remote" || -z "$ref" ]]; then
+		error "No upstream configured for the current branch"
+		return 1
+	fi
+	# Ignore push.default and remote push refspecs: push this branch only.
+	git -C "$DOTFILES_DIR" push --no-follow-tags -- "$remote" "HEAD:$ref"
+}
+
+update_codex() {
+	if ! command_exists codex; then
+		warn "Codex not found; skipping"
+		return 0
+	fi
+	if command_exists brew && brew list --cask codex >/dev/null 2>&1; then
+		brew upgrade --cask codex
+	else
+		codex update
+	fi
+}
+
+update_claude() {
+	if ! command_exists claude; then
+		warn "Claude Code not found; skipping"
+		return 0
+	fi
+	if command_exists brew && brew list --cask claude-code >/dev/null 2>&1; then
+		brew upgrade --cask claude-code
+	else
+		claude update
+	fi
+}
+
+update_t3() {
+	if ! command_exists t3; then
+		warn "T3 Code not found; skipping"
+		return 0
+	fi
+	# Quiet mode redirects stdout. Permit the installed service to restart.
+	t3 update --yes
 }
 
 update_packages() {
@@ -525,6 +632,10 @@ cmd_update() {
 	local skip_pi=0
 	local skip_herdr=0
 	local skip_nvim=0
+	local skip_codex=0 skip_claude=0 skip_t3=0
+	local skip_commit=0 skip_push=0
+	local -a nvim_files=(common/.config/nvim/lazy-lock.json)
+	local -a pi_files=(common/.pi/agent/npm/package.json)
 	local -a failed_steps=()
 
 	while [[ $# -gt 0 ]]; do
@@ -553,6 +664,11 @@ cmd_update() {
 				skip_nvim=1
 				shift
 				;;
+			--skip-codex) skip_codex=1; shift ;;
+			--skip-claude) skip_claude=1; shift ;;
+			--skip-t3) skip_t3=1; shift ;;
+			--skip-commit) skip_commit=1; shift ;;
+			--skip-push) skip_push=1; shift ;;
 			-h|--help)
 				cat <<EOF
 Usage: ${SCRIPT_NAME} update [options]
@@ -564,7 +680,17 @@ Options:
   --skip-pi        Skip pi extension updates (CLI updates with global packages)
   --skip-herdr     Skip Herdr update
   --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
-  --help           Show this help
+  --skip-codex     Skip the dedicated Codex CLI update
+  --skip-claude    Skip the dedicated Claude Code CLI update
+  --skip-t3        Skip T3 Code update and service restart
+  --skip-commit    Leave dependency changes uncommitted
+  --skip-push      Do not push the current branch to its upstream
+  --help          Show this help
+
+Successful Neovim/Pi updates get separate dependency commits. Existing changes
+in their dependency files require --skip-commit or a manual commit first.
+The final push runs only if all steps succeed, and includes existing commits
+on the current branch. OS/global package managers can also update these CLIs.
 EOF
 				return
 				;;
@@ -579,9 +705,13 @@ EOF
 		header "Updating dotfiles"
 	fi
 
+	check_update_git || return
 	if ! run_update_step repo "Repository" update_repo; then
-		failed_steps+=(repository)
+		error "Repository update failed; stopping before dependency changes"
+		return 1
 	fi
+	# A pull can introduce an unfinished operation or change tracked paths.
+	check_update_git || return
 	if [[ $skip_packages -eq 0 ]]; then
 		if ! run_update_step packages "OS packages" update_packages; then
 			failed_steps+=(packages)
@@ -604,6 +734,8 @@ EOF
 		if ! run_update_step nvim "Neovim plugins and tools" update_nvim; then
 			failed_steps+=(nvim)
 			warn "Neovim update failed; continuing with remaining update steps"
+		elif [[ $skip_commit -eq 0 ]]; then
+			commit_dependency_updates nvim "${nvim_files[@]}" || failed_steps+=(nvim-commit)
 		fi
 	fi
 
@@ -611,7 +743,19 @@ EOF
 		if ! run_update_step pi "pi extensions" update_pi; then
 			failed_steps+=(pi)
 			warn "pi and extension update failed; continuing with remaining update steps"
+		elif [[ $skip_commit -eq 0 ]]; then
+			commit_dependency_updates pi "${pi_files[@]}" || failed_steps+=(pi-commit)
 		fi
+	fi
+
+	if [[ $skip_codex -eq 0 ]]; then
+		run_update_step codex "Codex CLI" update_codex || failed_steps+=(codex)
+	fi
+	if [[ $skip_claude -eq 0 ]]; then
+		run_update_step claude "Claude Code CLI" update_claude || failed_steps+=(claude)
+	fi
+	if [[ $skip_t3 -eq 0 ]]; then
+		run_update_step t3 "T3 Code" update_t3 || failed_steps+=(t3)
 	fi
 
 	if [[ $skip_herdr -eq 0 ]]; then
@@ -623,9 +767,14 @@ EOF
 
 	if [[ ${#failed_steps[@]} -gt 0 ]]; then
 		error "Update completed with failed step(s): ${failed_steps[*]}"
+		warn "Automatic push skipped; inspect local changes and commits before retrying"
 		return 1
 	fi
 
+	if [[ $skip_push -eq 0 ]]; then
+		header "Pushing update commits"
+		push_update_commits || return
+	fi
 	success "Update complete"
 }
 
@@ -843,7 +992,7 @@ cmd_completions() {
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, OS/global JS packages, Neovim, pi, and Herdr"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update packages and CLIs, commit dependencies, and push"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -865,6 +1014,11 @@ complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip Herdr self-update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-codex -d "Skip dedicated Codex CLI update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-claude -d "Skip dedicated Claude Code CLI update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-t3 -d "Skip T3 Code update and service restart"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-commit -d "Leave dependency changes uncommitted"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-push -d "Do not push the current branch"
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l only-config -d "Only operate on selected ~/.config components" -x

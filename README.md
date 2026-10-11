@@ -24,12 +24,47 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS packages and global npm/pnpm/Vite+ packages, re-stows, updates Neovim Lazy/Mason/Tree-sitter state, installs locked Pi workspace dependencies and declared external Pi packages, updates the Pi CLI through Vite+ and runs only `pi update --extensions`, and updates Herdr through Homebrew or its self-updater as appropriate
+- `./dot update` pulls latest changes, updates OS and global npm/pnpm/Vite+ packages, re-stows, updates Neovim and Pi dependencies, updates Codex, Claude Code, T3 Code, and Herdr, commits dependency changes, then pushes the current branch to its upstream
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health plus the Pi runtime, extension workspace, and Pi Transcribe setup via `doctor.sh`
 - External Pi packages are declared in `common/.pi/agent/npm/package.json`. Pi Voice model setup remains manual through `/voice-settings`; see [Pi setup](common/.pi/README.md#external-packages-and-pi-voice).
 - `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
+
+### Update behavior
+
+`dot update` runs Lazy/Mason/Tree-sitter updates. It installs the frozen Pi
+workspace dependencies and declared external Pi packages, then runs
+`pi update --extensions`. Vite+ owns Pi CLI updates.
+
+Successful dependency steps create separate commits, only when files change:
+
+- `chore(nvim): update dependencies` — `common/.config/nvim/lazy-lock.json`
+- `chore(pi): update dependencies` — `common/.pi/agent/npm/package.json`
+
+Pi runtime checkouts, ignored lockfiles, and local extension source files are not
+committed. The Pi workspace lockfile remains frozen. Unrelated staged and unstaged
+changes stay untouched. Existing changes in the selected dependency files stop
+the command before updates. Commit those changes first, or use `--skip-commit`.
+Git hooks stay enabled.
+
+Codex and Claude Code use `codex update` and `claude update`, or Homebrew
+when the corresponding cask is installed. T3 Code uses `t3 update --yes`;
+this can restart its background service. Missing CLIs are skipped, not installed.
+`--skip-codex`, `--skip-claude`, and `--skip-t3` disable these dedicated steps.
+OS/global package managers can still update their managed CLIs.
+`--skip-packages` skips those package managers, not the dedicated CLI steps.
+
+The final push runs only when all steps succeed. It pushes only the current
+branch to its configured upstream, without force. **This includes any existing
+unpushed commits on that branch.** A failed pull stops updates. Other step
+failures leave successful dependency commits local and suppress the push.
+
+Use `--skip-push` to keep commits local. Use both `--skip-commit --skip-push`
+to disable Git writes from the new automation (the initial repository update
+still runs). Automatic commits/push require an attached Git branch and no
+unfinished Git operation. Pushing also requires an upstream. For jj repositories,
+use both flags and manage commits/push with jj.
 
 After setup, use `dot` from anywhere in a new shell. If you only want stow linking without package installation, run `./dot stow` or `./safe-stow.sh`; both also refresh the `~/.local/bin/dot` symlink.
 

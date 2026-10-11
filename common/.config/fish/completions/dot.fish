@@ -2,7 +2,7 @@
 
 complete -c dot -f
 complete -c dot -n "__fish_use_subcommand" -a "init" -d "Run full machine setup"
-complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update repo, OS/global JS packages, Neovim, pi, and Herdr"
+complete -c dot -n "__fish_use_subcommand" -a "update" -d "Update packages and CLIs, commit dependencies, and push"
 complete -c dot -n "__fish_use_subcommand" -a "stow" -d "Apply stow links"
 complete -c dot -n "__fish_use_subcommand" -a "unstow" -d "Remove stow links"
 complete -c dot -n "__fish_use_subcommand" -a "doctor" -d "Validate dotfiles health"
@@ -24,6 +24,11 @@ complete -c dot -n "__fish_seen_subcommand_from update" -l skip-stow -d "Skip re
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-pi -d "Skip pi extension updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip Herdr self-update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-codex -d "Skip dedicated Codex CLI update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-claude -d "Skip dedicated Claude Code CLI update"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-t3 -d "Skip T3 Code update and service restart"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-commit -d "Leave dependency changes uncommitted"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-push -d "Do not push the current branch"
 
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l list-config -d "List available ~/.config components"
 complete -c dot -n "__fish_seen_subcommand_from stow unstow doctor" -l only-config -d "Only operate on selected ~/.config components" -x

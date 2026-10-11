@@ -93,7 +93,8 @@ nvim() { printf '%s\\n' "$*"; return 17; }
             body = '''set -euo pipefail
 header() { :; }; success() { :; }; warn() { :; }; error() { :; };
 run_update_step() { printf '%s\\n' "$1"; }
-'''+ function('cmd_update') + '\ncmd_update --skip-packages --skip-stow --skip-pi --skip-herdr --skip-nvim'
+check_update_git() { :; }
+'''+ function('cmd_update') + '\ncmd_update --skip-packages --skip-stow --skip-pi --skip-herdr --skip-nvim --skip-codex --skip-claude --skip-t3 --skip-commit --skip-push'
             result = subprocess.run([ZSH, '-f', '-c', body], env={'HOME': directory, 'PATH': '/usr/bin:/bin', 'OSTYPE': 'darwin', 'UPDATE_VERBOSE': '0'}, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), 'repo')
