@@ -63,6 +63,15 @@ The following skills match
 
 The trailing blank line in `write-swift/SKILL.md` is removed for whitespace checks.
 
+The following skills and their complete supporting files match
+[`emilkowalski/skills@2d22863`](https://github.com/emilkowalski/skills/commit/2d228630ba1446365f614a108cb8252f1feda202):
+
+- `animation-performance`
+- `break-ui`
+- `mobile-native`
+
+The upstream MIT license is included as `LICENSE.emil-kowalski`.
+
 `pick-ui-library` is intentionally excluded by owner decision.
 
 ## Matt Silverlock
