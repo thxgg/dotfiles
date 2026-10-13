@@ -74,7 +74,13 @@ def main():
     env = os.environ.copy()
     for name in ("APPIMAGE", "APPDIR", "ARGV0"):
         env.pop(name, None)
-    os.execve(str(root / "AppRun"), [str(root / "AppRun"), *sys.argv[1:]], env)
+    # AppRun's fallback directory lookup treats its first argument as a path.
+    # Set the extracted root explicitly so command-line flags cannot break it.
+    env["APPDIR"] = str(root)
+    # Electron does not reliably detect GNOME Keyring under Hyprland. Select
+    # libsecret explicitly so Archon can encrypt and restore saved credentials.
+    os.execve(str(root / "AppRun"),
+              [str(root / "AppRun"), "--password-store=gnome-libsecret", *sys.argv[1:]], env)
 
 
 if __name__ == "__main__":

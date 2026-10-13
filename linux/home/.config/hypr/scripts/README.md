@@ -139,6 +139,17 @@ Extracted copies live under `~/.cache/archon-light-tray`. The launcher serialize
 extraction and does not publish incomplete copies. Old copies stay intact for
 running processes. Remove old cache versions only after closing Archon.
 
+The launcher always passes `--password-store=gnome-libsecret` so Electron uses
+GNOME Keyring under Hyprland. This lets Archon save its encrypted login password
+instead of silently skipping it when automatic keyring detection fails. Requires
+`libsecret` and a running, unlocked Secret Service keyring. The desktop entry used
+by Rofi (Super+Space) gets this flag through the script; no separate flag is needed.
+The launcher sets `APPDIR` to the extracted root because upstream `AppRun` cannot
+reliably find its directory when its first argument is a command-line flag.
+After this change, fully quit Archon, launch it normally, and sign in once to save
+the password. Quit and relaunch to verify automatic login. No profile reset or
+plaintext password storage is needed.
+
 AppImage self-updates are unavailable in the extracted copy. To update, replace
 `~/Applications/Archon.AppImage` with an official download and restart Archon.
 The changed checksum causes the launcher to prepare a new white-icon copy.
@@ -146,7 +157,10 @@ If upstream renames the tray assets, preparation fails instead of patching an
 unrelated file. To undo, point the desktop entry at the original AppImage again.
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/archon-light-tray.test.py`.
-These tests use generated icons and mocked extraction, with no desktop access.
+These tests use generated icons and mocked extraction and execution. They check
+keyring selection, argument forwarding, the AppRun directory lookup with a mock
+binary, and prepare-only behavior without desktop
+access. Login persistence still needs the quit-and-relaunch check above.
 
 # HyprPanel tray compatibility
 

@@ -1,6 +1,9 @@
 """Offline tray asset tests. Do not launch Archon or use the desktop bus."""
 import importlib.util
+import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -58,6 +61,82 @@ class ArchonTrayTests(unittest.TestCase):
                 self.assertNotEqual(first, second)
                 self.assertTrue(first.is_dir())
                 self.assertEqual(run.call_count, 2)
+
+    def test_launch_selects_keyring_and_forwards_arguments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            root = home / "cached-app"
+            env = {"HOME": tmp, "XDG_CACHE_HOME": str(home / "cache"),
+                   "XDG_CURRENT_DESKTOP": "Hyprland", "APPIMAGE": "old-image",
+                   "APPDIR": "old-dir", "ARGV0": "old-argv"}
+            for args in ([], ["--run-on-startup", "archon://example/path"]):
+                with self.subTest(args=args), \
+                        patch.dict(MODULE.os.environ, env, clear=True), \
+                        patch.object(MODULE.sys, "argv", ["launcher", *args]), \
+                        patch.object(MODULE, "prepare", return_value=root) as prepare, \
+                        patch.object(MODULE.os, "execve") as execute:
+                    MODULE.main()
+                    prepare.assert_called_once_with(
+                        home / "Applications/Archon.AppImage",
+                        home / "cache/archon-light-tray")
+                    execute.assert_called_once_with(
+                        str(root / "AppRun"),
+                        [str(root / "AppRun"), "--password-store=gnome-libsecret", *args],
+                        {**{key: value for key, value in env.items()
+                            if key not in ("APPIMAGE", "APPDIR", "ARGV0")},
+                         "APPDIR": str(root)})
+
+    def test_apprun_directory_lookup_with_keyring_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            root = home / "cached app"
+            root.mkdir()
+            # Reproduce the upstream AppRun lookup. Without APPDIR, a flag as
+            # the first argument walks past the app root and selects /archon.
+            (root / "AppRun").write_text('''#!/bin/bash
+set -eu
+if [ -z "${APPDIR:-}" ]; then
+    path="$(dirname "$(readlink -f "$0")")"
+    while [[ "$path" != "" && ! -e "$path/$1" ]]; do
+        path=${path%/*}
+    done
+    APPDIR="$path"
+fi
+exec "$APPDIR/archon" "$@"
+''')
+            (root / "archon").write_text('''#!/usr/bin/python3
+import json, os, sys
+print(json.dumps({"args": sys.argv[1:], "appdir": os.environ["APPDIR"]}))
+''')
+            for name in ("AppRun", "archon"):
+                (root / name).chmod(0o700)
+            env = {"HOME": tmp, "PATH": "/usr/bin:/bin"}
+            run = subprocess.run
+
+            def execute(path, args, child_env):
+                result = run(args, executable=path, env=child_env,
+                             check=True, capture_output=True, text=True)
+                self.assertEqual(json.loads(result.stdout), {
+                    "args": ["--password-store=gnome-libsecret", "archon://example/path"],
+                    "appdir": str(root)})
+
+            with patch.dict(os.environ, env, clear=True), \
+                    patch.object(MODULE.sys, "argv", ["launcher", "archon://example/path"]), \
+                    patch.object(MODULE, "prepare", return_value=root), \
+                    patch.object(MODULE.os, "execve", side_effect=execute) as launch:
+                MODULE.main()
+                launch.assert_called_once()
+
+    def test_prepare_only_does_not_launch(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.dict(MODULE.os.environ, {"HOME": tmp}, clear=True), \
+                patch.object(MODULE.sys, "argv", ["launcher", "--prepare-only"]), \
+                patch.object(MODULE, "prepare", return_value=Path(tmp)), \
+                patch.object(MODULE.os, "execve") as execute, \
+                patch("builtins.print") as output:
+            self.assertEqual(MODULE.main(), 0)
+            execute.assert_not_called()
+            output.assert_called_once_with(Path(tmp))
 
     def test_missing_assets_do_not_publish_partial_cache(self):
         with tempfile.TemporaryDirectory() as tmp:

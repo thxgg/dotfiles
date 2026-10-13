@@ -132,8 +132,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/archon-light-tray.test.py
 ```
 
 Requires Python 3, PyGObject, and GdkPixbuf. Uses generated PNGs and mocked
-AppImage extraction. Checks alpha preservation, cache reuse, version changes,
-and incomplete-extraction cleanup. Does not launch Archon or use the desktop bus.
+AppImage extraction and execution. Checks alpha preservation, cache reuse, version
+changes, incomplete-extraction cleanup, explicit keyring selection, argument
+forwarding, the AppRun directory lookup using Bash and a mock binary, and
+prepare-only behavior. Does not launch Archon or use the desktop
+bus; login persistence requires a live quit-and-relaunch check.
 
 # HyprPanel tray checks
 
