@@ -258,14 +258,13 @@ hl.window_rule({
     float = true,
 })
 
--- Use centered Master on the first workspace of each monitor.
--- Other regular workspaces inherit the global Dwindle layout.
+-- Primary-monitor workspaces inherit the global Dwindle layout.
+-- Keep centered Master on the secondary monitor's first workspace.
 for workspace = 1, 5 do
     hl.workspace_rule({
         workspace = tostring(workspace),
         monitor = mainMonitor,
         default = workspace == 1,
-        layout = workspace == 1 and "master" or nil,
     })
 end
 for workspace = 11, 15 do
