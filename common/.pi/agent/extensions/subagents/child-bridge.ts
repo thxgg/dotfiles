@@ -206,11 +206,11 @@ export default function childBridge(pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("agent_settled", () => {
+  pi.on("agent_settled", (event) => {
     if (settled) return;
     settled = true;
     const now = new Date().toISOString();
-    const cancelled = maxTurnAbort || stopReason === "aborted";
+    const cancelled = event.aborted || maxTurnAbort || stopReason === "aborted";
     const missingStructured = Boolean(spec.agent.outputSchema) && structured === undefined;
     const failed = !cancelled && (Boolean(errorMessage) || stopReason === "error" || missingStructured);
     if (missingStructured && !errorMessage) errorMessage = "Subagent finished without producing the required structured output.";

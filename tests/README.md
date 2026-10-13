@@ -269,7 +269,12 @@ from Anthropic or a gateway through our alias wrapper. The codemode SDK tests ch
 safe tool-presence probes, missing-member recovery hints, and preservation of the
 codemode documentation path after Anthropic sanitation. They also exercise native
 codemode execution through the verbosity renderer hook, caught-error summaries,
-expansion, and HTML export. The verbosity workspace tests cover live partial results,
+expansion, and HTML export. The child-bridge SDK tests check native settlement
+cancellation before an assistant result, cancellation after a successful result,
+missing structured output, legacy stop-reason and turn-limit fallbacks, normal
+completion, provider failure, and idempotent completion notifications. They use
+isolated job storage and make no model requests.
+The verbosity workspace tests cover live partial results,
 images, prompts, cancellation, resume, and tree reconstruction.
 Astra Ultrafast requires Pro 500 or another eligible plan.
 A live OpenAI OAuth request completed, but returned the `default` tier rather than
