@@ -8,6 +8,7 @@ ninja
 hyprpolkitagent
 ags-hyprpanel-git
 python-gobject
+python-xlib
 swaync
 swww
 wofi

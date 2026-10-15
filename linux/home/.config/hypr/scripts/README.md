@@ -167,8 +167,9 @@ access. Login persistence still needs the quit-and-relaunch check above.
 Battle.net under Wine exposes the StatusNotifierItem `ContextMenu` method but
 no DBusMenu model. `start-hyprpanel.sh` patches the private panel runtime to call
 that method asynchronously on right-click when no exported menu is available.
-It uses Astal's bus-name/object-path `itemId` and converts click coordinates to
-root coordinates. Exported GTK menus remain in use for other apps and receive
+It uses Astal's bus-name/object-path `itemId` and anchors the menu two pixels
+below the bar's bottom edge, not at the pointer inside the tray icon.
+Exported GTK menus remain in use for other apps and receive
 `about_to_show()` before opening. Replaced or removed menus are destroyed so a
 stale menu cannot block the fallback. D-Bus errors are logged without stopping
 the panel. System packages and Battle.net files are unchanged.
@@ -179,6 +180,22 @@ replacement/removal, and unchanged left/middle clicks. They also verify that
 the original handler fails the regression check. After restarting only the bar,
 right-click Battle.net and an app with an exported menu, such as Slack. Menu
 placement and interaction still need a live desktop check.
+
+For the Wine Battle.net item only, `battlenet-tray-menu.py` resolves the tray
+service's Unix PID and looks for one matching Wine popup near the requested
+position. Discovery stops after two seconds. The helper focuses that popup once
+and sends Escape directly to its X11 window on normal focus loss. This handles
+Battle.net menus which otherwise remain open after clicking a Wayland app.
+It never injects a global key, activates the hidden launcher, or grabs input.
+It exits when the popup hides or closes; a per-process lock prevents duplicate
+watchers. This workaround requires `python-xlib` and `python-gobject` and applies
+to the XWayland launcher, not native Wine Wayland menus. Outside clicks that do
+not transfer focus (for example on some non-focusable surfaces) remain a limit.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/battlenet-tray-menu.test.py` for
+isolated target-filtering, focus-loss, lifecycle, and directed-Escape checks.
+The live check confirmed a menu at `y=53` below a 51-pixel bar and dismissal
+when its X11 focus changed to `None`, as happens when selecting a Wayland app.
 
 # HyprPanel tray compatibility
 

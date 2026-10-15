@@ -143,6 +143,18 @@ forwarding, the AppRun directory lookup using Bash and a mock binary, and
 prepare-only behavior. Does not launch Archon or use the desktop
 bus; login persistence requires a live quit-and-relaunch check.
 
+# Battle.net tray popup checks
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/battlenet-tray-menu.test.py
+```
+
+Requires Python 3, `python-xlib`, and PyGObject. Uses mock windows and connections;
+it never connects to X11 or D-Bus. Checks popup owner/style/geometry filtering,
+focus-loss dismissal, unmap cleanup, and Escape delivery to the popup only.
+The panel launcher suite checks the bar-bottom anchor and Battle.net-only helper
+launch. Actual menu placement and outside-click behavior need a Linux session.
+
 # HyprPanel tray checks
 
 Run all three suites from the repository root:

@@ -121,8 +121,11 @@ replacements = {
             // itemId is the bus name plus object path, not the app's display id.
             const separator = item.itemId.indexOf("/");
             if (separator < 1) return;
-            const [x, y] = self.get_window().get_root_coords(
+            const [x] = self.get_window().get_root_coords(
               Math.round(event.x), Math.round(event.y));
+            const bar = self.get_toplevel();
+            const [, y] = bar.get_window().get_root_coords(
+              0, bar.get_allocated_height() + 2);
             Gio.DBus.session.call(
               item.itemId.slice(0, separator), item.itemId.slice(separator),
               "org.kde.StatusNotifierItem", "ContextMenu",
@@ -131,6 +134,12 @@ replacements = {
               (connection, result) => {
                 try {
                   connection.call_finish(result);
+                  if (item.title === "Battle.net" && item.id.startsWith("wine-")) {
+                    execAsync(["python3", "-B",
+                      GLib.get_home_dir() + "/.config/hypr/scripts/battlenet-tray-menu.py",
+                      item.itemId.slice(0, separator), String(x), String(y)
+                    ]).catch(console.error);
+                  }
                 } catch (error) {
                   console.error(`Tray context menu failed for ${item.id}: ${error.message}`);
                 }

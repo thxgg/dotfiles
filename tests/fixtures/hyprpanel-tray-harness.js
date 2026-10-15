@@ -23,7 +23,8 @@ const isPrimaryClick = event => event.button === 1;
 const isSecondaryClick = event => event.button === 3;
 const isMiddleClick = event => event.button === 2;
 const SystemUtilities = { notify: value => calls.push(['notify', value]) };
-const GLib = { Variant: class { constructor(type, value) {
+const execAsync = args => { calls.push(['exec', args]); return Promise.resolve(''); };
+const GLib = { get_home_dir: () => '/mock/home', Variant: class { constructor(type, value) {
   this.type = type; this.value = value;
 } } };
 const Gio = { DBusCallFlags: { NONE: 0 }, DBus: { session: {
@@ -37,7 +38,13 @@ const item = {
   activate: (...args) => calls.push(['activate', ...args]),
   about_to_show: () => calls.push('about'),
 };
-const self = { get_window: () => ({ get_root_coords: (x, y) => [x + 100, y + 200] }) };
+const self = {
+  get_window: () => ({ get_root_coords: (x, y) => [x + 100, y + 200] }),
+  get_toplevel: () => ({
+    get_window: () => ({ get_root_coords: (x, y) => [x, y + 180] }),
+    get_allocated_height: () => 51,
+  }),
+};
 const button = MenuEntry({ item, child: 'icon' });
 const click = number => button.onClick(self, { button: number, x: 10.4, y: 20.6 });
 click(1);
@@ -49,9 +56,14 @@ const request = calls.pop();
 assert.equal(request?.[0], 'dbus', 'missing exported menu must call ContextMenu');
 assert.deepEqual(request.slice(1, 5), [':1.42', '/custom/StatusNotifierItem', 'org.kde.StatusNotifierItem', 'ContextMenu']);
 assert.equal(request[5].type, '(ii)');
-assert.deepEqual(request[5].value, [110, 221]);
+assert.deepEqual(request[5].value, [110, 233]);
 assert.deepEqual(request.slice(6, 10), [null, 0, 2000, null]);
 request[10]({ call_finish: value => assert.equal(value, 'reply') }, 'reply');
+assert.equal(calls.length, 0, 'other tray items must not spawn the Wine helper');
+item.title = 'Battle.net';
+request[10]({ call_finish() {} }, 'reply');
+assert.deepEqual(calls.pop(), ['exec', ['python3', '-B',
+  '/mock/home/.config/hypr/scripts/battlenet-tray-menu.py', ':1.42', '110', '233']]);
 const errors = [];
 const originalError = console.error;
 console.error = message => errors.push(message);
