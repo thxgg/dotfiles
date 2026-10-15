@@ -88,7 +88,12 @@ startup, empty/special workspace restoration, fullscreen versus maximized state,
 game close/move, multiple monitors, manual visibility preferences, bar recreation,
 query failures, stale results, and shutdown cleanup. The generated-runtime checks
 require the upstream auto-hide initialization target exactly once.
-It does not verify real Astal signal timing, GTK rendering, or Wayland input regions.
+The tray fixture checks native menu refresh, the Wine `ContextMenu` fallback,
+D-Bus destination and coordinates, asynchronous failures, menu replacement and
+removal, and unchanged left/middle clicks. The original handler must fail the
+same regression check. Changed or duplicated patch targets must trigger fallback.
+It does not verify real Astal signal timing, GTK rendering, menu placement, or
+Wayland input regions.
 
 # Hyprland exclusive workspace checks
 

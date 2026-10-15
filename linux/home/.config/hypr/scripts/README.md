@@ -162,6 +162,24 @@ keyring selection, argument forwarding, the AppRun directory lookup with a mock
 binary, and prepare-only behavior without desktop
 access. Login persistence still needs the quit-and-relaunch check above.
 
+# Wine tray context menus
+
+Battle.net under Wine exposes the StatusNotifierItem `ContextMenu` method but
+no DBusMenu model. `start-hyprpanel.sh` patches the private panel runtime to call
+that method asynchronously on right-click when no exported menu is available.
+It uses Astal's bus-name/object-path `itemId` and converts click coordinates to
+root coordinates. Exported GTK menus remain in use for other apps and receive
+`about_to_show()` before opening. Replaced or removed menus are destroyed so a
+stale menu cannot block the fallback. D-Bus errors are logged without stopping
+the panel. System packages and Battle.net files are unchanged.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-panel-launcher.test.py`.
+The mocked checks cover menu dispatch, coordinates, asynchronous errors, menu
+replacement/removal, and unchanged left/middle clicks. They also verify that
+the original handler fails the regression check. After restarting only the bar,
+right-click Battle.net and an app with an exported menu, such as Slack. Menu
+placement and interaction still need a live desktop check.
+
 # HyprPanel tray compatibility
 
 Slack 4.52.155 registers a complete D-Bus bus-name/object-path pair. The installed

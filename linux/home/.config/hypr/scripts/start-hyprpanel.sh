@@ -100,6 +100,42 @@ import sys
 runtime_path = Path(sys.argv[1])
 source = runtime_path.read_text()
 replacements = {
+    # Wine exposes ContextMenu without a DBusMenu model. Keep native menus, but
+    # call the item's protocol method when there is no exported menu to render.
+    '''      if (menuModel === null) {
+        return console.error(`Menu Model not found for ${item.id}`);
+      }
+      if (actionGroup === null) {
+        return console.error(`Action Group not found for ${item.id}`);
+      }
+      menu = createMenu(menuModel, actionGroup);''':
+        '''      menu?.destroy();
+      menu = undefined;
+      if (menuModel === null || actionGroup === null) return;
+      menu = createMenu(menuModel, actionGroup);''',
+    '''          menu?.popup_at_widget(self, Gdk.Gravity.NORTH, Gdk.Gravity.SOUTH, null);''':
+        '''          if (menu) {
+            item.about_to_show();
+            menu.popup_at_widget(self, Gdk.Gravity.NORTH, Gdk.Gravity.SOUTH, null);
+          } else {
+            // itemId is the bus name plus object path, not the app's display id.
+            const separator = item.itemId.indexOf("/");
+            if (separator < 1) return;
+            const [x, y] = self.get_window().get_root_coords(
+              Math.round(event.x), Math.round(event.y));
+            Gio.DBus.session.call(
+              item.itemId.slice(0, separator), item.itemId.slice(separator),
+              "org.kde.StatusNotifierItem", "ContextMenu",
+              new GLib.Variant("(ii)", [x, y]), null,
+              Gio.DBusCallFlags.NONE, 2000, null,
+              (connection, result) => {
+                try {
+                  connection.call_finish(result);
+                } catch (error) {
+                  console.error(`Tray context menu failed for ${item.id}: ${error.message}`);
+                }
+              });
+          }''',
     # Replace the focused-client auto-hide subscriptions with one event controller.
     '  autoHide2.initialize();':
         '''  startWoWBarVisibility({
@@ -183,7 +219,7 @@ PY
 # Upstream builds can change their generated symbols. Keep the bar available
 # instead of aborting login when an optional compatibility patch no longer fits.
 if ! runtime_file="$(prepare_lua_compatible_runtime)"; then
-    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions, network icon recovery, and fullscreen WoW bar hiding may be unavailable.\n' >&2
+    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions, network icon recovery, tray context menus, and fullscreen WoW bar hiding may be unavailable.\n' >&2
     exec /usr/share/hyprpanel/hyprpanel-app
 fi
 

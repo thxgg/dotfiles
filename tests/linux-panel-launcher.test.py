@@ -100,7 +100,8 @@ const commands = [
 ];
 '''
         network = (ROOT / 'tests/fixtures/hyprpanel-network.js').read_text()
-        source += network + '\n  autoHide2.initialize();\n'
+        tray = (ROOT / 'tests/fixtures/hyprpanel-tray.js').read_text()
+        source += network + tray + '\n  autoHide2.initialize();\n'
         # Apply the production patch dictionary independently to the fixture.
         patcher = SOURCE.split("<<'PY' || return 1\n", 1)[1].split('\nPY', 1)[0]
         import ast
@@ -109,9 +110,11 @@ const commands = [
                             if isinstance(n, ast.Assign)
                             and any(isinstance(t, ast.Name) and t.id == 'replacements' for t in n.targets))
         patched_network = network
+        patched_tray = tray
         for old, new in replacements.items():
             patched_network = patched_network.replace(old, new)
-        expected += patched_network + '\n' + replacements['  autoHide2.initialize();'] + '\n'
+            patched_tray = patched_tray.replace(old, new)
+        expected += patched_network + patched_tray + '\n' + replacements['  autoHide2.initialize();'] + '\n'
         expected = self.visibility + '\n' + expected
         launcher = self.encoded_launcher(source)
         runtime = self.root / 'hyprpanel-ags.js'
@@ -126,7 +129,16 @@ const commands = [
         original = subprocess.run(['node', '-e', harness.replace('/* NETWORK_SOURCE */', network)],
                                   capture_output=True, text=True, timeout=5)
         self.assertNotEqual(original.returncode, 0)
+        tray_harness = (ROOT / 'tests/fixtures/hyprpanel-tray-harness.js').read_text()
+        for fixture, succeeds in ((patched_tray, True), (tray, False)):
+            result = subprocess.run(
+                ['node', '-e', tray_harness.replace('/* TRAY_SOURCE */', fixture)],
+                env=self.env, capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode == 0, succeeds, result.stderr)
         # A changed or duplicated target must not generate a partial patch.
+        self.check_launcher(self.encoded_launcher(source.replace(
+            'menu?.popup_at_widget(self,', 'menu?.popup_at_pointer(self,')))
+        self.check_launcher(self.encoded_launcher(source + tray))
         self.check_launcher(self.encoded_launcher(source.replace('  autoHide2.initialize();', '  autoHide3.initialize();')))
         self.check_launcher(self.encoded_launcher(source + '\n  autoHide2.initialize();'))
         self.check_launcher(self.encoded_launcher(source.replace('    wiredIcon.set(icon14);', '    wiredIcon.set(newIcon);')))
