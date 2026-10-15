@@ -6,6 +6,11 @@ function M.is_game(window)
     return window ~= nil and window.initial_title == "World of Warcraft"
 end
 
+local function is_workspace_exempt(window)
+    -- Keep the capture overlay on the game workspace so it can keep drawing.
+    return window.class == "flameshot"
+end
+
 function M.setup(hl, main_monitor)
     local locations = {}
     local pending = {}
@@ -65,7 +70,8 @@ function M.setup(hl, main_monitor)
     local function evict(game, destination)
         local id = workspace_id(game)
         for _, window in ipairs(windows(id)) do
-            if window.address ~= game.address and not M.is_game(window) then
+            if window.address ~= game.address and not M.is_game(window)
+                and not is_workspace_exempt(window) then
                 move(window, destination, false)
             end
         end
@@ -73,8 +79,21 @@ function M.setup(hl, main_monitor)
     end
 
     local function handle(item)
+        if item.kind == "capture_closed" then
+            if not range(item.workspace) then return end
+            local game
+            for _, window in ipairs(windows(item.workspace)) do
+                if window.mapped and window.address ~= item.address then
+                    -- Do not hide another capture overlay that is still open.
+                    if is_workspace_exempt(window) then return end
+                    if M.is_game(window) then game = window end
+                end
+            end
+            if game then fullscreen(game) end
+            return
+        end
         local window = item.window
-        if not window.mapped or not window.address then return end
+        if not window.mapped or not window.address or is_workspace_exempt(window) then return end
         local id = workspace_id(window)
         if item.kind == "open" and M.is_game(window) then
             local monitor = hl.get_monitor(main_monitor) or window.monitor or hl.get_active_monitor()
@@ -150,7 +169,13 @@ function M.setup(hl, main_monitor)
         if M.is_game(window) and old == destination.id then return end
         enqueue({ kind = "move", window = window, from = old, to = destination.id })
     end)
-    hl.on("window.close", function(window) locations[window.address] = nil end)
+    hl.on("window.close", function(window)
+        locations[window.address] = nil
+        if is_workspace_exempt(window) then
+            -- Save values before teardown; restore after the close event finishes.
+            enqueue({ kind = "capture_closed", workspace = workspace_id(window), address = window.address })
+        end
+    end)
     hl.on("config.reloaded", function()
         for _, window in ipairs(hl.get_windows()) do
             if M.is_game(window) then

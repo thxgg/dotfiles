@@ -19,6 +19,11 @@ Wine apps keep their normal controls.
 - A new ordinary window, or one moved onto WoW's workspace, moves silently to the
   next numbered workspace. That workspace can already contain windows. `5` wraps
   to `1`; `15` wraps to `11`. A workspace containing another WoW window is skipped.
+- Flameshot windows (`class = flameshot`) are exempt from workspace eviction.
+  Opening or moving the capture overlay does not force WoW back into fullscreen.
+  The exemption also applies when WoW launches, moves, or the config reloads.
+  After the last Flameshot window on that workspace closes, the policy restores
+  WoW's fullscreen state on a deferred timer, without moving or focusing it.
 - Super+left/right mouse drag and Super+F do nothing for WoW. Mouse guards use the
   pointer monitor's active workspace and window geometry, not keyboard focus.
   A normal drag's release is still forwarded if the pointer ends over WoW.
@@ -84,7 +89,11 @@ Manual desktop checks:
 5. Check the other monitor and the special scratchpad. Ordinary windows must
    retain their mouse controls even when WoW exists at the same screen coordinates
    on an inactive workspace.
-6. Check `hyprctl configerrors` and the compositor log for Lua callback errors.
+6. Start Flameshot over WoW. Drag a new selection and confirm that the outline
+   updates, then press Ctrl+C and check the copied region. Repeat a capture to
+   check that the previous selection does not remain visually frozen. Confirm
+   that WoW returns to fullscreen after both Ctrl+C and Escape close the overlay.
+7. Check `hyprctl configerrors` and the compositor log for Lua callback errors.
 
 The live config is a repository symlink on this machine. Hyprland can reload it
 when the file changes; no Stow deployment is needed for this existing link.

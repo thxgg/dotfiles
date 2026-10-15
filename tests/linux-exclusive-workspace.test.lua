@@ -146,6 +146,91 @@ test("ordinary new and incoming windows go to the next occupied workspace", func
     assert(game.fullscreen == 2)
 end)
 
+test("Flameshot open and move do not relocate it or force game fullscreen", function()
+    for _, event in ipairs({ "open", "move" }) do
+        local f = fixture()
+        f.add(3, true)
+        f.adopt()
+        local capture = f.add(event == "open" and 3 or 4)
+        capture.class = "flameshot"
+        capture.floating = true
+        capture.pinned = true
+        if event == "open" then f.open(capture) else f.move(capture, 3); f.flush() end
+        at(capture, 3)
+        assert(#f.calls == 0 and f.warnings == 0)
+    end
+end)
+
+test("Flameshot survives game launch move and reload while ordinary apps leave", function()
+    for _, event in ipairs({ "open", "move", "reload" }) do
+        local f = fixture()
+        local game = f.add(event == "reload" and 3 or 2, true)
+        if event == "move" then f.adopt() end
+        local capture, app = f.add(3), f.add(3)
+        capture.class = "flameshot"
+        capture.floating = true
+        capture.pinned = true
+        if event == "open" then
+            f.open(game)
+        elseif event == "move" then
+            f.move(game, 3); f.flush()
+        else
+            f.adopt()
+        end
+        at(capture, 3); at(game, 3); at(app, event == "move" and 2 or 4)
+        assert(capture.floating and capture.pinned and f.warnings == 0)
+    end
+end)
+
+test("closing Flameshot defers fullscreen restoration on its workspace", function()
+    local f = fixture()
+    local game, other = f.add(3, true), f.add(12, true)
+    f.adopt()
+    local capture = f.add(3)
+    capture.class = "flameshot"
+    f.open(capture)
+    game.fullscreen = 0 -- the capture window took fullscreen ownership
+    other.fullscreen = 0
+    f.emit("window.close", capture)
+    assert(#f.calls == 0 and game.fullscreen == 0)
+    capture.mapped = false
+    capture.workspace = nil -- close processing must use the saved workspace ID
+    f.flush()
+    assert(game.fullscreen == 2 and other.fullscreen == 0 and #f.calls == 1)
+    at(game, 3)
+end)
+
+test("closing Flameshot waits for another capture window to close", function()
+    local f = fixture()
+    local game = f.add(3, true)
+    local first, second = f.add(3), f.add(3)
+    first.class = "flameshot"
+    second.class = "flameshot"
+    f.emit("window.close", first)
+    first.mapped = false
+    f.flush()
+    assert(game.fullscreen == 0 and #f.calls == 0)
+    f.emit("window.close", second)
+    second.mapped = false
+    f.flush()
+    assert(game.fullscreen == 2 and #f.calls == 1)
+end)
+
+test("capture close ignores missing games and ordinary window close", function()
+    for _, state in ipairs({ "moved", "closed", "absent", "ordinary" }) do
+        local f = fixture()
+        local game = state ~= "absent" and f.add(3, true) or nil
+        local capture = f.add(3)
+        capture.class = state == "ordinary" and "app" or "flameshot"
+        f.emit("window.close", capture)
+        capture.mapped = false
+        if state == "moved" then game.workspace = { id = 4 } end
+        if state == "closed" then game.mapped = false end
+        f.flush()
+        assert(#f.calls == 0 and f.warnings == 0)
+    end
+end)
+
 test("eviction wraps 5 to 1 and 15 to 11", function()
     for _, id in ipairs({ 5, 15 }) do
         local f = fixture()
