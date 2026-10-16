@@ -204,8 +204,13 @@ Slack 4.52.155 registers a complete D-Bus bus-name/object-path pair. The install
 prevents HyprPanel from loading Slack's icon.
 
 `build-tray-compat.sh` builds a private library from the installed Astal revision.
-It changes only the registration parser. It keeps the app's original icon,
-including activity badges, and its tray menu. It does not change system packages.
+It fixes the registration parser and owner-change cleanup. The installed watcher
+stores entries by registered bus name but tries to remove them by unique owner
+name. This leaves stale icons after Slack or another named tray app quits.
+The patch removes entries by the changed bus name when its owner disconnects,
+releases the name, or is replaced. It accepts owner-change signals only from
+D-Bus itself. It keeps the app's original icon, activity badges, and tray menu.
+It does not change system packages.
 
 ## Build
 
@@ -237,9 +242,17 @@ dbus-run-session -- env TRAY_TEST_ISOLATED=1 \
 ```
 
 The test uses an isolated D-Bus session. It checks bare bus names, sender-relative
-object paths, and complete bus-name/object-path pairs. It does not contact Slack.
+object paths, and complete bus-name/object-path pairs. It also checks disconnects,
+name release, owner replacement, repeated registration, re-registration, removal
+signals, and preservation of unrelated entries. It does not contact Slack.
 
-Restart only the bar, without closing apps:
+If the bar runs in the `hyprpanel-session.service` user unit, restart only that unit:
+
+```sh
+systemctl --user restart hyprpanel-session.service
+```
+
+Otherwise, restart only the bar, without closing apps:
 
 ```sh
 astal --instance hyprpanel --quit

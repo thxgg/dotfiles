@@ -233,7 +233,8 @@ if ! runtime_file="$(prepare_lua_compatible_runtime)"; then
 fi
 
 # The installed Astal watcher cannot parse Electron's bus-name/object-path
-# registrations. Use the private build only while the system library matches.
+# registrations or clean up named entries on exit. Use the private build only
+# while the system library matches.
 tray_compat="${XDG_CACHE_HOME:-$HOME/.cache}/hyprpanel/tray-compat"
 if [[ -r "$tray_compat/system-library.sha256" ]]; then
     if sha256sum --check --status "$tray_compat/system-library.sha256" \

@@ -174,7 +174,10 @@ dbus-run-session -- env TRAY_TEST_ISOLATED=1 PYTHONDONTWRITEBYTECODE=1 \
   and the Gio/GLib introspection bindings. It mocks desktop commands and D-Bus
   connections; it does not start a watcher on the desktop session bus.
 - `hyprpanel-tray-compat.py` checks bare bus names, sender-relative object paths,
-  and complete bus-name/object-path registrations. It requires `dbus-run-session`,
+  and complete bus-name/object-path registrations. It also checks cleanup and
+  removal signals after disconnects, name release, and owner replacement, plus
+  repeated registration, re-registration, and preservation of unrelated entries.
+  It requires `dbus-run-session`,
   Python 3 with PyGObject, and the private AstalTray 0.1 library and typelib.
   See the [private build instructions](../linux/home/.config/hypr/scripts/README.md#build).
   The test starts a watcher. Always use the isolated D-Bus command above; do not
