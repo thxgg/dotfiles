@@ -20,7 +20,7 @@ When no useful scope is supplied:
 2. Infer the scope only when the repository is small or one area clearly dominates the request.
 3. Otherwise ask one question that lets the user choose the scope.
 
-Read `../coding-standards/SKILL.md`. Search the boundary and its ancestors through the repository root for `CONTEXT.md`, `CONTEXT-MAP.md`, equivalent domain-language files, and decision indexes. Search repository documentation and ADR collections for decisions that name or govern the boundary. Inspect every governing source found, plus precedent in the scoped code, tests, and evidence halo.
+Read `../coding-standards/SKILL.md`. Search the boundary and its ancestors through the repository root for `GLOSSARY.md`, `GLOSSARY-MAP.md`, legacy `CONTEXT.md` and `CONTEXT-MAP.md`, equivalent domain-language files, and decision indexes. Follow map links to the relevant contexts. If both conventions exist, follow documented ownership and report unresolved conflicts rather than silently choosing one. Search repository documentation and ADR collections for decisions that name or govern the boundary. Inspect every governing source found, plus precedent in the scoped code, tests, and evidence halo.
 
 **Completion criterion:** The candidate boundary and any evidence halo are explicit; the coding standards are loaded; the prescribed context and decision locations have been searched; every governing source found has been inspected; and relevant precedent has been identified or its absence recorded.
 
@@ -94,7 +94,7 @@ Otherwise, return concise candidate cards in ranked order. Cite enough represent
 
 Use a small current/proposed ASCII diagram when call flow, data flow, ownership, or runtime topology is clearer visually than in prose.
 
-Suggest an exact `CONTEXT.md` clarification only for stable domain language. Mention an ADR conflict only when concrete friction justifies revisiting it.
+Suggest an exact clarification to the applicable `GLOSSARY.md` or legacy `CONTEXT.md` only for stable domain language. Preserve the repository's existing convention; do not propose a rename or duplicate glossary merely to match upstream naming. Mention an ADR conflict only when concrete friction justifies revisiting it.
 
 End with:
 

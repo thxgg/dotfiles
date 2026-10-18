@@ -15,8 +15,16 @@ The following skills retain their baseline from
 
 ## Matt Pocock
 
-`domain-modeling` matches `skills/engineering/domain-modeling` at
+`domain-modeling` retains its `skills/engineering/domain-modeling` baseline at
 [`mattpocock/skills@c55ee46`](https://github.com/mattpocock/skills/commit/c55ee46073ed923f86ce59a5eb3b6d895095d1b7).
+It selectively adopts the glossary naming convention from
+[`d80fa0f`](https://github.com/mattpocock/skills/commit/d80fa0f4ebe0c5714af0adf8670336065233ecc6),
+with local compatibility rules: read both `GLOSSARY.md`/`GLOSSARY-MAP.md` and
+legacy `CONTEXT.md`/`CONTEXT-MAP.md`, preserve existing paths and ownership,
+and ask before writing when authority is unclear or definitions conflict.
+New repositories default to glossary names. `CONTEXT-FORMAT.md` remains the
+shared format resource to preserve existing links. `tdd` and the retained
+`improve-codebase-architecture` use the same dual-convention discovery rules.
 
 The remaining Matt Pocock-derived skills retain their baseline from
 [`mattpocock/skills@d574778`](https://github.com/mattpocock/skills/commit/d574778f94cf620fcc8ce741584093bc650a61d3)
@@ -36,13 +44,37 @@ including staged, unstaged, and in-scope untracked changes in the latter.
 `grilling` retains one-question-at-a-time interviews rather than upstream's
 batched questions. Do not replace these customizations during an upstream sync.
 
+Selective updates reviewed against `mattpocock/skills@49dd158`:
+
+- `code-review` adopts the explicit standards-file search from
+  [`3da8c01`](https://github.com/mattpocock/skills/commit/3da8c01116264675eeefbd6e9d59c734de9095cc),
+  without replacing local review scopes, captured evidence, tracker inference,
+  or portable delegation.
+- `tdd` adopts the one-line explanation of what each proposed seam catches and
+  misses from [`3f59913`](https://github.com/mattpocock/skills/commit/3f599139104dfceabc7754eeb91319802f85e042).
+  Its testing overrides remain; the new `codebase-design` dependency is not adopted.
+- `grilling`, `grill-me`, and `grill-with-docs` remain unchanged by owner decision.
+
+These are partial updates, not whole-skill baseline advances.
+
 ## Anti-slop
 
 `install-anti-slop` matches `skills/install-anti-slop` at
-[`dmmulroy/anti-slop@c44ef22`](https://github.com/dmmulroy/anti-slop/commit/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b),
+[`dmmulroy/anti-slop@13909c9`](https://github.com/dmmulroy/anti-slop/commit/13909c9e07590f5a85d93c62712259fe14a883f7),
 except for the retained `disable-model-invocation: true` frontmatter flag.
-Its previous baseline was reconstructed as
+The update from [`c44ef22`](https://github.com/dmmulroy/anti-slop/commit/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b)
+keeps consecutive single-line bindings grouped, including module-level exports.
+Leading comments still start a separate group; existing blank lines remain.
+The earlier baseline was reconstructed as
 [`446268e`](https://github.com/dmmulroy/anti-slop/commit/446268e5d15baa968eaec669ff65358d36ae6259).
+
+The owner previously excluded `require-readable-spacing` because it split these
+binding groups. This update changes the skill bundle only. Preserve existing
+project exclusions unless re-enabling the rule is explicitly requested.
+Validation used the upstream pinned dependencies in a temporary checkout:
+`pnpm check`, the new RuleTester suite against the installed bundle (and its
+expected failure against the old bundle), CLI autofix stability, and installer
+overwrite protection. No project lint configuration or dependency was changed.
 
 ## Emil Kowalski
 
@@ -77,7 +109,7 @@ The upstream MIT license is included as `LICENSE.emil-kowalski`.
 ## Matt Silverlock
 
 `wow-addon-development` copies `SKILL.md` and all seven references unchanged from
-[`elithrar/dotfiles@4b38887`](https://github.com/elithrar/dotfiles/commit/4b38887ec969bbc1c97c1434732fac97ea7ff0dd),
+[`elithrar/dotfiles@1e94024`](https://github.com/elithrar/dotfiles/commit/1e9402420916e8bb5e4ae7b366ee0694b8d3aca7),
 under `.agents/skills/wow-addon-development`. The upstream MIT license is included
 as `wow-addon-development/LICENSE`.
 

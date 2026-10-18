@@ -1,4 +1,6 @@
-# CONTEXT.md Format
+# Glossary Format (`GLOSSARY.md` or legacy `CONTEXT.md`)
+
+This format supports both conventions. Keep this resource's legacy filename so existing skill links continue to work. Select the target file using the convention rules in [SKILL.md](./SKILL.md); do not rename an existing project file merely to match upstream.
 
 ## Structure
 
@@ -31,9 +33,9 @@ _Avoid_: Client, buyer, account
 
 ## Single vs multi-context repos
 
-**Single context (most repos):** One `CONTEXT.md` at the repo root.
+**Single context (most repos):** One `GLOSSARY.md` or legacy `CONTEXT.md` at the repo root.
 
-**Multiple contexts:** A `CONTEXT-MAP.md` at the repo root lists the contexts, where they live, and how they relate to each other:
+**Multiple contexts:** A `GLOSSARY-MAP.md` or legacy `CONTEXT-MAP.md` at the repo root lists the contexts, where they live, and how they relate to each other. Follow its actual links. This example uses the legacy convention; use `GLOSSARY.md` paths and a `GLOSSARY-MAP.md` file for a new repository without an established convention:
 
 ```md
 # Context Map
@@ -53,8 +55,9 @@ _Avoid_: Client, buyer, account
 
 The skill infers which structure applies:
 
-- If `CONTEXT-MAP.md` exists, read it to find contexts
-- If only a root `CONTEXT.md` exists, single context
-- If neither exists, create a root `CONTEXT.md` lazily when the first term is resolved
+- If `GLOSSARY-MAP.md` or `CONTEXT-MAP.md` exists, read it to find contexts and preserve the linked paths.
+- If only a root `GLOSSARY.md` or `CONTEXT.md` exists, use that file for the single context.
+- If both conventions exist for the same context, inspect both and follow documented ownership. Ask before writing if authority is unclear or definitions conflict. Do not create duplicate glossaries or rename existing files.
+- If neither exists, create a root `GLOSSARY.md` lazily when the first term is resolved, unless repository instructions establish a different convention.
 
 When multiple contexts exist, infer which one the current topic relates to. If unclear, ask.
