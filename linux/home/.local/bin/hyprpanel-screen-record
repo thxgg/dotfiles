@@ -4,6 +4,47 @@ set -euo pipefail
 
 upstream_script="/usr/share/hyprpanel/scripts/screen_record.sh"
 
+if [[ "${1:-}" == "start" ]]; then
+    # Scope this encoder override to the upstream Bash script and its children.
+    # Keep its selection, audio, output path, and recording-state handling.
+    wf-recorder() {
+        local filter="" arg
+        local -a args=()
+        while (( $# )); do
+            arg="$1"
+            shift
+            case "$arg" in
+                -F|--filter)
+                    if (( $# == 0 )); then
+                        printf 'Missing recorder filter argument\n' >&2
+                        return 1
+                    fi
+                    filter+="${filter:+,}$1"
+                    shift
+                    ;;
+                --filter=*) filter+="${filter:+,}${arg#*=}" ;;
+                *) args+=("$arg") ;;
+            esac
+        done
+
+        # RGB H.264 is poorly supported by players. Convert pixels, not just tags:
+        # sRGB screen input -> limited-range BT.709 YUV, retaining the sRGB transfer.
+        # Pad by at most one pixel so odd-sized regions work with 4:2:0.
+        filter+="${filter:+,}pad=ceil(iw/2)*2:ceil(ih/2)*2"
+        filter+=",scale=in_range=pc:out_range=tv:out_color_matrix=bt709"
+        filter+=",format=yuv420p"
+        filter+=",setparams=range=limited:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709"
+        # wf-recorder defaults its codec context to full range. Override it too.
+        # Last codec/filter options win over upstream's libx264rgb selection.
+        command wf-recorder "${args[@]}" \
+            -c libx264 -x yuv420p \
+            -p color_range=tv -p colorspace=bt709 \
+            -p color_primaries=bt709 -p color_trc=iec61966-2-1 \
+            -F "$filter"
+    }
+    export -f wf-recorder
+fi
+
 if [[ "${1:-}" != "stop" ]]; then
     exec "$upstream_script" "$@"
 fi

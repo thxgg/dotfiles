@@ -1,4 +1,20 @@
-# Recording clipboard and notifications
+# Recording format, clipboard, and notifications
+
+`hyprpanel-screen-record` keeps upstream selection, audio, output paths, and
+recording state. On start, it exports a Bash function only to the upstream script
+and its children. This overrides upstream's RGB H.264 encoder with `libx264` and
+`yuv420p`, which have broader player support. It combines any upstream rotation
+filter with padding to even dimensions and an explicit full-range RGB to
+limited-range BT.709 YUV conversion. It sets matching frame and codec metadata,
+including BT.709 primaries and the sRGB transfer function of the desktop input.
+This preserves SDR screen colors without falsely labelling them as BT.709 gamma.
+It is not an HDR tone-mapping pipeline. Monitor profiles remain unchanged.
+
+The override depends on upstream using Bash and invoking `wf-recorder` by name.
+After a HyprPanel update, verify those assumptions and inspect a fresh clip with
+`ffprobe -v error -show_streams <recording.mp4>`. Expect `pix_fmt=yuv420p`,
+`color_range=tv`, `color_space=bt709`, `color_primaries=bt709`, and
+`color_transfer=iec61966-2-1`. Existing clips are not modified.
 
 Stopping a recording waits for the recorder to exit, then copies a `text/uri-list`
 file reference with `wl-copy`. Applications that accept file paste can use this
@@ -23,7 +39,13 @@ Portable tests:
 PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-recording.test.py
 ```
 
-On Linux, record a short video, stop it, and test file paste in a file manager
+The suite mocks recorder launches. When FFmpeg and ffprobe are installed, it also
+encodes synthetic SDR color swatches, checks metadata and odd-size padding, and
+compares decoded RGB values. It never captures the desktop.
+
+On Linux, record a short video and compare its colors with a screenshot in the
+player that showed the problem. Test a region with odd dimensions and a rotated
+monitor if available. Stop it, then test file paste in a file manager
 and Copy Path in a text editor. Repeat after starting another recording to check
 that the earlier notification still opens the original file.
 

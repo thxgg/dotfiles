@@ -75,6 +75,10 @@ commands. The panel launcher tests also require `awk`, `base64 --decode`, and No
 Their shell subprocesses use a temporary `HOME` and a minimal environment. They
 do not inherit `BASH_ENV`, exported shell functions, or desktop session variables.
 The recording tests use a temporary recording state file and a mock action helper.
+They also check the start-time encoder override and rotation-filter composition.
+If FFmpeg and ffprobe are available, an offline synthetic-image encode checks
+H.264/YUV420 output, SDR color metadata, odd-size padding, and decoded colors.
+This optional encode does not use Wayland or capture the desktop.
 The panel tests check both fallback failures and the complete generated patch.
 They also use a mock wallpaper daemon to check detached startup, pipe closure,
 restart reuse, argument forwarding, startup failure, and missing runtime state.
