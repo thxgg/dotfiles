@@ -30,7 +30,10 @@ class NightLight(unittest.TestCase):
             with self.subTest(state=state):
                 code, output, calls = self.invoke('status', [state])
                 self.assertEqual(code, 0)
-                self.assertEqual(json.loads(output), {'text': label})
+                self.assertEqual(json.loads(output), {'text': label, 'alt': label.lower()})
+                config = json.loads((HYPR.parent / 'hyprpanel/modules.json').read_text())['custom/nightlight']
+                expected = '\U000f06e8' if state == 'true' else '\U000f1a4c'
+                self.assertEqual(config['icon'][json.loads(output)['alt']], expected)
                 self.assertEqual(calls[0].args[0], ['hyprctl', 'hyprsunset', 'identity', 'get'])
 
     def test_toggle_uses_ipc_not_process_control(self):
@@ -56,7 +59,7 @@ class NightLight(unittest.TestCase):
     def test_unavailable_status(self):
         code, output, _ = self.invoke('status', ['invalid'])
         self.assertEqual(code, 1)
-        self.assertEqual(json.loads(output)['text'], 'Unavailable')
+        self.assertEqual(json.loads(output), {'text': 'Unavailable', 'alt': 'unavailable'})
         for error in [FileNotFoundError(), subprocess.TimeoutExpired('hyprctl', 3),
                       subprocess.CalledProcessError(1, 'hyprctl')]:
             with self.subTest(error=error):
@@ -64,7 +67,8 @@ class NightLight(unittest.TestCase):
                     output = io.StringIO()
                     with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
                         self.assertEqual(MODULE.main('status'), 1)
-                    self.assertEqual(json.loads(output.getvalue())['text'], 'Unavailable')
+                    self.assertEqual(json.loads(output.getvalue()),
+                                     {'text': 'Unavailable', 'alt': 'unavailable'})
 
     def test_schedule_and_actions(self):
         source = (HYPR / 'hyprsunset.conf').read_text()
@@ -78,6 +82,8 @@ class NightLight(unittest.TestCase):
         self.assertEqual(config['actions']['onLeftClick'], base + 'toggle')
         self.assertEqual(config['actions']['onRightClick'], base + 'reset')
         self.assertEqual(config['label'], '{text}')
+        self.assertEqual(config['icon']['unavailable'], config['icon']['default'])
+        self.assertNotEqual(config['icon']['day'], config['icon']['night'])
 
 
 if __name__ == '__main__':

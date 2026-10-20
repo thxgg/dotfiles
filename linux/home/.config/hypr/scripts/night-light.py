@@ -24,7 +24,10 @@ def main(action):
     try:
         if action == 'status':
             day = is_day()
-            print(json.dumps({'text': 'Day' if day else 'Night'}))
+            print(json.dumps({
+                'text': 'Day' if day else 'Night',
+                'alt': 'day' if day else 'night',
+            }))
         elif action == 'toggle':
             args = ('temperature', '4500') if is_day() else ('identity',)
             reply = request(*args)
@@ -38,7 +41,7 @@ def main(action):
             raise ValueError(f'Unknown action: {action}')
     except (OSError, subprocess.SubprocessError, ValueError) as error:
         if action == 'status':
-            print(json.dumps({'text': 'Unavailable'}))
+            print(json.dumps({'text': 'Unavailable', 'alt': 'unavailable'}))
         print(f'Night light: {error}', file=sys.stderr)
         return 1
     return 0

@@ -1,6 +1,11 @@
 {
   "custom/nightlight": {
-    "icon": "☾",
+    "icon": {
+      "day": "󰛨",
+      "night": "󱩌",
+      "unavailable": "",
+      "default": ""
+    },
     "label": "{text}",
     "tooltip": "Night light: 21:00–06:00 at 4500 K. Click to toggle until the next switch. Right-click to resume schedule now.",
     "execute": "python3 $HOME/.config/hypr/scripts/night-light.py status",
