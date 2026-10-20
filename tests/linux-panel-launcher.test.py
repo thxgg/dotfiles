@@ -101,7 +101,8 @@ const commands = [
 '''
         network = (ROOT / 'tests/fixtures/hyprpanel-network.js').read_text()
         tray = (ROOT / 'tests/fixtures/hyprpanel-tray.js').read_text()
-        source += network + tray + '\n  autoHide2.initialize();\n'
+        keyboard = (ROOT / 'tests/fixtures/hyprpanel-kblayout.js').read_text()
+        source += network + tray + keyboard + '\n  autoHide2.initialize();\n'
         # Apply the production patch dictionary independently to the fixture.
         patcher = SOURCE.split("<<'PY' || return 1\n", 1)[1].split('\nPY', 1)[0]
         import ast
@@ -111,10 +112,12 @@ const commands = [
                             and any(isinstance(t, ast.Name) and t.id == 'replacements' for t in n.targets))
         patched_network = network
         patched_tray = tray
+        patched_keyboard = keyboard
         for old, new in replacements.items():
             patched_network = patched_network.replace(old, new)
             patched_tray = patched_tray.replace(old, new)
-        expected += patched_network + patched_tray + '\n' + replacements['  autoHide2.initialize();'] + '\n'
+            patched_keyboard = patched_keyboard.replace(old, new)
+        expected += patched_network + patched_tray + patched_keyboard + '\n' + replacements['  autoHide2.initialize();'] + '\n'
         expected = self.visibility + '\n' + expected
         launcher = self.encoded_launcher(source)
         runtime = self.root / 'hyprpanel-ags.js'
@@ -135,7 +138,19 @@ const commands = [
                 ['node', '-e', tray_harness.replace('/* TRAY_SOURCE */', fixture)],
                 env=self.env, capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+        keyboard_harness = (ROOT / 'tests/fixtures/hyprpanel-kblayout-harness.js').read_text()
+        for fixture, succeeds in ((patched_keyboard, True), (keyboard, False)):
+            result = subprocess.run(
+                ['node', '-e', keyboard_harness.replace('/* KEYBOARD_SOURCE */', fixture)],
+                env=self.env, capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode == 0, succeeds, result.stderr)
         # A changed or duplicated target must not generate a partial patch.
+        self.check_launcher(self.encoded_launcher(source + keyboard))
+        self.check_launcher(self.encoded_launcher(source.replace(
+            '    self.label = getKeyboardLayout(devices, labelType.get());',
+            '    self.label = newLayoutHelper(devices);')))
+        self.check_launcher(self.encoded_launcher(source.replace(
+            '        "keyboard-layout"', '        "new-keyboard-signal"')))
         self.check_launcher(self.encoded_launcher(source.replace(
             'menu?.popup_at_widget(self,', 'menu?.popup_at_pointer(self,')))
         self.check_launcher(self.encoded_launcher(source + tray))

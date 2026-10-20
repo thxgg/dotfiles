@@ -77,6 +77,23 @@ isolated daemon startup, reuse, argument forwarding, and failure checks. On Linu
 check a cold daemon start and panel restart with `awww query` (or `swww query`).
 The same daemon should survive the panel restart and retain the selected image.
 
+# Keyboard layout recovery
+
+`start-hyprpanel.sh` retries the keyboard state read once per second while the
+layout label is unknown or the IPC read fails. This handles an incomplete
+keyboard state during startup without requiring a manual layout switch.
+Successful reads stop the retry. Layout and label-format events still update
+immediately. Each label owns at most one timer and cancels it on destruction.
+The patch only reads keyboard state; it never changes the active layout.
+
+Run `PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-panel-launcher.test.py`.
+The mock checks cover missing keyboards, empty and unrecognised keymaps, IPC and
+JSON errors, recovery without a layout event, event-driven updates, and timer
+cleanup. The original module must fail the recovery check. After an authorised
+panel restart, check the indicator at login and after keyboard reconnects.
+Real device timing still needs a desktop check. As with the other patches,
+changed upstream targets cause a warning and an unmodified-panel fallback.
+
 # Network icon recovery
 
 `start-hyprpanel.sh` patches the generated network helper in the private session

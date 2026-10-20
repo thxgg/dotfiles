@@ -100,6 +100,56 @@ import sys
 runtime_path = Path(sys.argv[1])
 source = runtime_path.read_text()
 replacements = {
+    # A transient missing keymap must not stay Unknown until the next switch.
+    '''    self.label = getKeyboardLayout(devices, labelType.get());
+  } catch (error) {
+    console.error(error);
+  }
+}
+var KbInput''':
+        '''    self.label = getKeyboardLayout(devices, labelType.get());
+    return !!self.label && self.label !== "Unknown" && self.label !== "Unknown Layout";
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+}
+var KbInput''',
+    '''    labelHook: (self) => {
+      useHook(
+        self,
+        hyprlandService4,
+        () => {
+          setLabel(self);
+        },
+        "keyboard-layout"
+      );
+      useHook(self, labelType, () => {
+        setLabel(self);
+      });
+    },''':
+        '''    labelHook: (self) => {
+      let retry;
+      let destroyed = false;
+      const refresh = () => {
+        retry?.cancel();
+        retry = undefined;
+        if (destroyed) return;
+        if (!setLabel(self)) {
+          retry = timeout(1000, () => {
+            retry = undefined;
+            refresh();
+          });
+        }
+      };
+      self.connect("destroy", () => {
+        destroyed = true;
+        retry?.cancel();
+        retry = undefined;
+      });
+      useHook(self, hyprlandService4, refresh, "keyboard-layout");
+      useHook(self, labelType, refresh);
+    },''',
     # Wine exposes ContextMenu without a DBusMenu model. Keep native menus, but
     # call the item's protocol method when there is no exported menu to render.
     '''      if (menuModel === null) {
@@ -228,7 +278,7 @@ PY
 # Upstream builds can change their generated symbols. Keep the bar available
 # instead of aborting login when an optional compatibility patch no longer fits.
 if ! runtime_file="$(prepare_lua_compatible_runtime)"; then
-    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions, network icon recovery, tray context menus, and fullscreen WoW bar hiding may be unavailable.\n' >&2
+    printf 'HyprPanel compatibility patches do not match this version; using the unmodified launcher. Custom workspace/recording actions, keyboard layout recovery, network icon recovery, tray context menus, and fullscreen WoW bar hiding may be unavailable.\n' >&2
     exec /usr/share/hyprpanel/hyprpanel-app
 fi
 

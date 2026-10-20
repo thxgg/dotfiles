@@ -92,6 +92,11 @@ The tray fixture checks native menu refresh, the Wine `ContextMenu` fallback,
 D-Bus destination and coordinates, asynchronous failures, menu replacement and
 removal, and unchanged left/middle clicks. The original handler must fail the
 same regression check. Changed or duplicated patch targets must trigger fallback.
+The keyboard fixture checks recovery from missing keyboards, unknown keymaps,
+IPC failures, and malformed JSON without a layout switch. It checks normal layout
+and label-format events, one retry per label, stopped polling after recovery,
+and timer cleanup on destruction. The original module must fail this check;
+changed or duplicated keyboard patch targets must trigger fallback.
 It does not verify real Astal signal timing, GTK rendering, menu placement, or
 Wayland input regions.
 
