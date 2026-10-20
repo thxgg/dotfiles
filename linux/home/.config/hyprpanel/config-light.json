@@ -394,6 +394,7 @@
         "volume",
         "network",
         "kbinput",
+        "custom/nightlight",
         "clock",
         "notifications"
       ]

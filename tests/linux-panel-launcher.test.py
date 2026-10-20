@@ -50,6 +50,20 @@ class PanelFallback(unittest.TestCase):
                     'hyprpanel -q; "$HOME/.config/hypr/scripts/start-hyprpanel.sh"',
                 )
 
+    def test_scheduled_night_light_configuration(self):
+        packages = (ROOT / 'linux/packages/desktop-hyprland.txt').read_text().splitlines()
+        self.assertEqual(packages.count('hyprsunset'), 1)
+        for name in ('config.json', 'config-light.json'):
+            with self.subTest(config=name):
+                config = json.loads((ROOT / 'linux/home/.config/hyprpanel' / name).read_text())
+                modules = config['bar.layouts']['DP-3']['right']
+                self.assertNotIn('hyprsunset', modules)
+                self.assertEqual(modules.count('custom/nightlight'), 1)
+                self.assertEqual(modules.index('custom/nightlight') + 1, modules.index('clock'))
+        for name in ('hyprland.conf', 'hyprland.lua'):
+            source = (ROOT / 'linux/home/.config/hypr' / name).read_text()
+            self.assertIn('systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE && systemctl --user start hyprsunset.service', source)
+
     def test_wow_visibility_lifecycle(self):
         harness = (ROOT / 'tests/fixtures/hyprpanel-bar-visibility-harness.js').read_text()
         result = subprocess.run(['node', '-e', self.visibility + '\n' + harness],

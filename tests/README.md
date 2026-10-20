@@ -80,6 +80,11 @@ If FFmpeg and ffprobe are available, an offline synthetic-image encode checks
 H.264/YUV420 output, SDR color metadata, odd-size padding, and decoded colors.
 This optional encode does not use Wayland or capture the desktop.
 The panel tests check both fallback failures and the complete generated patch.
+They also check the scheduled Hyprsunset module in both panel configs, its package
+declaration, and matching Hyprland service startup. Run
+`PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-night-light.test.py` for mocked IPC,
+manual override/reset, error handling, and schedule configuration checks.
+These tests do not contact the desktop or verify real timed profile transitions.
 They also use a mock wallpaper daemon to check detached startup, pipe closure,
 restart reuse, argument forwarding, startup failure, and missing runtime state.
 These daemon checks require `flock` and `nohup`; they never contact Wayland.

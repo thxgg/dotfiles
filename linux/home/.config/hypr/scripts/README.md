@@ -1,3 +1,26 @@
+# Scheduled night light
+
+Hyprland starts the packaged `hyprsunset.service` after importing the session
+environment. `../hyprsunset.conf` selects 4500 K at 21:00 and the identity matrix
+(no filter) at 06:00, in the system's local timezone. Startup selects the current
+profile. No separate timer or fixed-temperature command is needed.
+
+HyprPanel uses `night-light.py` instead of the built-in Hyprsunset module, which
+kills the process and would disable scheduling. Left-click toggles the filter
+through IPC until the next scheduled switch. Right-click resets to the current
+scheduled profile immediately. The Day/Night label reads the actual identity
+state, not whether the daemon is running. Unavailable means IPC failed.
+
+After a schedule edit, restart `systemctl --user restart hyprsunset.service`.
+Do not run a second `hyprsunset -t ...` process alongside the service.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-night-light.test.py
+```
+
+The tests mock IPC. Real 21:00/06:00 transitions and suspend/resume need a desktop
+check. The panel's existing theme and other application settings stay unchanged.
+
 # Recording format, clipboard, and notifications
 
 `hyprpanel-screen-record` keeps upstream selection, audio, output paths, and

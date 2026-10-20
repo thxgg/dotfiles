@@ -1,4 +1,5 @@
 hyprland
+hyprsunset
 hypridle
 hyprlock
 # Private Hyprlock video build dependencies (stock locker stays installed).

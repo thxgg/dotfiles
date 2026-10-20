@@ -31,6 +31,7 @@ hl.on("hyprland.start", function()
         "systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY",
         "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY",
         "systemctl --user start hyprland-session.target",
+        "systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE && systemctl --user start hyprsunset.service",
         -- The service stays inactive until session-control.py enable-idle.
         "systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DISPLAY && systemctl --user start hypr-session-idle.service",
         "systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service",
