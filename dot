@@ -712,6 +712,13 @@ EOF
 	fi
 	# A pull can introduce an unfinished operation or change tracked paths.
 	check_update_git || return
+	if [[ $skip_stow -eq 0 ]]; then
+		if ! run_update_step stow "Stow links" cmd_stow; then
+			failed_steps+=(stow)
+			warn "Stow failed; continuing with remaining update steps"
+		fi
+	fi
+
 	if [[ $skip_packages -eq 0 ]]; then
 		if ! run_update_step packages "OS packages" update_packages; then
 			failed_steps+=(packages)
@@ -720,13 +727,6 @@ EOF
 		if ! run_update_step global-js "Global JavaScript packages" update_global_js_packages; then
 			failed_steps+=(global-js-packages)
 			warn "Global JavaScript package update failed; continuing with remaining update steps"
-		fi
-	fi
-
-	if [[ $skip_stow -eq 0 ]]; then
-		if ! run_update_step stow "Stow links" cmd_stow; then
-			failed_steps+=(stow)
-			warn "Stow failed; continuing with remaining update steps"
 		fi
 	fi
 

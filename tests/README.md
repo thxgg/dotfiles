@@ -37,7 +37,8 @@ These checks use temporary homes and mock commands. They verify scoped deploymen
 read-only listing, link ownership and backups, and root CLI behavior without changing
 the live deployment. The update suite uses temporary Git repositories and a local
 bare remote. It checks scoped dependency commits, preservation of unrelated staging,
-dirty-file guards, hooks, failure handling, CLI routing, skip flags, and a final
+dirty-file guards, post-pull Stow ordering, hooks, failure handling, CLI routing,
+skip flags, and a final
 single-branch push. It mocks all package/CLI updaters and does not deploy files,
 update live packages, restart services, or contact an external remote.
 

@@ -124,8 +124,38 @@ update_herdr() { record herdr; }
         refs = self.git('--git-dir=' + str(self.remote), 'for-each-ref', '--format=%(refname)')
         self.assertEqual(refs, 'refs/heads/main')
         self.assertEqual((self.root / 'events').read_text().splitlines(), [
-            'packages', 'global-js', 'stow', 'nvim', 'hook', 'pi', 'hook',
+            'stow', 'packages', 'global-js', 'nvim', 'hook', 'pi', 'hook',
             'codex', 'claude', 't3', 'herdr', 'push'])
+
+    def test_stow_runs_after_pull_and_before_package_updates(self):
+        (self.repo / 'pulled.txt').write_text('new upstream file\n')
+        self.git('add', 'pulled.txt')
+        self.git('commit', '-m', 'test: add upstream file')
+        self.git('push')
+        self.git('reset', '--hard', self.initial)
+        (self.root / 'events').unlink()
+        self.assert_success(self.run_update(overrides='''cmd_stow() {
+ [[ -f "$DOTFILES_DIR/pulled.txt" ]] || return 17
+ record stow
+}'''))
+        self.assertEqual((self.root / 'events').read_text().splitlines()[:3],
+                         ['stow', 'packages', 'global-js'])
+
+    def test_skip_stow_still_runs_other_updates(self):
+        self.assert_success(self.run_update('--skip-stow'))
+        events = (self.root / 'events').read_text().splitlines()
+        self.assertNotIn('stow', events)
+        self.assertEqual(events[:2], ['packages', 'global-js'])
+        self.assertIn('herdr', events)
+
+    def test_stow_failure_continues_updates_but_suppresses_push(self):
+        result = self.run_update(fail='stow')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('failed step(s): stow', result.stderr)
+        self.assertEqual(self.remote_head(), self.initial)
+        events = (self.root / 'events').read_text().splitlines()
+        self.assertEqual(events[:3], ['stow', 'packages', 'global-js'])
+        self.assertIn('herdr', events)
 
     def test_verbose_mode_also_commits_and_pushes(self):
         self.assert_success(self.run_update('--verbose'))

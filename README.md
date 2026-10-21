@@ -24,7 +24,7 @@ Useful setup flags:
 The root `dot` CLI wraps the repo scripts for day-to-day use:
 
 - `./dot init` runs full setup via `setup.sh`
-- `./dot update` pulls latest changes, updates OS and global npm/pnpm/Vite+ packages, re-stows, updates Neovim and Pi dependencies, updates Codex, Claude Code, T3 Code, and Herdr, commits dependency changes, then pushes the current branch to its upstream
+- `./dot update` pulls latest changes, re-stows, updates OS and global npm/pnpm/Vite+ packages, updates Neovim and Pi dependencies, updates Codex, Claude Code, T3 Code, and Herdr, commits dependency changes, then pushes the current branch to its upstream
 - `./dot stow` applies links via `safe-stow.sh`
 - `./dot unstow` removes links via `unstow.sh`
 - `./dot doctor` validates symlink health plus the Pi runtime, extension workspace, and Pi Transcribe setup via `doctor.sh`
@@ -32,6 +32,9 @@ The root `dot` CLI wraps the repo scripts for day-to-day use:
 - `./dot link` repairs the `~/.local/bin/dot` symlink (normally created automatically)
 
 ### Update behavior
+
+`dot update` re-applies Stow links after the repository update and safety check,
+before package and dependency updates. Use `--skip-stow` to skip this step.
 
 `dot update` runs Lazy/Mason/Tree-sitter updates. It installs the frozen Pi
 workspace dependencies and declared external Pi packages, then runs
