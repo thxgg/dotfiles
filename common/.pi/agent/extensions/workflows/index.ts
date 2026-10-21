@@ -11,7 +11,6 @@ import { showActivityDashboard } from "./activity.ts";
 import { extractMeta, prepareWorkflowScript } from "./meta.ts";
 import { emptyUsage, formatElapsed, shortenHome, type WorkflowAgentRecord, type WorkflowDetails } from "./model.ts";
 import { runWorkflowAgent } from "./runner.ts";
-import { openSessionPane } from "../subagents/session-pane.ts";
 import { runWorkflowSandbox, type SandboxAgentResult } from "./sandbox.ts";
 import { listWorkflows, loadWorkflow, persistWorkflow, reconcileOrphanedWorkflows, runDir } from "./store.ts";
 
@@ -61,6 +60,7 @@ function saveReport(runId: string): string {
 }
 
 export default function workflowsExtension(pi: ExtensionAPI): void {
+  if (process.env.PI_SUBAGENT_RUN_DIR) return;
   const instanceId = randomUUID();
   pi.registerMessageRenderer<WorkflowNotificationDetails>("workflow-notification", (message, _options, theme) => {
     const run = message.details?.run;
@@ -139,7 +139,7 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
         const run = active.get(runId)?.details ?? loadWorkflow(runId);
         const agent = run?.agents.find((value) => value.index === agentIndex);
         if (!agent?.sessionFile) throw new Error(`Session for workflow child ${agentIndex} is not available yet.`);
-        await openSessionPane({ sessionFile: agent.sessionFile, cwd: ctx.cwd, label: `${runId}-${agentIndex}` });
+        pi.sendMessage({ customType: "workflow-session", display: true, content: `Saved child session: ${agent.sessionFile}\n\n${agent.transcript.map((entry) => `${entry.role}: ${entry.text}`).join("\n\n").slice(-24000)}` });
       },
       async cancel(runId) { const current = active.get(runId); if (!current) throw new Error(`${runId} is not active.`); current.controller.abort("Cancelled from /workflows."); },
       async restart(runId) { void restartRun(runId, ctx); },

@@ -11,7 +11,7 @@ from typing import Any, Iterable
 
 HOME = Path.home()
 DEFAULT_SESSIONS = HOME / ".pi" / "agent" / "sessions"
-DEFAULT_SUBAGENTS = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local" / "state")) / "pi" / "subagents"
+DEFAULT_SUBAGENTS = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local" / "state")) / "pi" / "subagents-v2"
 SECRET_RE = re.compile(r"(?i)\b(token|secret|password|api[_-]?key|authorization)\b(\s*[:=]\s*|\s+)([^\s,;]+)")
 BEARER_RE = re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+")
 PEM_RE = re.compile(r"-----BEGIN [^-]+-----.*?-----END [^-]+-----", re.S)
@@ -47,7 +47,7 @@ def child_session_files(root: Path) -> set[str]:
     files: set[str] = set()
     if not root.exists():
         return files
-    for state_path in root.glob("*/state.json"):
+    for state_path in root.glob("*/metadata.json"):
         state = load_json(state_path)
         if state and isinstance(state.get("sessionFile"), str):
             files.add(str(Path(state["sessionFile"]).resolve()))
@@ -99,19 +99,19 @@ def primary_sessions(root: Path, cwd: str | None, child_files: set[str], exclude
 def subagent_sessions(root: Path, cwd: str | None) -> Iterable[dict[str, Any]]:
     if not root.exists():
         return
-    for state_path in root.glob("*/state.json"):
+    for state_path in root.glob("*/metadata.json"):
         state = load_json(state_path)
         if not state or (cwd and Path(str(state.get("cwd", ""))).resolve() != Path(cwd).resolve()):
             continue
-        result = state.get("result") if isinstance(state.get("result"), dict) else {}
+        session = parse_primary(Path(str(state.get("sessionFile", "")))) or {}
+        assistants = [text for role, text in session.get("messages", []) if role == "assistant"]
         yield {
-            "id": state.get("id"), "timestamp": state.get("startedAt"), "cwd": state.get("cwd"),
-            "agent": state.get("agent"), "model": state.get("model"), "thinking": state.get("thinking"),
-            "status": state.get("status"), "task": redact(str(state.get("task", ""))),
-            "summary": redact(str(result.get("summary", ""))), "error": redact(str(state.get("error", ""))),
-            "warnings": [redact(str(x)) for x in state.get("warnings", [])],
-            "usage": result.get("usage", {}), "tool_calls": result.get("toolCalls", []),
-            "parent_session": (state.get("owner") or {}).get("sessionId"), "path": str(state_path),
+            "id": state.get("handle"), "timestamp": state.get("createdAt"), "cwd": state.get("cwd"),
+            "agent": state.get("name") or state.get("handle"), "model": state.get("model"), "thinking": state.get("thinking"),
+            "status": state.get("state"), "task": redact(str(state.get("prompt", ""))),
+            "summary": assistants[-1] if assistants else "", "error": redact(str(state.get("error", ""))),
+            "warnings": [], "usage": {}, "tool_calls": [],
+            "parent_session": state.get("parentSessionId"), "path": str(state_path),
         }
 
 

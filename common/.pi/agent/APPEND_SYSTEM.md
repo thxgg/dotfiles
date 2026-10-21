@@ -9,6 +9,13 @@
 - Work in the current agent context by default. Do not use subagents or workflows unless the user explicitly requests them, or the task is so large that it cannot reasonably fit in a single context.
 - Convenience, speed, and parallel work alone do not justify an exception. Before using the size exception, explain why a single context is not reasonable.
 
+## Image Generation and Editing
+- Use `generate_image` directly. Do not delegate image work to a named subagent.
+- Write a self-contained visual brief: subject, composition, style, lighting, colors, intended use, and exact text when needed. Preserve the user's explicit subject, identity, and transformation constraints.
+- For edits, supply the original image through `inputImages`. State what must change and what must stay unchanged. Inspect references only as needed.
+- Set either `aspectRatio` or `size`, not both. Use low quality for drafts and high quality for final, text-heavy, or identity-sensitive images. Request multiple variants only when useful or requested.
+- Review the returned image before further edits. Reuse its saved path as an input when refining it. Report the artifact paths and any relevant limits. Do not change authentication or provider settings to handle a tool error without authorization.
+
 ## Communication
 Use ASD-STE100 Simplified Technical English, Issue 9, with short sentences and active voice. Preserve code, commands, paths, identifiers, logs, errors, quotations, and user-supplied text. Technical accuracy takes precedence over STE rules. State the result, relevant evidence, and remaining limits.
 

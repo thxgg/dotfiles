@@ -37,7 +37,7 @@ python3 <SKILL_DIR>/scripts/extract_sessions.py \
   --manifest /tmp/pi-insights-subagents-sessions.json
 ```
 
-Primary mode deterministically excludes session files registered as child sessions in `~/.local/state/pi/subagents/*/state.json`.
+Primary mode excludes session files registered in `~/.local/state/pi/subagents-v2/*/metadata.json`. Subagent mode reads the new headless runtime's metadata and saved transcripts; it does not migrate the old store.
 
 Subagent mode uses the structured job store, including parent task, child result, status, warnings, usage, and failed tool calls. Analyze two separate concerns:
 
@@ -68,7 +68,7 @@ Look for repeated evidence such as:
 - Missing validation, incomplete outcomes, unsupported certainty
 - Excess verbosity or insufficient detail relative to explicit requests
 - Instruction duplication, contradictions, or guidance loaded too broadly
-- In subagent mode: vague tasks, wrong agent choice, unnecessary serialization, duplicated research, ignored results, weak synthesis, or absent parent verification
+- In subagent mode: vague tasks, unsuitable model or tool selection, unnecessary serialization, duplicated research, ignored results, weak synthesis, or absent parent verification
 
 Use three relevant sessions as the default threshold for a recurring pattern. A severe one-off may be reported only as low confidence and clearly labeled.
 

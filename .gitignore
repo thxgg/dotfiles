@@ -29,6 +29,9 @@ common/.config/herdr/*.log
 common/.pi/agent/*
 !common/.pi/agent/AGENTS.md
 !common/.pi/agent/APPEND_SYSTEM.md
+!common/.pi/agent/bin/
+common/.pi/agent/bin/*
+!common/.pi/agent/bin/subagent
 !common/.pi/agent/cloak.json
 !common/.pi/agent/extensions/
 !common/.pi/agent/extensions/**

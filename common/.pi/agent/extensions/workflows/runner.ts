@@ -1,15 +1,6 @@
 import type { Model } from "@earendil-works/pi-ai";
-import {
-  createAgentSession, DefaultResourceLoader, getAgentDir, SessionManager, SettingsManager,
-  type AgentSessionEvent, type ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
-import type { AgentDefinition } from "../subagents/agents.ts";
-import { getActiveToolNames, getDisallowedToolNames } from "../subagents/agents.ts";
-import { bindChildSessionExtensions, shutdownAndDisposeChildSession } from "../subagents/child-lifecycle.ts";
-import { createChildModelRuntime } from "../subagents/model-runtime.ts";
-import { createPermissionGuard } from "../subagents/readonly.ts";
-import { createStructuredOutputTool, STRUCTURED_OUTPUT_INSTRUCTION } from "../subagents/structured-output.ts";
-import { createToolTimeoutGuard } from "../subagents/tool-timeout.ts";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { runChildTask, isRecord, messageText } from "../subagents/runtime.ts";
 import { emptyUsage, type TranscriptEntry, type WorkflowUsage } from "./model.ts";
 
 export interface WorkflowAgentOutcome {
@@ -23,104 +14,51 @@ export interface WorkflowAgentOutcome {
   sessionFile?: string;
   sessionId?: string;
 }
-function text(message: any): string {
-  return Array.isArray(message?.content) ? message.content.filter((part: any) => part?.type === "text").map((part: any) => part.text).join("\n") : typeof message?.content === "string" ? message.content : "";
-}
-function usage(messages: any[]): WorkflowUsage {
-  const total = emptyUsage();
-  for (const message of messages) if (message.role === "assistant") {
-    total.turns += 1; total.input += Number(message.usage?.input ?? 0); total.output += Number(message.usage?.output ?? 0);
-    total.cacheRead += Number(message.usage?.cacheRead ?? 0); total.cacheWrite += Number(message.usage?.cacheWrite ?? 0); total.cost += Number(message.usage?.cost?.total ?? 0);
-  }
-  return total;
-}
-function transcript(messages: any[]): TranscriptEntry[] {
-  const values: TranscriptEntry[] = [];
-  for (const message of messages) {
-    if (message.role === "user") values.push({ role: "user", text: typeof message.content === "string" ? message.content : text(message), timestamp: message.timestamp });
-    if (message.role === "assistant") for (const part of message.content ?? []) {
-      if (part.type === "text" && part.text?.trim()) values.push({ role: "assistant", text: part.text, timestamp: message.timestamp });
-      if (part.type === "thinking" && part.thinking?.trim()) values.push({ role: "thinking", text: part.thinking, timestamp: message.timestamp });
-      if (part.type === "toolCall") values.push({ role: "tool", name: part.name, text: JSON.stringify(part.arguments), timestamp: message.timestamp });
-    }
-    if (message.role === "toolResult") values.push({ role: "toolResult", name: message.toolName, text: text(message), isError: message.isError, timestamp: message.timestamp });
-  }
-  return values.slice(-200).map((entry) => ({ ...entry, text: entry.text.slice(0, 16 * 1024) }));
-}
 export const WORKFLOW_MODELS = ["openai/gpt-6-astra", "anthropic/claude-fable-5"] as const;
-const DEFAULT_WORKFLOW_MODEL = WORKFLOW_MODELS[0];
 export function resolveWorkflowModel(ctx: Pick<ExtensionContext, "modelRegistry">, spec: unknown): Model<any> | undefined {
-  const requested = typeof spec === "string" && spec.trim() ? spec.trim() : DEFAULT_WORKFLOW_MODEL;
-  const normalized = requested === "gpt-6-astra" ? DEFAULT_WORKFLOW_MODEL : requested === "fable-5" || requested === "claude-fable-5" ? WORKFLOW_MODELS[1] : requested;
+  const requested = typeof spec === "string" && spec.trim() ? spec.trim() : WORKFLOW_MODELS[0];
+  const normalized = requested === "gpt-6-astra" ? WORKFLOW_MODELS[0] : requested === "fable-5" || requested === "claude-fable-5" ? WORKFLOW_MODELS[1] : requested;
   if (!(WORKFLOW_MODELS as readonly string[]).includes(normalized)) return undefined;
   const slash = normalized.indexOf("/");
   return ctx.modelRegistry.find(normalized.slice(0, slash), normalized.slice(slash + 1));
-}
-function defaultWorkflowAgent(ctx: ExtensionContext): AgentDefinition {
-  return {
-    name: "workflow-worker", description: "Ephemeral workflow child", permissions: {}, background: false, hidden: true,
-    systemPrompt: "Complete the assigned workflow unit. Do not delegate. Return a concise, evidence-backed result.", source: "builtin", filePath: "<workflow>",
-  };
 }
 export async function runWorkflowAgent(options: {
   prompt: string; schema?: unknown; model?: unknown; effort?: unknown;
   cwd: string; projectTrusted: boolean; ctx: ExtensionContext; signal: AbortSignal;
   onProgress?(outcome: Partial<WorkflowAgentOutcome>): void;
 }): Promise<WorkflowAgentOutcome> {
-  const definition = defaultWorkflowAgent(options.ctx);
-  let structured: unknown;
-  const settings = SettingsManager.create(options.cwd, getAgentDir(), { projectTrusted: options.projectTrusted });
-  const loader = new DefaultResourceLoader({
-    cwd: options.cwd, agentDir: getAgentDir(), settingsManager: settings,
-    // A child must not register another workflow/subagent lifecycle stack in
-    // this process. Nested shutdown handlers can abort sibling child sessions.
-    noExtensions: true,
-    appendSystemPromptOverride: (base) => [...base, definition.systemPrompt, ...(options.schema ? [STRUCTURED_OUTPUT_INSTRUCTION] : [])],
-    extensionFactories: [createPermissionGuard(definition)],
-  });
-  await loader.reload();
   const model = resolveWorkflowModel(options.ctx, options.model);
   if (!model) return { ok: false, output: "", error: `Unsupported workflow model: ${String(options.model)}. Use gpt-6-astra or fable-5.`, usage: emptyUsage(), transcript: [] };
-  const modelRuntime = await createChildModelRuntime(options.ctx.modelRegistry);
-  const { session } = await createAgentSession({
-    cwd: options.cwd, model, modelRuntime, resourceLoader: loader, settingsManager: settings,
-    sessionManager: SessionManager.create(options.cwd), thinkingLevel: (typeof options.effort === "string" ? options.effort : definition.thinking) as any,
-    tools: getActiveToolNames(definition, Boolean(options.schema)), excludeTools: [...new Set([...getDisallowedToolNames(definition), "Agent", "workflow", "ask_user"])],
-    ...(options.schema ? { customTools: [createStructuredOutputTool(options.schema, (value) => { structured = value; })] } : {}),
+  const thinking = typeof options.effort === "string" ? options.effort : options.ctx.thinkingLevel ?? "medium";
+  if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(thinking)) return { ok: false, output: "", error: `Invalid thinking level: ${thinking}`, usage: emptyUsage(), transcript: [] };
+  const result = await runChildTask({ prompt: options.prompt, schema: options.schema, cwd: options.cwd,
+    provider: model.provider, model: model.id, thinking, signal: options.signal, projectTrusted: options.projectTrusted,
+    parentSessionId: options.ctx.sessionManager.getSessionId(), parentSessionFile: options.ctx.sessionManager.getSessionFile(),
+    onProgress(message) { options.onProgress?.({ output: messageText(message), model: `${model.provider}/${model.id}` }); },
   });
-  await bindChildSessionExtensions(session);
-  const timeoutGuard = createToolTimeoutGuard(); timeoutGuard.apply(session);
-  let firstResponseTimer: ReturnType<typeof setTimeout> | undefined;
-  let stopReason: string | undefined; let errorMessage: string | undefined; let maxTurnAbort = false; let turnCount = 0;
-  const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
-    if (event.type === "agent_start") timeoutGuard.apply(session);
-    if ((event.type === "message_start" || event.type === "message_update" || event.type === "message_end") && event.message.role === "assistant") {
-      if (firstResponseTimer) clearTimeout(firstResponseTimer); firstResponseTimer = undefined;
+  const usage = emptyUsage();
+  const transcript: TranscriptEntry[] = [];
+  for (const message of result.messages.filter(isRecord)) {
+    if (message.role === "assistant") {
+      usage.turns++;
+      if (isRecord(message.usage)) {
+        for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) usage[key] += Number(message.usage[key] ?? 0);
+        if (isRecord(message.usage.cost)) usage.cost += Number(message.usage.cost.total ?? 0);
+      }
     }
-    if (event.type === "message_end" && event.message.role === "assistant") {
-      stopReason = event.message.stopReason; errorMessage = event.message.errorMessage;
-      options.onProgress?.({ output: text(event.message), usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages) });
+    const timestamp = typeof message.timestamp === "number" ? message.timestamp : undefined;
+    if (message.role === "assistant" && Array.isArray(message.content)) {
+      for (const part of message.content.filter(isRecord)) {
+        if (part.type === "text" && typeof part.text === "string") transcript.push({ role: "assistant", text: part.text.slice(0, 16384), timestamp });
+        if (part.type === "thinking" && typeof part.thinking === "string") transcript.push({ role: "thinking", text: part.thinking.slice(0, 16384), timestamp });
+        if (part.type === "toolCall" && typeof part.name === "string") transcript.push({ role: "tool", name: part.name, text: (JSON.stringify(part.arguments) ?? "").slice(0, 16384), timestamp });
+      }
+    } else if (message.role === "user" || message.role === "toolResult") {
+      transcript.push({ role: message.role, text: messageText(message).slice(0, 16384), timestamp,
+        ...(typeof message.toolName === "string" ? { name: message.toolName } : {}),
+        ...(typeof message.isError === "boolean" ? { isError: message.isError } : {}) });
     }
-    if (event.type === "turn_end" && definition.maxTurns && ++turnCount >= definition.maxTurns) {
-      maxTurnAbort = true;
-      void session.abort();
-    }
-  });
-  const abort = () => { void session.abort(); };
-  options.signal.addEventListener("abort", abort, { once: true });
-  try {
-    const stalled = new Promise<never>((_resolve, reject) => { firstResponseTimer = setTimeout(() => { void session.abort(); reject(new Error("Workflow child produced no assistant response event within 45 seconds.")); }, 45_000); firstResponseTimer.unref?.(); });
-    await Promise.race([session.prompt(options.prompt), stalled]);
-    const output = [...session.messages].reverse().find((message) => message.role === "assistant" && text(message).trim());
-    if (options.schema && structured === undefined) throw new Error("Workflow child did not produce required structured output.");
-    if (maxTurnAbort) throw new Error(`Workflow child ${definition.name} stopped after reaching maxTurns=${definition.maxTurns}. Partial output and the saved session are available.`);
-    if (stopReason === "error" || errorMessage) throw new Error(errorMessage ?? "Workflow child failed.");
-    return { ok: true, output: output ? text(output).slice(0, 64 * 1024) : "", structured, usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages), sessionFile: session.sessionFile, sessionId: session.sessionId };
-  } catch (error) {
-    const output = [...session.messages].reverse().find((message) => message.role === "assistant" && text(message).trim());
-    return { ok: false, output: output ? text(output).slice(0, 64 * 1024) : "", structured, error: options.signal.aborted ? "Workflow child was cancelled." : error instanceof Error ? error.message : String(error), usage: usage(session.messages), model: session.model?.id, transcript: transcript(session.messages), sessionFile: session.sessionFile, sessionId: session.sessionId };
-  } finally {
-    if (firstResponseTimer) clearTimeout(firstResponseTimer);
-    options.signal.removeEventListener("abort", abort); unsubscribe(); await shutdownAndDisposeChildSession(session);
   }
+  const { messages: _messages, ...outcome } = result;
+  return { ...outcome, usage, transcript: transcript.slice(-200), model: `${model.provider}/${model.id}` };
 }

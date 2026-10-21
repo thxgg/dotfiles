@@ -25,17 +25,17 @@ const verified = await phase("Verify", () => agent(
 return { reviews, verified }
 ```
 
-Available globals: `args`, `phase(title[, callback])`, `agent(prompt, { label?, phase?, schema?, model?, effort? })`, and `parallel(items, { concurrency })`. Parallel items may be agent promises or zero-argument functions; use functions when requesting a lower `concurrency` limit. Workflow children always use the dedicated ephemeral `workflow-worker`; named standalone subagent types are intentionally unavailable. Children default to `openai/gpt-6-astra`; the only model override is `anthropic/claude-fable-5` (shorthands: `gpt-6-astra` and `fable-5`).
+Available globals: `args`, `phase(title[, callback])`, `agent(prompt, { label?, phase?, schema?, model?, effort? })`, and `parallel(items, { concurrency })`. Parallel items may be agent promises or zero-argument functions; use functions when requesting a lower `concurrency` limit. Workflow children use the same prompt-driven, headless RPC runtime as standalone subagents. There are no named agent profiles. Children default to `openai/gpt-6-astra`; the only model override is `anthropic/claude-fable-5` (shorthands: `gpt-6-astra` and `fable-5`).
 
-Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must inspect `ok`. The legacy `agent({ task, name, ... })` form is accepted and normalized. Each workflow child uses a persistent Pi session. No child creates a Herdr tab or pane. Press `o` on a selected child in `/workflows` to open its full session in a new Herdr pane. If that exact session is already open, Pi focuses the existing pane. Exiting Pi closes an on-demand child-session pane.
+Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must inspect `ok`. The legacy `agent({ task, name, ... })` form is accepted and normalized. Each workflow child uses a persistent Pi session. Press Enter on a child in `/workflows` to read its captured transcript, or `o` to show its saved session path and transcript in Pi. No terminal multiplexer is used. Workflow children stop after the result is collected; their sessions remain saved. Parent shutdown cancels active workflows.
 
 ## Safety and limits
 
 - generated scripts require explicit approval in UI modes;
 - orchestration runs in a permission-restricted Node child with narrow authenticated IPC;
 - no imports, filesystem, network, process, timers, eval, dynamic code generation, or WebAssembly;
-- 32 agent calls per run and four globally concurrent agent operations across workflows and standalone subagents;
-- 45-second first-response watchdog and three-minute child tool timeout;
+- 32 agent calls per run and four concurrent workflow agent operations within the parent process;
+- 45-second first-response watchdog, three-minute child tool timeout, and 30-minute workflow child deadline;
 - bounded source, arguments, IPC messages, transcripts, and result artifacts;
 - unawaited child calls fail the workflow.
 
@@ -46,4 +46,4 @@ Every `agent()` resolves to `{ ok, output, structured?, error? }`; scripts must 
 
 Workflow state and one-off run artifacts live under `${XDG_STATE_HOME:-~/.local/state}/pi/workflows/`. Press `s` in a run detail view to export `report.md` beside the run artifacts.
 
-Pi intentionally has no built-in background bash runtime, and this repository has no separate durable background-session supervisor. The unified activity model retains `shell` and `session` as future adapter kinds without fabricating unsupported lifecycle semantics.
+The subagent extension owns the headless supervisor and durable sessions. This is not a general background shell service. The unified activity model retains `shell` and `session` as future adapter kinds. Children use the workflow working directory directly; do not schedule conflicting writers.

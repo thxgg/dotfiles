@@ -144,9 +144,11 @@ old sessions. After `/reload`, select the migrated model explicitly:
 /model openai/gpt-6-astra-fast
 ```
 
-Subagent chat models, workflow defaults, and recap also use `openai`.
-Painter's chat controller uses `openai/gpt-6-astra`, but its `generate_image`
-tool still uses the legacy `openai-codex` credential and backend image endpoint.
+Prompt-driven subagents inherit the parent's model. Workflow defaults and recap use `openai`.
+The direct `generate_image` tool still uses the legacy `openai-codex` credential
+and backend image endpoint. The former Painter subagent and other named profiles are removed.
+See [the headless subagent fork](agent/extensions/subagents/README.md) for CLI controls,
+plain-process execution, and saved-session behavior.
 Do not remove that credential or migrate the image client. If it reports an
 invalidated token, run `/login openai-codex` in Pi. The new subscription API
 does not currently support image generation.

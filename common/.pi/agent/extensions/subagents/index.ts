@@ -1,151 +1,91 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, delimiter } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverAgents, formatAgentList, type AgentScope } from "./agents.ts";
 import { registerRepoCacheTool } from "./repo-cache.ts";
-import { abortRunningJobs, cancelJob, createAgentTool, getJobSnapshots, getRunningJobCount } from "./runtime.ts";
-import { jobStore } from "./job-store.ts";
-import { applyAgentWorktree, discardAgentWorktree, retainAgentWorktree } from "./worktree.ts";
-import { registerAgentNotificationRenderer, startNotificationPump } from "./notifications.ts";
-import { showSubagentDashboard } from "./dashboard.ts";
-import { openSessionPane } from "./session-pane.ts";
+import { assistantText, effectiveRunState, launchRun, listRuns, readLatestAssistant, runDisplayName, stopRun, updateMetadata } from "./shared.ts";
 
-function parseAgentsCommand(args: string): { action: "list" | "jobs" | "result" | "cancel" | "open" | "cleanup"; id?: string; scope: AgentScope; includeHidden: boolean } {
-  const parts = args.trim().split(/\s+/).filter(Boolean);
-  const action = (parts[0] ?? "list").toLowerCase();
-  const scopeArg = parts.find((part) => part.startsWith("scope="))?.slice("scope=".length) as AgentScope | undefined;
-  const includeHidden = parts.includes("--hidden") || parts.includes("hidden");
-  const scope = scopeArg && ["default", "builtin", "user", "project", "all"].includes(scopeArg) ? scopeArg : "default";
+const packageDir = dirname(fileURLToPath(import.meta.url));
 
-  if (action === "jobs") return { action: "jobs", scope, includeHidden };
-  if (action === "result") return { action: "result", id: parts[1], scope, includeHidden };
-  if (action === "cancel") return { action: "cancel", id: parts[1], scope, includeHidden };
-  if (action === "open") return { action: "open", id: parts[1], scope, includeHidden };
-  if (action === "cleanup") return { action: "cleanup", scope, includeHidden };
-  return { action: "list", scope, includeHidden };
-}
-
-function decidePermission(jobId: string, decision: "allow" | "deny"): void {
-  const current = jobStore.read(jobId);
-  const request = current?.permissionRequests?.[0];
-  if (!current || current.status !== "waiting" || !request) throw new Error(`${jobId} is not waiting for permission.`);
-  jobStore.update(jobId, (value) => ({ ...value, permissionRequests: (value.permissionRequests ?? []).map((item) => item.id === request.id ? { ...item, decision, decidedAt: new Date().toISOString() } : item) }));
-}
-
-function mutateWorktree(jobId: string, action: (job: Parameters<typeof applyAgentWorktree>[0]) => ReturnType<typeof applyAgentWorktree>): void {
-  const updated = jobStore.update(jobId, action);
-  if (!updated) throw new Error(`Unknown subagent job: ${jobId}`);
-}
-
-function formatJobDetails(id?: string): string {
-  const jobs = getJobSnapshots();
-  const selected = id ? jobs.filter((job) => job.id === id) : jobs;
-  if (selected.length === 0) return id ? `No subagent job found: ${id}` : "No subagent jobs.";
-  return selected
-    .map((job) => {
-      const lines = [`${job.id} ${job.status} ${job.agent} (${job.source}, ${job.backend})`, `Task: ${job.task}`];
-      if (job.sessionFile) lines.push(`Session: ${job.sessionFile}`, `Open: /agents open ${job.id}`);
-      if (job.result?.summary) lines.push(`Summary:\n${job.result.summary}`);
-      if (job.error) lines.push(`Error: ${job.error}`);
-      return lines.join("\n");
-    })
-    .join("\n\n---\n\n");
-}
-
-export default function subagentsExtension(pi: ExtensionAPI): void {
+export default function subagentExtension(pi: ExtensionAPI): void {
   registerRepoCacheTool(pi);
-  registerAgentNotificationRenderer(pi);
-  pi.registerTool(createAgentTool());
-  let stopNotificationPump: (() => void) | undefined;
+  // Children get normal Pi resources, but cannot register another delegation stack.
+  if (process.env.PI_SUBAGENT_RUN_DIR) return;
+  pi.on("resources_discover", () => ({ skillPaths: [join(packageDir, "skills")] }));
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let generation = 0;
+  const stopRefresh = () => {
+    generation++;
+    if (timer) clearInterval(timer);
+    timer = undefined;
+  };
 
-  pi.registerCommand("agents", {
-    description: "List Pi subagents and inspect or control subagent jobs",
-    getArgumentCompletions: (prefix: string) => {
-      const options = ["list", "jobs", "result", "cancel", "open", "cleanup", "list --hidden", "list scope=all"];
-      const normalized = prefix.trim().toLowerCase();
-      const filtered = options
-        .filter((option) => option.startsWith(normalized))
-        .map((option) => ({ value: option, label: option }));
-      return filtered.length > 0 ? filtered : null;
-    },
+  pi.registerCommand("subagent", {
+    description: "Inspect prompt-driven subagent sessions (no terminal multiplexer)",
     handler: async (args, ctx) => {
-      if (!args.trim() && ctx.mode === "tui") {
-        await showSubagentDashboard(ctx, getJobSnapshots, {
-          async open(jobId) {
-            const job = getJobSnapshots().find((value) => value.id === jobId);
-            if (!job?.sessionFile) throw new Error(`Session for ${jobId} is not available yet.`);
-            await openSessionPane({ sessionFile: job.sessionFile, cwd: job.cwd, label: job.id });
-          },
-          async cancel(jobId) { if (!(await cancelJob(jobId))) throw new Error(`Cannot cancel ${jobId}.`); },
-          async approve(jobId) { decidePermission(jobId, "allow"); },
-          async deny(jobId) { decidePermission(jobId, "deny"); },
-          async apply(jobId) { mutateWorktree(jobId, applyAgentWorktree); },
-          async retain(jobId) { mutateWorktree(jobId, retainAgentWorktree); },
-          async discard(jobId) { mutateWorktree(jobId, discardAgentWorktree); },
-        });
-        return;
-      }
-      const parsed = parseAgentsCommand(args);
-      if (parsed.action === "jobs") {
-        ctx.ui.notify(formatJobDetails(), "info");
-        return;
-      }
-      if (parsed.action === "result") {
-        ctx.ui.notify(formatJobDetails(parsed.id), "info");
-        return;
-      }
-      if (parsed.action === "cancel") {
-        if (!parsed.id) {
-          ctx.ui.notify("Usage: /agents cancel <jobId>", "warning");
-          return;
-        }
-        const job = await cancelJob(parsed.id, `Cancelled via /agents cancel ${parsed.id}`);
-        if (!job) {
-          ctx.ui.notify(`No subagent job found: ${parsed.id}`, "warning");
-          return;
-        }
-        const running = getRunningJobCount();
-        ctx.ui.setStatus("subagents", running > 0 ? `agents:${running}` : undefined);
-        ctx.ui.notify(formatJobDetails(parsed.id), "info");
-        return;
-      }
-      if (parsed.action === "cleanup") {
-        const removed = jobStore.prune();
-        ctx.ui.notify(`Cleaned ${removed.length} terminal subagent job(s).`, "info");
-        return;
-      }
-      if (parsed.action === "open") {
-        if (!parsed.id) {
-          ctx.ui.notify("Usage: /agents open <jobId>", "warning");
-          return;
-        }
-        const job = getJobSnapshots().find((value) => value.id === parsed.id);
-        if (!job?.sessionFile) {
-          ctx.ui.notify(`Session for ${parsed.id} is not available yet.`, "warning");
-          return;
-        }
-        await openSessionPane({ sessionFile: job.sessionFile, cwd: job.cwd, label: job.id });
-        return;
-      }
-
-      const discovery = discoverAgents(ctx.cwd, parsed.scope);
-      const jobs = formatJobDetails();
-      ctx.ui.notify(`Available agents:\n${formatAgentList(discovery.agents, parsed.includeHidden)}\n\nJobs:\n${jobs}`, "info");
+      const runs = listRuns(ctx.sessionManager.getSessionId());
+      const selected = args.trim() || await ctx.ui.select("Subagents", runs.map((run) => `${run.handle} ${run.name ?? ""} [${effectiveRunState(run)}]`));
+      const run = runs.find((run) => run.handle === selected?.split(" ")[0]);
+      if (!run) { ctx.ui.notify("No subagent selected.", "info"); return; }
+      const response = readLatestAssistant(run.sessionFile);
+      // Read-only inspection. Never open a second writer on a running child's session.
+      pi.sendMessage({ customType: "subagent-inspection", display: true,
+        content: `${runDisplayName(run)}: ${effectiveRunState(run)}\nSession: ${run.sessionFile}\n${response ? assistantText(response).slice(0, 24000) : run.error ?? "No response yet."}` });
     },
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    stopNotificationPump?.();
-    stopNotificationPump = startNotificationPump(pi, ctx);
-    const running = getRunningJobCount();
-    ctx.ui.setStatus("subagents", running > 0 ? `agents:${running}` : undefined);
+    stopRefresh();
+    const currentGeneration = generation;
+    const sessionId = ctx.sessionManager.getSessionId();
+    process.env.PI_SUBAGENT_PARENT_PID = String(process.pid);
+    const binDir = join(packageDir, "../../bin");
+    if (!(process.env.PATH ?? "").split(delimiter).includes(binDir)) process.env.PATH = `${binDir}${delimiter}${process.env.PATH ?? ""}`;
+    for (const run of listRuns(ctx.sessionManager.getSessionId())) {
+      if (run.suspended && run.kind !== "workflow" && existsSync(run.sessionFile)) {
+        updateMetadata(run.runDir, { parentPid: process.pid, state: "starting", error: undefined });
+        try { await launchRun({ ...run, parentPid: process.pid }); }
+        catch (error) { ctx.ui.notify(`Cannot resume ${run.handle}: ${String(error)}`, "error"); }
+      }
+    }
+    const refresh = () => {
+      if (currentGeneration !== generation) return;
+      const runs = listRuns(sessionId).filter((run) => run.kind !== "workflow");
+      ctx.ui.setStatus("subagents", runs.length ? runs.map((run) => `${run.name ?? run.handle}:${effectiveRunState(run)}`).slice(-5).join(" | ") : undefined);
+      for (const run of runs) {
+        const receipt = effectiveRunState(run) === "error" ? `error:${run.updatedAt}` : run.completedAt;
+        if (!receipt || !["idle", "error", "exited"].includes(effectiveRunState(run))) continue;
+        const acknowledgement = join(run.runDir, "notified.txt");
+        if (existsSync(acknowledgement) && readFileSync(acknowledgement, "utf8") === receipt) continue;
+        const response = readLatestAssistant(run.sessionFile);
+        pi.sendMessage({ customType: "subagent-result", display: true,
+          content: `Subagent ${runDisplayName(run)} ${effectiveRunState(run)}.\nSession: ${run.sessionFile}\n${run.error ?? (response ? assistantText(response).slice(0, 24000) : "No assistant response.")}` },
+          { triggerTurn: true, deliverAs: "followUp" });
+        writeFileSync(acknowledgement, receipt, { mode: 0o600 });
+      }
+    };
+    if (currentGeneration !== generation) return;
+    // Timers run outside Pi's event error boundary. A stale context or a failed
+    // state read must never bring down the parent RPC process.
+    const safeRefresh = () => {
+      try { refresh(); }
+      catch (error) {
+        stopRefresh();
+        console.error(`Subagent status refresh stopped: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+    safeRefresh();
+    if (currentGeneration !== generation) return;
+    timer = setInterval(safeRefresh, 1000);
+    timer.unref();
   });
-
   pi.on("session_shutdown", async (event, ctx) => {
-    stopNotificationPump?.();
-    stopNotificationPump = undefined;
-    if (event.reason !== "quit") return;
-    const running = getJobSnapshots().filter((job) => job.status === "running" || job.status === "queued" || job.status === "waiting");
-    if (!running.length) return;
-    if (ctx.hasUI) await ctx.ui.notify(`${running.length} active subagent session(s) will stop because the parent Pi process is exiting. Their session transcripts remain saved.`, "warning");
-    await abortRunningJobs("Parent Pi exited; child execution stopped. The persistent session remains available for inspection.");
+    stopRefresh();
+    ctx.ui.setStatus("subagents", undefined);
+    if (event.reason === "reload") return;
+    await Promise.all(listRuns(ctx.sessionManager.getSessionId()).map(async (run) => {
+      try { await stopRun(run, run.kind !== "workflow"); }
+      catch (error) { ctx.ui.notify(String(error), "warning"); }
+    }));
   });
 }

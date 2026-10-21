@@ -307,11 +307,15 @@ from Anthropic or a gateway through our alias wrapper. The codemode SDK tests ch
 safe tool-presence probes, missing-member recovery hints, and preservation of the
 codemode documentation path after Anthropic sanitation. They also exercise native
 codemode execution through the verbosity renderer hook, caught-error summaries,
-expansion, and HTML export. The child-bridge SDK tests check native settlement
-cancellation before an assistant result, cancellation after a successful result,
-missing structured output, legacy stop-reason and turn-limit fallbacks, normal
-completion, provider failure, and idempotent completion notifications. They use
-isolated job storage and make no model requests.
+expansion, and HTML export. The headless subagent tests use a real Pi RPC subprocess with a synthetic offline
+provider and temporary home. They check settlement, structured output, provider failure,
+cancellation, and suspend/resume without tmux or Herdr. Usage-driven checks also cover
+CLI prompt/file composition, model inheritance, rename/list/ownership/delete, wait timeouts,
+steering, real read/write/bash/codemode calls, tool restrictions, parallel reviews followed by
+synthesis, unsupported dialogs, unexpected process exit, and parent RPC new-session/reload/resume.
+The parent lifecycle regression checks both duplicate-notification prevention and delivery after
+resume. All file and shell operations stay inside temporary fixtures. They make no external
+model requests. Image endpoint and live T3 UI behavior require separate validation.
 The verbosity workspace tests cover live partial results,
 images, prompts, cancellation, resume, and tree reconstruction.
 Astra Ultrafast requires Pro 500 or another eligible plan.
