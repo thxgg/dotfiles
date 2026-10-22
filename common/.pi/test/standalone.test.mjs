@@ -100,7 +100,7 @@ test('Anthropic sanitation preserves user content and other providers', async ()
   const h = harness();
   extension(h.api);
   const handler = h.handlers.get('context_with_system');
-  assert.equal(h.handlers.has('before_provider_request'), false);
+  assert.equal(h.handlers.has('before_provider_request'), true);
   const docs = 'Pi documentation (read only when the user asks about pi itself: local paths';
   const messages = [
     { role: 'system', content: 'Keep this.', sections: { docs: `<docs>\n${docs}\n</docs>`, rules: 'Keep rules.' }, toolsAdded: [{ name: 'read' }], timestamp: 0 },
@@ -121,6 +121,42 @@ test('Anthropic sanitation preserves user content and other providers', async ()
   assert.deepEqual(messages, before, 'saved history must remain unchanged');
   const legacy = { role: 'system', content: `Keep this.\n\n${docs}\n\nKeep this too.`, timestamp: 0 };
   assert.equal(handler({ messages: [legacy] }, { model: { provider: 'anthropic' } }).messages[0].content, 'Keep this.\n\nKeep this too.');
+});
+
+test('Anthropic final payload sanitation handles prompt overrides without changing messages or tools', async () => {
+  const { default: extension } = await import('../agent/extensions/anthropic-prompt-sanitizer.ts');
+  const h = harness();
+  extension(h.api);
+  const handler = h.handlers.get('before_provider_request');
+  const docs = '<docs>\nPi documentation (read only when the user asks about pi itself: local paths\n</docs>';
+  for (const mode of ['tui', 'rpc', 'json', 'print']) {
+    const ctx = { mode, model: { provider: 'anthropic' } };
+    const payload = {
+      system: [
+        { type: 'text', text: `Keep rules.\n\n${docs}\n\nT3 Code orchestration`, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: docs },
+        { type: 'text', text: 'Keep this too.' },
+      ],
+      messages: [{ role: 'user', content: docs }],
+      tools: [{ name: 'read', description: docs }],
+      model: 'claude-opus-5-5',
+    };
+    const before = structuredClone(payload);
+    const result = handler({ payload }, ctx);
+    assert.deepEqual(result.system, [
+      { type: 'text', text: 'Keep rules.\n\nT3 Code orchestration', cache_control: { type: 'ephemeral' } },
+      payload.system[2],
+    ]);
+    assert.equal(result.messages, payload.messages);
+    assert.equal(result.tools, payload.tools);
+    assert.deepEqual(payload, before);
+    assert.equal(handler({ payload: result }, ctx), undefined);
+    assert.equal(handler({ payload }, { model: { provider: 'openai' } }), undefined);
+    assert.deepEqual(handler({ payload: { system: `Keep.\n\n${docs}` } }, ctx), { system: 'Keep.\n\n' });
+    for (const value of [null, [], {}, { system: null }, { system: [{ type: 'image', text: docs }] }]) {
+      assert.equal(handler({ payload: value }, ctx), undefined);
+    }
+  }
 });
 
 test('cloak masks only matching paths with isolated synthetic configuration', async () => {

@@ -37,12 +37,41 @@ function sanitizeSystemMessage(message: SystemMessage): SystemMessage {
   return changed ? { ...message, content, ...(sections ? { sections } : {}) } : message;
 }
 
-/** Remove Pi documentation only from Anthropic request context, never saved history or tools. */
+function sanitizeProviderSystem(system: unknown): unknown {
+  if (typeof system === "string") return stripPiDocumentation(system);
+  if (!Array.isArray(system)) return system;
+  let changed = false;
+  const blocks = system.map((block: unknown) => {
+    if (typeof block !== "object" || block === null ||
+        !("type" in block) || block.type !== "text" ||
+        !("text" in block) || typeof block.text !== "string") return block;
+    const text = stripPiDocumentation(block.text);
+    if (text === block.text) return block;
+    changed = true;
+    // Anthropic does not accept empty text blocks. Keep metadata on surviving blocks.
+    return text.trim() ? { ...block, text } : undefined;
+  });
+  return changed ? blocks.filter(block => block !== undefined) : system;
+}
+
+/** Remove Pi documentation only from Anthropic requests, never saved history or tools. */
 export default function anthropicPromptSanitizer(pi: ExtensionAPI): void {
   pi.on("context_with_system", (event, ctx) => {
     if (ctx.model?.provider !== "anthropic") return;
     const messages = event.messages.map(message => message.role === "system" ? sanitizeSystemMessage(message) : message);
     if (messages.every((message, index) => message === event.messages[index])) return;
     return { messages };
+  });
+
+  // Pi can project a before_agent_start systemPrompt override after context hooks.
+  // T3 uses that path, so also sanitize the final provider system field.
+  pi.on("before_provider_request", (event, ctx) => {
+    if (ctx.model?.provider !== "anthropic") return;
+    const payload = event.payload;
+    if (typeof payload !== "object" || payload === null ||
+        Array.isArray(payload) || !("system" in payload)) return;
+    const system = sanitizeProviderSystem(payload.system);
+    if (system === payload.system) return;
+    return { ...payload, system };
   });
 }

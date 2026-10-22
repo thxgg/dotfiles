@@ -102,9 +102,11 @@ nested execution events never create separate rows.
 The aggregate check runs an offline SDK test with a scripted provider, real codemode,
 local tools, and these hooks. It does not contact providers or start MCP servers.
 
-Anthropic prompt sanitation uses `context_with_system`. It removes the Pi documentation
-from request-local system content and section updates, preserving tool declarations,
-non-system messages, and saved session history. The codemode tool's own documentation
+Anthropic prompt sanitation uses `context_with_system` and a final `before_provider_request`
+check. The final check covers full prompt overrides, such as T3's orchestration instructions,
+which Pi can project after the context hook. It removes the Pi documentation from request-local
+system content and section updates, preserving tool declarations, non-system messages,
+cache metadata on retained blocks, and saved session history. The codemode tool's own documentation
 path remains available. Codemode scripts must test tool presence with `"name" in tools`;
 Pi 1.0 throws when a script reads an unknown member, including through `typeof`.
 
