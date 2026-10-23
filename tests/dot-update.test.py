@@ -228,6 +228,21 @@ update_herdr() { record herdr; }
         self.assertEqual((self.repo / NVIM).read_text(), 'initial\n')
         self.assertIn('herdr', (self.root / 'events').read_text())
 
+    def test_quiet_mode_keeps_desktop_restart_notice(self):
+        result = self.run_update(overrides='''update_t3() {
+ record t3
+ print 'T3 desktop: quit and relaunch with t3code to use the new version'
+}''')
+        self.assert_success(result)
+        self.assertIn('T3 desktop: quit and relaunch', result.stdout)
+
+    def test_t3_failure_suppresses_push_but_continues(self):
+        result = self.run_update(fail='t3')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('failed step(s): t3', result.stderr)
+        self.assertEqual(self.remote_head(), self.initial)
+        self.assertIn('herdr', (self.root / 'events').read_text())
+
     def test_failed_cli_suppresses_push_but_continues(self):
         result = self.run_update(fail='codex')
         self.assertNotEqual(result.returncode, 0)
@@ -308,6 +323,7 @@ codex() { print -r -- "codex $*"; [[ "$MODE" != failure ]]; }
 claude() { print -r -- "claude $*"; [[ "$MODE" != failure ]]; }
 t3() { print -r -- "t3 $*"; [[ "$MODE" != failure ]]; }
 '''
+                body += function('update_t3_desktop')
                 body += ''.join(function('update_' + name) for name in ('codex', 'claude', 't3'))
                 body += '\nfailed=0\nfor tool in codex claude t3; do "update_$tool" || failed=1; done\nexit $failed'
                 result = subprocess.run([ZSH, '-f', '-c', body],

@@ -26,7 +26,7 @@ complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip H
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-codex -d "Skip dedicated Codex CLI update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-claude -d "Skip dedicated Claude Code CLI update"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-t3 -d "Skip T3 Code update and service restart"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-t3 -d "Skip T3 CLI/service and Linux desktop AppImage updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-commit -d "Leave dependency changes uncommitted"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-push -d "Do not push the current branch"
 

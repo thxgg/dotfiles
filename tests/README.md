@@ -30,6 +30,7 @@ launcher and clipboard behavior.
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 tests/dot-safety.test.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/dot-update.test.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/t3-desktop-update.test.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/stow-safety.test.py
 ```
 
@@ -41,6 +42,11 @@ dirty-file guards, post-pull Stow ordering, hooks, failure handling, CLI routing
 skip flags, and a final
 single-branch push. It mocks all package/CLI updaters and does not deploy files,
 update live packages, restart services, or contact an external remote.
+The T3 desktop suite uses synthetic release metadata and AppImages. It checks
+channel/architecture selection, SHA-256 and format validation, atomic publication,
+old-version preservation, idempotency, and failure cleanup. It does not launch
+Electron or download a release. A live download does not verify desktop rendering
+or the next-launch CLI-wrapper refresh.
 
 # Handy launcher checks
 

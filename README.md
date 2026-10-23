@@ -54,6 +54,15 @@ Git hooks stay enabled.
 Codex and Claude Code use `codex update` and `claude update`, or Homebrew
 when the corresponding cask is installed. T3 Code uses `t3 update --yes`;
 this can restart its background service. Missing CLIs are skipped, not installed.
+On Linux, the T3 step also updates existing versioned AppImages in `~/Applications/`
+with `scripts/update-t3-desktop.py` (Python 3, standard library only). It follows the
+installed stable/nightly channel, verifies the GitHub release asset's SHA-256 digest,
+and keeps old AppImages. It refuses preview builds, channel switches, and conflicting
+target files. Missing desktop installations are skipped. It does not stop the desktop
+or rewrite launchers/settings. Quit and relaunch with a newest-AppImage launcher
+(such as this machine's `t3code` wrapper), or open the printed AppImage path directly.
+Fixed-path desktop shortcuts still point to the old version until refreshed. T3
+refreshes its bundled CLI wrapper when the new desktop starts.
 `--skip-codex`, `--skip-claude`, and `--skip-t3` disable these dedicated steps.
 OS/global package managers can still update their managed CLIs.
 `--skip-packages` skips those package managers, not the dedicated CLI steps.

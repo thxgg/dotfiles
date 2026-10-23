@@ -329,13 +329,28 @@ update_claude() {
 	fi
 }
 
-update_t3() {
-	if ! command_exists t3; then
-		warn "T3 Code not found; skipping"
-		return 0
+update_t3_desktop() {
+	[[ "$OSTYPE" == linux* ]] || return 0
+	local -a appimages=("$HOME"/Applications/T3-Code-*.AppImage(N))
+	[[ ${#appimages[@]} -gt 0 ]] || return 0
+	if ! command_exists python3; then
+		error "Python 3 is required to update the T3 desktop AppImage"
+		return 1
 	fi
-	# Quiet mode redirects stdout. Permit the installed service to restart.
-	t3 update --yes
+	python3 "$DOTFILES_DIR/scripts/update-t3-desktop.py"
+}
+
+update_t3() {
+	local failed=0
+	if command_exists t3; then
+		# Quiet mode redirects stdout. Permit the installed service to restart.
+		t3 update --yes || failed=1
+	else
+		warn "T3 Code CLI not found; skipping CLI update"
+	fi
+	# The CLI updater does not replace desktop AppImages or their CLI wrappers.
+	update_t3_desktop || failed=1
+	return $failed
 }
 
 update_packages() {
@@ -611,6 +626,10 @@ run_update_step() {
 		else
 			success "$label updated"
 		fi
+		if [[ "$key" == "t3" ]]; then
+			# Keep installation/relaunch notices visible in quiet mode too.
+			grep '^T3 desktop:' "$log_file" || true
+		fi
 		rm -f "$log_file"
 		return 0
 	fi
@@ -682,7 +701,7 @@ Options:
   --skip-nvim      Skip Neovim Lazy/Mason/Tree-sitter updates
   --skip-codex     Skip the dedicated Codex CLI update
   --skip-claude    Skip the dedicated Claude Code CLI update
-  --skip-t3        Skip T3 Code update and service restart
+  --skip-t3        Skip T3 CLI/service and Linux desktop AppImage updates
   --skip-commit    Leave dependency changes uncommitted
   --skip-push      Do not push the current branch to its upstream
   --help          Show this help
@@ -1016,7 +1035,7 @@ complete -c dot -n "__fish_seen_subcommand_from update" -l skip-herdr -d "Skip H
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-nvim -d "Skip Neovim Lazy/Mason/Tree-sitter updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-codex -d "Skip dedicated Codex CLI update"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-claude -d "Skip dedicated Claude Code CLI update"
-complete -c dot -n "__fish_seen_subcommand_from update" -l skip-t3 -d "Skip T3 Code update and service restart"
+complete -c dot -n "__fish_seen_subcommand_from update" -l skip-t3 -d "Skip T3 CLI/service and Linux desktop AppImage updates"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-commit -d "Leave dependency changes uncommitted"
 complete -c dot -n "__fish_seen_subcommand_from update" -l skip-push -d "Do not push the current branch"
 
