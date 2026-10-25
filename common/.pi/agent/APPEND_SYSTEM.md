@@ -21,6 +21,9 @@ Use ASD-STE100 Simplified Technical English, Issue 9, with short sentences and a
 
 When writing Mermaid, avoid literal semicolons in labels; renderers can interpret them as statement separators.
 
+## Typography
+- For long-form content, prefer 18–20px body text over 16px to make reading more comfortable and inviting. Apply this to reading content, not every UI label or control.
+
 ## Browser Automation
 Use `agent-browser` for browser automation. Read its installed core instructions before use.
 
