@@ -37,6 +37,10 @@ prompt additions. Keep global prompt additions in `agent/APPEND_SYSTEM.md`.
 - For a read-only review, report the migration opportunity. Apply the migration or
   update dependencies only when those changes are authorized.
 
+## Validation
+
+For extension code changes, follow [Validate extensions](README.md#validate-extensions).
+
 ## Related Documentation
 
 - [Workspace setup and validation](README.md)

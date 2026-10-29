@@ -1,14 +1,14 @@
 # Agent Browser Recording Recipes
 
-Use these recipes from the repository root of the app under test so artifact paths stay project-local.
+Run these recipes from the app repository root to resolve relative artifact paths. Use the selected artifact root even when the environment places it outside the repository.
 
 ## Start a Scenario
 
-First select the artifact root and set up `RUN_DIR` using the [Artifact Folder instructions](../SKILL.md#artifact-folder).
+First select the artifact root and set up `RUN_DIR` using the [Artifact Folder instructions](../SKILL.md#artifact-folder). Complete [Browser Setup](../SKILL.md#browser-setup), including reading installed core instructions and creating a task-specific named session. Every command below assumes the same `AGENT_BROWSER_SESSION` value is set in its shell.
 
 ```bash
 agent-browser open "http://localhost:3000/<route>"
-agent-browser wait --load networkidle
+agent-browser wait --text "<scenario-ready text>"
 agent-browser set viewport 1440 1000
 agent-browser snapshot -i
 ```
@@ -17,7 +17,8 @@ Notes:
 
 - Replace the URL with the project's local dev URL.
 - If the project documents a preferred viewport, use it.
-- Prefer named sessions only when juggling multiple browser flows.
+- Always use the task-specific named session, even for one flow.
+- Replace `<scenario-ready text>` with stable page text that confirms the required state.
 
 ## Static Before/After Screenshots
 
@@ -31,7 +32,7 @@ After implementing and validating the change:
 
 ```bash
 agent-browser open "http://localhost:3000/<route>"
-agent-browser wait --load networkidle
+agent-browser wait --text "<scenario-ready text>"
 agent-browser set viewport 1440 1000
 agent-browser screenshot "$RUN_DIR/after.png"
 ```
@@ -54,7 +55,7 @@ agent-browser snapshot -i
 # agent-browser click @e1
 # agent-browser fill @e2 "search text"
 # agent-browser press Enter
-agent-browser wait --load networkidle
+agent-browser wait --text "<scenario-ready text>"
 agent-browser record stop
 ```
 
@@ -62,7 +63,7 @@ If the recording should include initial navigation:
 
 ```bash
 agent-browser record start "$RUN_DIR/flow.webm" "http://localhost:3000/<route>"
-agent-browser wait --load networkidle
+agent-browser wait --text "<scenario-ready text>"
 # perform interaction
 agent-browser record stop
 ```
@@ -72,7 +73,7 @@ agent-browser record stop
 - Prefer refs from `agent-browser snapshot -i` over selectors.
 - Re-snapshot after navigation or meaningful DOM changes because refs can become stale.
 - Prefer semantic waits:
-  - `agent-browser wait --load networkidle`
+  - `agent-browser wait --load networkidle` only for pages known to become quiet
   - `agent-browser wait --url "**/dashboard"`
   - `agent-browser wait --text "Saved"`
   - `agent-browser wait @e1`
@@ -92,6 +93,6 @@ Save any diff output into the same run folder when possible.
 ## Troubleshooting
 
 - If the app is not running, start the documented dev server in a separate terminal or tmux pane.
-- If auth is required, reuse an existing browser profile/session or follow the project's auth setup notes.
+- If auth is required, follow the project's auth setup notes within the task-specific named session. Do not take over another task's browser or the shared unnamed session.
 - If screenshots show loading states, wait for a stable text, URL, or element before capturing.
 - If animations make evidence noisy, wait for the final state or use screenshots instead of video.

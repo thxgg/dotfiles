@@ -14,6 +14,7 @@ Current configuration and architecture sections describe the implementation, not
 | Manage external Pi packages | `common/.pi/agent/npm/package.json` | Single external package declaration; Vite+ owns CLI updates |
 | Add macOS packages | `macos/Brewfile` | Homebrew formulae and casks |
 | Add Arch packages | `linux/packages/*.txt` | Profile lists consumed by `linux/setup.sh` |
+| Update Linux packages that include Handy | [Required update procedure](linux/home/.config/handy-launcher/README.md#required-update-procedure) | Before reporting completion, rebuild and verify the selected private app; package updates do not update it |
 | Change shell or terminal behavior | `common/.config/fish/`, `common/.config/ghostty/`, `common/.config/herdr/` | Fish is the primary interactive shell |
 | Change Neovim | `common/.config/nvim/` | Lazy plugin specs and core/user modules |
 | Change agent instructions or skills | `common/.codex/AGENTS.md`, `common/.pi/agent/APPEND_SYSTEM.md`, `common/.agents/skills/` | Codex settings and MCP authentication remain machine-local |

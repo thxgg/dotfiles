@@ -1,6 +1,6 @@
 ---
 name: maintaining-agent-integrations
-description: Reviews and updates personal agent skills and MCP configurations. Use for upstream skill syncs, preserving local or Amp adaptations, Pi Ephemeral maintenance, and pinned MCP package or database image updates across Pi, Codex, Claude, OpenCode, and Amp.
+description: Reviews and updates personal agent skills and MCP configurations. Use for upstream skill syncs, preserving local or Amp adaptations, Pi native MCP maintenance, and pinned MCP package or database image updates across Pi, Codex, Claude, OpenCode, and Amp.
 ---
 
 # Maintain personal skills and MCPs

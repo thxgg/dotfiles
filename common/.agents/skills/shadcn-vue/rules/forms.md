@@ -179,7 +179,7 @@ Use `FieldSet` + `FieldLegend` for related checkboxes, radios, or switches — n
   <FieldGroup class="gap-3">
     <Field orientation="horizontal">
       <Checkbox id="dark" />
-      <FieldLabel for="dark" class="font-normal">Dark mode</FieldLabel>
+      <FieldLabel for="dark">Dark mode</FieldLabel>
     </Field>
   </FieldGroup>
 </FieldSet>

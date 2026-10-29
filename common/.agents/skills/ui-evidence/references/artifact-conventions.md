@@ -1,6 +1,6 @@
 # UI Evidence Artifact Conventions
 
-Keep evidence artifacts inside the app repository, not in the dotfiles repo, unless the dotfiles repo itself is the app under test.
+Use the root selected by the [Artifact Folder rule](../SKILL.md#artifact-folder). An environment-selected root can be outside the app repository. Resolve relative roots from the app repository; keep the fallback there, not in the dotfiles repository unless it is the app under test.
 
 ## Directory Layout
 
@@ -60,7 +60,7 @@ Scenario: Reservations filter empty state
 URL: http://localhost:3000/reservations
 Viewport: 1440x1000
 Theme: light
-Auth/session: existing local browser session
+Auth/session: task-specific named browser session (no credentials)
 
 Artifacts:
 - before.png
@@ -73,6 +73,6 @@ Caveats:
 
 ## Git Policy
 
-Treat the selected run folder as generated output. Do not commit it unless the user explicitly asks or the project expects visual artifacts in version control.
+Follow the [evidence Git policy](../SKILL.md#pr-attachments). Project-required evidence needs no separate tracking approval. Otherwise treat the run folder as generated output. Maintained visual-test fixtures are separate from review evidence.
 
 Final answers should still list the local artifact paths so the user can inspect them.

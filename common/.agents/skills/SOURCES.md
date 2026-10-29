@@ -57,6 +57,18 @@ Selective updates reviewed against `mattpocock/skills@49dd158`:
 
 These are partial updates, not whole-skill baseline advances.
 
+`code-review` also adopts the fresh-context requirement from
+[`mattpocock/skills@7739eae`](https://github.com/mattpocock/skills/commit/7739eae),
+reviewed at `a496f5513d4a4cf889bc48e189e579f4b0bdf6aa`. Reviewers receive the same
+captured evidence, not a fork of the parent conversation. Harness delegation
+policy and the existing local review behavior remain in force.
+
+`writing-for-agents` and its complete supporting files match
+[`mattpocock/skills@a496f55`](https://github.com/mattpocock/skills/commit/a496f5513d4a4cf889bc48e189e579f4b0bdf6aa),
+under `skills/productivity/writing-for-agents`, except for
+`disable-model-invocation: true`. This matches Dillon's manual-only copy.
+The upstream license is retained as `LICENSE.matt-pocock`.
+
 ## Anti-slop
 
 `install-anti-slop` matches `skills/install-anti-slop` at
@@ -102,6 +114,10 @@ The following skills and their complete supporting files match
 - `break-ui`
 - `mobile-native`
 
+`remove-animations` matches
+[`emilkowalski/skills@a81dbca`](https://github.com/emilkowalski/skills/commit/a81dbca07f2217b7103e510c0f13f8d5b017afc9),
+except for the local `disable-model-invocation: true` flag. It is manual-only.
+
 The upstream MIT license is included as `LICENSE.emil-kowalski`.
 
 `pick-ui-library` is intentionally excluded by owner decision.
@@ -119,12 +135,30 @@ and a skill-invocation prompt, not OpenAI model-specific guidance. Historical
 skill. They describe earlier OpenAI model runs, not current model instructions or
 bundled executable tests. All portable development and validation guidance is retained.
 
+## PlanetScale
+
+`postgres` comes from [planetscale/database-skills](https://github.com/planetscale/database-skills),
+under `skills/postgres`. All 23 bundled files exactly match
+[`f6ed002`](https://github.com/planetscale/database-skills/commit/f6ed002d03084cb39c01d1d58904d47a36f5322a).
+No local patches are applied. The upstream MIT license is retained as `LICENSE.planetscale`.
+
+The previous content baseline was `af0ce0cfb65cca4cc21d18ca0d9cf270ca99d488`.
+The update adopts `a9b2585`: session-level `SET` warnings for pooled port 6432
+in `ps-connections.md` and `ps-connection-pooling.md`.
+
+## Herdr
+
+`herdr` comes from [herdrdev/herdr](https://github.com/herdrdev/herdr), not local authorship.
+Its `SKILL.md` exactly matches the repository-root `SKILL.md` at
+[`3e8f9df`](https://github.com/herdrdev/herdr/commit/3e8f9df14e6dd08a8d80d920b923870a80649f0b).
+This is a recoverable content baseline, not proof of the original import commit.
+The current upstream path is `skills/herdr/SKILL.md`; compare against the installed
+Herdr version before updating. The local skill remains unchanged.
+
 ## No upstream
 
 The owner confirmed that these skills have no upstream:
 
-- `herdr`
-- `postgres`
 - `shadcn-vue`
 - `ui-evidence`
 

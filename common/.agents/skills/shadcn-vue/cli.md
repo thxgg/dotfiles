@@ -59,7 +59,7 @@ A preset is required. If none is provided, the CLI exits and lists the available
 
 ### `add` — Add components
 
-> **IMPORTANT:** NEVER fetch raw files from GitHub or other sources manually. The CLI handles registry resolution, file paths, and CSS diffing automatically.
+> **IMPORTANT:** Install new registry components through the CLI, not by copying raw source files into the project. The CLI handles registry resolution, file paths, and CSS diffing. Read-only fetching of documentation and example URLs returned by `docs` is allowed. For installed customized wrappers, follow [Updating Components](./SKILL.md#updating-components) and merge changes manually.
 
 ```bash
 npx shadcn-vue@latest add [components...] [options]

@@ -64,7 +64,7 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 
 ### 4. Spawn both sub-agents in parallel
 
-Use the harness's sub-agent facility to launch both reviews in parallel and isolated from each other. Choose an available general-purpose or review-capable agent rather than assuming a harness-specific agent name. If parallel sub-agents are unavailable, run the two reviews sequentially with separate context.
+Follow the harness's delegation policy. When delegation is permitted, use its sub-agent facility to launch both reviews in parallel, each with a fresh context window rather than a fork of the parent conversation. Pass the same captured evidence from step 1 to both reviewers. Choose an available general-purpose or review-capable agent rather than assuming a harness-specific agent name. If parallel sub-agents are unavailable, run the two reviews sequentially with separate context.
 
 **Standards sub-agent prompt** — include:
 

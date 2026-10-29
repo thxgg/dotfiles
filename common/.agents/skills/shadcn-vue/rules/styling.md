@@ -81,7 +81,7 @@ If you need a success/positive color that doesn't exist as a semantic token, use
 
 ## class for layout only
 
-Use `class` for layout (e.g. `max-w-md`, `mx-auto`, `mt-4`), **not** for overriding component colors or typography. To change colors, use semantic tokens, built-in variants, or CSS variables.
+At component call sites, use `class` for layout (e.g. `max-w-md`, `mx-auto`, `mt-4`). Change colors or typography through existing variants, theme variables, or an intentional wrapper-source change, not consumer class overrides.
 
 **Incorrect:**
 
@@ -101,8 +101,8 @@ Use `class` for layout (e.g. `max-w-md`, `mx-auto`, `mt-4`), **not** for overrid
 
 To customize a component's appearance, prefer these approaches in order:
 1. **Built-in variants** — `variant="outline"`, `variant="destructive"`, etc.
-2. **Semantic color tokens** — `bg-primary`, `text-muted-foreground`.
-3. **CSS variables** — define custom colors in the global CSS file (see [customization.md](../customization.md)).
+2. **Theme variables** — adjust colors in the existing global CSS file (see [customization.md](../customization.md)).
+3. **Wrapper source** — make intentional design-system changes using semantic tokens such as `bg-primary` and `text-muted-foreground`. Preserve local APIs and accessibility behavior.
 
 ---
 

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # UI Evidence
 
-Use this skill when a task changes visible web UI and the final answer should include before/after screenshots or a short recording.
+Use this skill when a task changes visible web UI and the final answer should include before/after screenshots or a short recording. Capture relevant evidence without asking for separate permission; follow the task's scope and protect sensitive data.
 
 ## Core Rule
 
@@ -41,16 +41,19 @@ See [artifact conventions](references/artifact-conventions.md) for details.
 
 ## Browser Setup
 
-Prefer `agent-browser` for all web UI evidence.
+Use `agent-browser` for all web UI evidence. Before browser operations, read the installed core instructions with `agent-browser skills get core`.
 
-Basic setup:
+Always use a task-specific named session. Set it once and pass the same `AGENT_BROWSER_SESSION` value to every browser command, including commands in later shell calls. Never use the shared unnamed session.
 
 ```bash
+export AGENT_BROWSER_SESSION="$(agent-browser session id --scope worktree --prefix evidence)"
 agent-browser open <url>
-agent-browser wait --load networkidle
+agent-browser wait --text "<scenario-ready text>"
 agent-browser set viewport 1440 1000
 agent-browser snapshot -i
 ```
+
+Replace `<scenario-ready text>` with a stable signal from the page. Wait for the scenario's relevant text, element, URL, or application state. Use `networkidle` only when the page is known to become quiet.
 
 Use refs from `snapshot -i` for interactions. Re-run `snapshot -i` after navigation, modal opens, form submission, or significant DOM changes.
 
@@ -84,9 +87,9 @@ Keep recordings focused: start immediately before the relevant interaction and s
 
 ## PR Attachments
 
-Use this procedure only for an explicitly requested PR creation or update. Uploading evidence does not authorize a separate comment or review.
+Use this procedure for an explicitly requested PR creation or update. Attach relevant evidence without asking for separate evidence approval. Uploading evidence does not authorize a separate comment or review.
 
-- Keep review evidence out of Git history unless the user explicitly asks to track it. Do not commit images or videos merely to obtain a URL.
+- Follow the project's artifact policy. Tracking evidence needs no separate approval when the project expects it in version control; otherwise keep run folders as generated output. This does not authorize a Git commit by itself. Do not commit images or videos merely to obtain a URL.
 - Inspect the final comparison before uploading. Match viewport, scale, data, and crop coordinates. Put Before on the left and After on the right. Keep relevant unchanged content visible and wait for transitions to finish.
 - Write the PR body to a temporary file. Reference each local image as `![Description](<image-path>)`, and preview the exact body before posting.
 - Check `gh --version` and `gh pr create --help` or `gh pr edit --help` for attachment support. If supported, use `gh pr create --body-file <body-file> --attach <image-path>` or `gh pr edit <number> --body-file <body-file> --attach <image-path>`. Verify that the posted body contains the uploaded attachment URL instead of the local path.

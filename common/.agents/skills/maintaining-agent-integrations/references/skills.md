@@ -27,7 +27,9 @@ Read the current `SOURCES.md` rather than treating these revisions as update tar
 | `code-review`, `grilling`, `grill-me`, `grill-with-docs`, `tdd` | Matt Pocock [d574778](https://github.com/mattpocock/skills/commit/d574778f94cf620fcc8ce741584093bc650a61d3), imported through Dillon's `scripts/sync-matt-skills.sh`; inspect both sources rather than replacing Dillon's adaptations with Matt's defaults |
 | `install-anti-slop` | [dmmulroy/anti-slop](https://github.com/dmmulroy/anti-slop), `skills/install-anti-slop` at [c44ef22](https://github.com/dmmulroy/anti-slop/commit/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b) |
 | Eleven Emil skills listed below | [emilkowalski/skills](https://github.com/emilkowalski/skills), [d16ebe6](https://github.com/emilkowalski/skills/commit/d16ebe60d09a5ba2afcb7054ede9d0a10c9f6128) |
-| `herdr`, `postgres`, `shadcn-vue`, `ui-evidence` | Owner-maintained; no skill upstream was identified. Product documentation is not an upstream skill source. |
+| `postgres` | [planetscale/database-skills](https://github.com/planetscale/database-skills), `skills/postgres`; read current `SOURCES.md` for the imported revision and local deviations. |
+| `herdr` | [herdrdev/herdr](https://github.com/herdrdev/herdr); historical root `SKILL.md`, now `skills/herdr/SKILL.md`. Read `SOURCES.md` for the recovered baseline. |
+| `shadcn-vue`, `ui-evidence` | Owner-maintained; no skill upstream was identified. Product documentation is not an upstream skill source. |
 
 The eleven Emil skills are `animate`, `animate-expo`, `animation-vocabulary`, `apple-design`, `ask-sonner`, `emil-design-eng`, `find-animation-opportunities`, `improve-animations`, `prototype`, `review-animations`, and `write-swift`.
 
