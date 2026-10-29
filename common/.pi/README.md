@@ -35,7 +35,7 @@ To restore declared packages without running the full bootstrap, run from the re
 zsh scripts/install-pi-packages.zsh
 ```
 
-Pi Voice is pinned to `@earendil-works/pi-voice@0.1.0`. Change the dependency in
+Pi Voice is declared at `^0.2.0` for `@earendil-works/pi-voice`. Change the dependency in
 `agent/npm/package.json` to update it. The helper installs the replacement before removing
 legacy Pi Transcribe Git registrations. Pi Voice migrates `pi-transcribe.json` to
 `pi-voice.json` on first use. Model files remain in the local cache.
@@ -93,7 +93,7 @@ Native OAuth uses its own credentials; re-authenticate remote servers with
 `/mcp login <server>` when necessary.
 Do not run `pi mcp list` merely to check config: it connects enabled servers.
 
-`pi-extmgr` is declared in `agent/npm/package.json` for `/extensions` package management.
+`pi-extmgr` is declared at `^0.4.2` in `agent/npm/package.json` for `/extensions` package management.
 The existing local `/toggle-skills` extension manages skill invocation separately.
 
 ## Native codemode
@@ -353,5 +353,8 @@ its import and inactive-outside-Herdr behavior are checked without editing that 
 After changing extension code, reload Pi with `/reload`.
 
 Use `/toggle-skills` in interactive Pi sessions to switch discovered skills between agent-invocable and manual-only modes. The command updates each skill's `disable-model-invocation` frontmatter and reloads Pi resources.
+Its discovery code includes the canonical-file deduplication fix from
+[`dmmulroy/.dotfiles@6f3b347`](https://github.com/dmmulroy/.dotfiles/commit/6f3b3470b1af6e49f381682f701bc675ef3bee46).
+Keep the local symlink-preserving atomic writes and failed-write cleanup when syncing upstream.
 
 Runtime state, credentials, sessions, and machine-local provider overlays must remain untracked.

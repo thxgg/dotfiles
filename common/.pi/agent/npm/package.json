@@ -3,8 +3,8 @@
   "private": true,
   "piPackages": [],
   "dependencies": {
-    "@earendil-works/pi-voice": "0.1.0",
+    "@earendil-works/pi-voice": "^0.2.0",
     "@plannotator/pi-extension": "^0.28.37",
-    "pi-extmgr": "^0.3.0"
+    "pi-extmgr": "^0.4.2"
   }
 }
