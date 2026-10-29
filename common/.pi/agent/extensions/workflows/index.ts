@@ -73,8 +73,25 @@ export default function workflowsExtension(pi: ExtensionAPI): void {
   const active = new Map<string, { details: WorkflowDetails; controller: WorkflowController; source: string; args: unknown }>();
   let lastUi: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1]["ui"] | undefined;
   const updateStatus = () => { lastUi?.setStatus("workflows", active.size ? `◇ ${active.size}` : undefined); };
-  pi.on("session_start", (_event, ctx) => { lastUi = ctx.ui; reconcileOrphanedWorkflows(); updateStatus(); });
-  pi.on("session_shutdown", async () => { for (const run of active.values()) run.controller.abort("Parent session is shutting down."); await Promise.all([...active.values()].map((run) => run.controller.settle(true))); lastUi?.setStatus("workflows", undefined); });
+  let recovery: { controller: AbortController; done: Promise<void> } | undefined;
+  pi.on("session_start", (_event, ctx) => {
+    lastUi = ctx.ui;
+    updateStatus();
+    const controller = new AbortController();
+    const done = reconcileOrphanedWorkflows(controller.signal).then((result) => {
+      if (!controller.signal.aborted && result.errors.length) {
+        ctx.ui.notify(`Could not recover ${result.errors.length} workflow history entries. They were left unchanged.`, "warning");
+      }
+    });
+    recovery = { controller, done };
+  });
+  pi.on("session_shutdown", async () => {
+    recovery?.controller.abort();
+    await recovery?.done;
+    for (const run of active.values()) run.controller.abort("Parent session is shutting down.");
+    await Promise.all([...active.values()].map((run) => run.controller.settle(true)));
+    lastUi?.setStatus("workflows", undefined);
+  });
 
   const approveWorkflow = async (source: string, ctx: any): Promise<boolean> => {
     if (!ctx.hasUI) return true;

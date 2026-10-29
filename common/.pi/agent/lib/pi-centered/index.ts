@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AssistantMessageComponent, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { AgentSession, AgentSessionRuntime, AssistantMessageComponent, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Marked, type Component, type TUI, type TuiMouseEvent, type MarkdownOptions, type MarkdownTheme, type DefaultTextStyle } from "@earendil-works/pi-tui";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -41,8 +41,8 @@ function loadSaved(): number | undefined {
 // ---------- Hooks (installed once per component, survive /reload) ----------
 //
 // Each Pi component gets thin trampolines that call whatever `state.impl` currently is.
-// Every extension load installs its own impl, and session_shutdown removes it, so
-// editing or removing this file takes effect on /reload.
+// Replacement keeps the old layout until the new runtime starts. Operation
+// boundaries remove it if the replacement omits this extension or fails.
 
 type Render = (width: number) => string[];
 type HandleMouse = NonNullable<Component["handleMouse"]>;
@@ -55,11 +55,41 @@ interface Impl {
 // Keep the upstream key so existing trampolines switch implementations on /reload.
 // This is the only global state boundary; Pi keeps its components across reloads.
 const globalState = globalThis as typeof globalThis & {
-	[key: symbol]: { impl?: Impl; tui?: TUI } | undefined;
+	[key: symbol]: { impl?: Impl; tui?: TUI; generation?: number; handoffs?: number; lifecycleInstalled?: boolean; pendingCleanup?: boolean } | undefined;
 };
 const state = (globalState[Symbol.for("pi-centered.state.v2")] ??= {});
 const HOOKED = Symbol.for("pi-centered.hooked.v2");
 const PARTS = Symbol.for("pi-centered.parts.v2");
+
+function clearLayout() {
+	state.impl = undefined;
+	try { state.tui?.requestRender(true); } catch { /* terminal already stopped */ }
+}
+
+/** Public runtime operations supply a completion boundary even if we are removed. */
+function installLifecycleHandoff() {
+	if (state.lifecycleInstalled) return;
+	state.lifecycleInstalled = true;
+	function wrap<T extends object, K extends keyof T>(prototype: T, key: K) {
+		// SAFETY: Only the async Pi methods below are wrapped. Forward all arguments,
+		// preserve the receiver/result, and restore the declared signature unchanged.
+		const original = prototype[key] as (...args: unknown[]) => Promise<unknown>;
+		prototype[key] = async function (this: T, ...args: unknown[]) {
+			const generation = state.generation;
+			state.handoffs = (state.handoffs ?? 0) + 1;
+			try { return await original.apply(this, args); }
+			finally {
+				state.handoffs = (state.handoffs ?? 1) - 1;
+				if (!state.handoffs && state.generation === generation && state.pendingCleanup) clearLayout();
+				if (!state.handoffs) state.pendingCleanup = false;
+			}
+		} as T[K];
+	}
+	wrap(AgentSession.prototype, "reload");
+	for (const key of ["newSession", "switchSession", "fork", "importFromJsonl"] as const) {
+		wrap(AgentSessionRuntime.prototype, key);
+	}
+}
 
 function hook(comp: HookedComponent) {
 	if (!comp || comp[HOOKED] || typeof comp.render !== "function") return;
@@ -253,11 +283,9 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		if (ctx.mode !== "tui") return;
+		installLifecycleHandoff();
 		if (envRaw !== undefined && envWidth === undefined) {
 			ctx.ui.notify(`PI_CENTERED_WIDTH="${envRaw}" ignored: use 0 or a whole number >= ${MIN_WIDTH}`, "warning");
-		}
-		if (!(await loadMermaid())) {
-			ctx.ui.notify("pi-centered: grok-mermaid not found; wide diagrams stay in the column", "warning");
 		}
 		// Borrow the TUI via a throwaway widget (its factory runs synchronously), then remove it.
 		ctx.ui.setWidget("__pi-centered", (tui) => {
@@ -266,16 +294,21 @@ export default function (pi: ExtensionAPI) {
 		});
 		ctx.ui.setWidget("__pi-centered", undefined);
 		state.impl = impl;
+		state.generation = (state.generation ?? 0) + 1;
 		for (const child of state.tui?.children ?? []) hook(child);
+		state.tui?.requestRender(true);
+		if (!(await loadMermaid())) {
+			ctx.ui.notify("pi-centered: grok-mermaid not found; wide diagrams stay in the column", "warning");
+		}
+		// A frame can render while Mermaid loads. Rebuild any cached plain parts.
+		for (const child of state.tui?.children ?? []) child.invalidate?.();
 		state.tui?.requestRender(true);
 	});
 
-	pi.on("session_shutdown", async () => {
+	pi.on("session_shutdown", async (event) => {
 		if (state.impl !== impl) return; // a newer load already took over
-		state.impl = undefined;
-		try {
-			state.tui?.requestRender(true);
-		} catch {}
+		if (event?.reason !== "quit" && state.handoffs) state.pendingCleanup = true;
+		else clearLayout();
 	});
 
 	pi.registerCommand("maxwidth", {

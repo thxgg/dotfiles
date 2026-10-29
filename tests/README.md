@@ -243,14 +243,20 @@ startup files are not loaded.
 
 ```sh
 cd common/.pi
-node --import tsx --test test/centered-layout.test.mjs
+node --import tsx --test test/centered-{layout,lifecycle}.test.mjs test/extmgr-patch.test.mjs
 ```
 
 These offline tests use Pi's actual Markdown and Mermaid renderers. They check
 independent diagram centering, oversized source fallback inside the text column,
 resize boundaries, fullscreen scrollbar width, Mermaid modes, reload, and
-`/maxwidth off`. They also run in the aggregate Pi workspace check. They do not
-verify live mouse selection, IME, or terminal image protocols.
+`/maxwidth off`. SDK lifecycle checks cover delayed replacement, resizing,
+cancellation, extension removal, failed loading, and quit cleanup. The extmgr
+fixture test checks the version/source-gated lazy-import patch, repeated runs,
+preflight failure without partial writes, and synchronous completion exports.
+Workflow store tests check asynchronous recovery, cancellation, live/completed
+run preservation, corrupt files, and idempotency. These checks also run in the
+aggregate Pi workspace check. They do not verify live mouse selection, IME,
+terminal image protocols, or every interactive extmgr command.
 
 # Pi native MCP migration checks
 

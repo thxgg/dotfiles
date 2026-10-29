@@ -5,6 +5,6 @@
   "dependencies": {
     "@earendil-works/pi-voice": "^0.2.0",
     "@plannotator/pi-extension": "^0.28.37",
-    "pi-extmgr": "^0.4.2"
+    "pi-extmgr": "0.4.2"
   }
 }

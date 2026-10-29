@@ -74,6 +74,11 @@ terminal. Diagrams too wide for the terminal stay as source in the text column.
 After deployment, run `/reload` or restart Pi. Use `/maxwidth 100` to change the
 width, `/maxwidth` to inspect it, and `/maxwidth off` to restore native full width.
 
+The layout stays centered during runtime replacement. Thin wrappers around Pi's
+reload/new/resume/fork/import operations release the old layout when replacement
+finishes without centering, including removal or load failure. Quit still cleans up
+immediately. The first reload from an older version can still use its old teardown.
+
 The package saves the width in machine-local `~/.pi/agent/pi-centered.json`.
 Keep that file outside Stow. `PI_CENTERED_WIDTH=90 pi` overrides the width for
 one launch. The extension patches TUI rendering internals, so check resizing,
@@ -93,8 +98,20 @@ Native OAuth uses its own credentials; re-authenticate remote servers with
 `/mcp login <server>` when necessary.
 Do not run `pi mcp list` merely to check config: it connects enabled servers.
 
-`pi-extmgr` is declared at `^0.4.2` in `agent/npm/package.json` for `/extensions` package management.
-The existing local `/toggle-skills` extension manages skill invocation separately.
+`pi-extmgr` is pinned to `0.4.2` in `agent/npm/package.json` for `/extensions` package management.
+`scripts/patch-pi-extmgr.mjs` defers command/UI imports while keeping synchronous
+completions, startup hooks, and scheduled update settings intact. The package installer
+and `dot update` apply it after installation/update. Source hashes reject unsupported
+versions or local edits before mutation. Rebase the patch before changing the pin.
+A direct `pi update --extensions` can overwrite the patch; reapply it from the repository:
+
+```sh
+node scripts/patch-pi-extmgr.mjs
+```
+
+This command changes only the installed `pi-extmgr` sources, not Pi or user settings.
+Restart Pi or run `/reload` afterward. The existing local `/toggle-skills` extension
+manages skill invocation separately.
 
 ## Native codemode
 
@@ -309,6 +326,15 @@ summaries preserve the actual foreground request prefix and cache key for cache
 reuse. Load this extension after payload transformers; other providers keep Pi's
 serialized summary path. Discarded requests can still cost tokens.
 See [operation, cost limits, research, and tests](background-compaction.md).
+
+## Workflow startup recovery
+
+Workflow orphan recovery runs in the background. It reads one state file at a time
+and yields between files instead of parsing the whole history in `session_start`.
+Shutdown cancels and joins the scan before retiring the extension context. Recovery
+still marks dead-owner runs as failed/incomplete and preserves partial results.
+Changed snapshots are skipped; recovery errors leave files intact and show a warning.
+There is no new history format, index, or migration.
 
 ## Session recap
 

@@ -467,6 +467,8 @@ update_pi() {
 	# self-updater against the Vite+-managed installation.
 	info "Updating pi extensions/packages"
 	(cd "$DOTFILES_DIR" && "${pi_update_env[@]}" pi update --extensions) || return
+	# Updates can reinstall the npm package. Restore the reviewed local patch.
+	node "$DOTFILES_DIR/scripts/patch-pi-extmgr.mjs" || return
 
 	success "pi extensions updated"
 }

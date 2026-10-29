@@ -32,6 +32,14 @@ sources="$(jq -er '
 ' "$manifest")" || exit 1
 
 voice_version="$(jq -r '.dependencies["@earendil-works/pi-voice"] // empty' "$manifest")"
+extmgr_version="$(jq -r '.dependencies["pi-extmgr"] // empty' "$manifest")"
+if [[ -n "$extmgr_version" && "$extmgr_version" != '0.4.2' ]]; then
+    printf '[ERROR] pi-extmgr must be pinned to 0.4.2 until its local patch is rebased\n' >&2
+    exit 1
+fi
+if [[ -n "$extmgr_version" ]]; then
+    command -v node >/dev/null || { printf '[ERROR] Node.js is required to patch pi-extmgr\n' >&2; exit 1; }
+fi
 
 # Capture sources before Pi updates its npm manifest. Keep unrelated settings.
 while IFS= read -r source; do
@@ -66,6 +74,16 @@ if [[ -n "$voice_version" ]]; then
             done <<< "$legacy_sources"
         fi
     fi
+fi
+
+if [[ -n "$extmgr_version" ]]; then
+    # Pi/npm can restore a caret range while installing. Keep the reviewed pin.
+    manifest_target="${manifest:A}"
+    manifest_tmp="$(mktemp "${manifest_target}.XXXXXX")"
+    jq '.dependencies["pi-extmgr"] = "0.4.2"' "$manifest_target" > "$manifest_tmp"
+    chmod --reference="$manifest_target" "$manifest_tmp" 2>/dev/null || chmod 644 "$manifest_tmp"
+    mv "$manifest_tmp" "$manifest_target"
+    node "$SCRIPT_DIR/patch-pi-extmgr.mjs"
 fi
 
 printf '[OK] Declared Pi packages installed. Run /voice-settings in Pi to configure a local model.\n'

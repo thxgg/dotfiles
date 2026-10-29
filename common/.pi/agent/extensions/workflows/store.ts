@@ -1,4 +1,6 @@
 import * as fs from "node:fs";
+import * as asyncFs from "node:fs/promises";
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { WorkflowDetails } from "./model.ts";
@@ -41,23 +43,70 @@ function processExists(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (error: any) { return error?.code === "EPERM"; }
 }
 
-/** Mark runs from dead extension processes terminal; legacy runs are left untouched. */
-export function reconcileOrphanedWorkflows(): WorkflowDetails[] {
-  const reconciled: WorkflowDetails[] = [];
-  for (const details of listWorkflows()) {
-    if (details.status !== "running" || !details.owner || details.owner.pid === process.pid || processExists(details.owner.pid)) continue;
-    const finishedAt = Date.now();
-    details.status = details.agents.some((agent) => agent.preview || agent.transcript.length || agent.usage.turns) ? "incomplete" : "failed";
-    details.failureKind = "runtime_lost";
-    details.error = "Workflow owner process exited before the run reached a terminal state. Partial child output and saved sessions were retained.";
-    details.finishedAt = finishedAt;
-    for (const agent of details.agents) if (agent.state === "queued" || agent.state === "running") {
-      agent.state = "cancelled";
-      agent.error = "Workflow owner process exited before the child completed.";
-      agent.finishedAt = finishedAt;
-    }
-    persistWorkflow(details);
-    reconciled.push(details);
+function isMissingFile(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+/** Recovery outcomes and safe diagnostics. Failed entries are left unchanged. */
+export interface ReconciliationResult {
+  reconciled: WorkflowDetails[];
+  errors: { runId?: string; message: string }[];
+}
+
+/** Background scan: one file per turn, cancellable between reads and before writes. */
+export async function reconcileOrphanedWorkflows(signal?: AbortSignal): Promise<ReconciliationResult> {
+  const result: ReconciliationResult = { reconciled: [], errors: [] };
+  const root = workflowRoot();
+  // Do not read/parse history on the session_start critical path.
+  await yieldToEventLoop();
+  if (signal?.aborted) return result;
+  let entries: string[];
+  try { entries = await asyncFs.readdir(root); }
+  catch (error) {
+    if (!isMissingFile(error)) result.errors.push({ message: "Could not read workflow history." });
+    return result;
   }
-  return reconciled;
+  for (const runId of entries.filter((entry) => RUN_ID.test(entry))) {
+    await yieldToEventLoop();
+    if (signal?.aborted) break;
+    const file = path.join(root, runId, "state.json");
+    try {
+      const before = await asyncFs.stat(file);
+      const source = await asyncFs.readFile(file, "utf8");
+      if (signal?.aborted) break;
+      // SAFETY: State files use persistWorkflow's internal format. Recovery checks
+      // identity, owner, and the agent fields it mutates below; malformed input
+      // becomes a diagnostic and is never persisted.
+      const details = JSON.parse(source) as WorkflowDetails;
+      if (details.runId !== runId || details.status !== "running" || !details.owner ||
+          !Number.isSafeInteger(details.owner.pid) || details.owner.pid <= 0 ||
+          details.owner.pid === process.pid || processExists(details.owner.pid)) continue;
+      // Another Pi process may finish/reconcile a run while our read is pending.
+      // Skip a changed snapshot. No async gap follows this check, although other
+      // processes can still race (state files have no cross-process lock).
+      const current = fs.statSync(file);
+      if (before.ino !== current.ino || before.mtimeMs !== current.mtimeMs || before.size !== current.size) continue;
+      if (!Array.isArray(details.agents) || !details.agents.every((agent) =>
+        agent && Array.isArray(agent.transcript) && agent.usage)) {
+        result.errors.push({ runId, message: "Invalid workflow recovery state." });
+        continue;
+      }
+      const finishedAt = Date.now();
+      details.status = details.agents.some((agent) => agent.preview || agent.transcript.length || agent.usage.turns) ? "incomplete" : "failed";
+      details.failureKind = "runtime_lost";
+      details.error = "Workflow owner process exited before the run reached a terminal state. Partial child output and saved sessions were retained.";
+      details.finishedAt = finishedAt;
+      for (const agent of details.agents) if (agent.state === "queued" || agent.state === "running") {
+        agent.state = "cancelled";
+        agent.error = "Workflow owner process exited before the child completed.";
+        agent.finishedAt = finishedAt;
+      }
+      // Only the state changed. Avoid rewriting transcript-heavy result artifacts.
+      writeFileAtomic(file, safeStringify(details, 2 * 1024 * 1024));
+      result.reconciled.push(details);
+    } catch (error) {
+      if (!isMissingFile(error)) result.errors.push({ runId, message: "Could not recover workflow state." });
+    }
+  }
+  return result;
 }

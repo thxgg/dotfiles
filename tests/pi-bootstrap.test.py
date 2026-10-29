@@ -117,6 +117,39 @@ class PiBootstrapTests(unittest.TestCase):
         self.assertNotIn("npm:example", Path(self.env["CALL_LOG"]).read_text())
         self.assertNotIn("[OK]", result.stdout)
 
+    def test_extmgr_pin_is_checked_before_any_install(self):
+        self.manifest.write_text(json.dumps({"piPackages": [], "dependencies": {"pi-extmgr": "^0.4.2"}}))
+        result = self.run_zsh(self.helper, self.manifest)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(Path(self.env["CALL_LOG"]).exists())
+
+    def test_extmgr_patch_runs_after_install_and_restores_exact_pin(self):
+        self.manifest.write_text(json.dumps({"piPackages": [], "dependencies": {"pi-extmgr": "0.4.2"}}))
+        self.env["MANIFEST"] = str(self.manifest)
+        self.executable(self.bin / "pi", '''#!/bin/sh
+printf 'install\\n' >> "$CALL_LOG"
+jq '.dependencies["pi-extmgr"] = "^0.4.2"' "$MANIFEST" > "$MANIFEST.tmp"
+mv "$MANIFEST.tmp" "$MANIFEST"
+''')
+        self.executable(self.bin / "node", '#!/bin/sh\nprintf "patch\\n" >> "$CALL_LOG"\n')
+        result = self.run_zsh(self.helper, self.manifest)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(self.env["CALL_LOG"]).read_text().splitlines(), ["install", "patch"])
+        self.assertEqual(json.loads(self.manifest.read_text())["dependencies"]["pi-extmgr"], "0.4.2")
+
+    def test_extmgr_patch_failure_is_not_reported_as_success(self):
+        self.manifest.write_text(json.dumps({"piPackages": [], "dependencies": {"pi-extmgr": "0.4.2"}}))
+        self.executable(self.bin / "node", '#!/bin/sh\nexit 9\n')
+        result = self.run_zsh(self.helper, self.manifest)
+        self.assertEqual(result.returncode, 9)
+        self.assertNotIn("[OK]", result.stdout)
+
+    def test_update_reapplies_patch_after_pi_package_update(self):
+        source = (ROOT / "dot").read_text()
+        body = source.split("update_pi() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertLess(body.index("pi update --extensions"), body.index("patch-pi-extmgr.mjs"))
+        self.assertIn('node "$DOTFILES_DIR/scripts/patch-pi-extmgr.mjs" || return', body)
+
     def test_voice_install_removes_only_legacy_registration_after_success(self):
         agent = Path(self.env["PI_CODING_AGENT_DIR"])
         agent.mkdir(parents=True)
