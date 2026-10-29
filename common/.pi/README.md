@@ -64,6 +64,22 @@ models remain in the local Hugging Face cache. `doctor.sh` checks package regist
 npm version, FFmpeg availability, and the configured model file. These checks do not record audio,
 load a model, or download files.
 
+## Centered TUI layout
+
+`agent/extensions/pi-centered.ts` loads our local adaptation of `pi-centered`
+0.1.0 from `agent/lib/pi-centered/`. Do not also install the upstream npm package.
+It centers the transcript, editor, and footer with a default maximum width of
+110 cells. Rendered Mermaid diagrams ignore that limit and center within the
+terminal. Diagrams too wide for the terminal stay as source in the text column.
+After deployment, run `/reload` or restart Pi. Use `/maxwidth 100` to change the
+width, `/maxwidth` to inspect it, and `/maxwidth off` to restore native full width.
+
+The package saves the width in machine-local `~/.pi/agent/pi-centered.json`.
+Keep that file outside Stow. `PI_CENTERED_WIDTH=90 pi` overrides the width for
+one launch. The extension patches TUI rendering internals, so check resizing,
+selection, and existing UI extensions after Pi upgrades. See the
+[local changes and tests](agent/lib/pi-centered/README.md).
+
 ## Native MCP and extension controls
 
 Pi uses its built-in MCP support. Put project servers in `.pi/mcp.json` after

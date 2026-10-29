@@ -239,6 +239,19 @@ Shell subprocesses use `zsh -f`, a temporary `HOME`, and a minimal environment.
 They do not inherit `BASH_ENV`, `ZDOTDIR`, or live Pi configuration. User shell
 startup files are not loaded.
 
+## Centered TUI layout checks
+
+```sh
+cd common/.pi
+node --import tsx --test test/centered-layout.test.mjs
+```
+
+These offline tests use Pi's actual Markdown and Mermaid renderers. They check
+independent diagram centering, oversized source fallback inside the text column,
+resize boundaries, fullscreen scrollbar width, Mermaid modes, reload, and
+`/maxwidth off`. They also run in the aggregate Pi workspace check. They do not
+verify live mouse selection, IME, or terminal image protocols.
+
 # Pi native MCP migration checks
 
 ```sh
