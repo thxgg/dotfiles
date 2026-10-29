@@ -1,5 +1,6 @@
 ghostty
 handy-bin
+claude-desktop
 dropbox
 discord
 obsidian
