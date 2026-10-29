@@ -296,6 +296,20 @@ at `~/.local/state/pi-subscription-usage/`. Do not delete unconfirmed reset stat
 See [provider limits, safeguards, and activation](agent/extensions/usage/README.md).
 Live provider compatibility and real reset redemption are not yet verified.
 
+## Background compaction
+
+`agent/extensions/zz-background-compaction.ts` prepares a summary at 85% of Pi's
+compaction threshold, then supplies it when threshold compaction is due. The
+foreground session keeps its full context until that point. `/bg-compact`
+shows status; `/bg-compact off` disables preparation for the session.
+
+It keeps follow-up messages unchanged and falls back to native compaction when
+needed. Manual compaction and overflow recovery remain native. OpenAI Responses
+summaries preserve the actual foreground request prefix and cache key for cache
+reuse. Load this extension after payload transformers; other providers keep Pi's
+serialized summary path. Discarded requests can still cost tokens.
+See [operation, cost limits, research, and tests](background-compaction.md).
+
 ## Session recap
 
 Recap starts off in every new, resumed, forked, or reloaded session. Type `/recap`

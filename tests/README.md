@@ -322,6 +322,20 @@ file locks. An isolated actual Pi CLI invocation checks `/usage` loading.
 They do not contact providers or redeem real credits. Live quota endpoints and
 reset programs remain unverified. See the [extension notes](../common/.pi/agent/extensions/usage/README.md).
 
+## Background compaction checks
+
+The aggregate Pi check includes `common/.pi/test/background-compaction.test.mjs`.
+It tests background preparation and delayed application with real Pi projection,
+a controlled stream boundary, and an offline SDK automatic-compaction session.
+Checks cover exact tail/tool-pair retention, settings and model overrides,
+stale summaries, repeat compaction, cancellation, deadlines, failure fallback,
+and continuation without another summary call. The real OpenAI serializer test
+checks exact wire-prefix, tool, cache-key, and prior transformation preservation.
+No live model requests run in the aggregate suite. The separate opt-in
+`common/.pi/test/live-background-compaction.mjs` uses OpenAI allowance against
+private copies of an existing session and checks provider-reported cache reads.
+See [behavior, live results, and limits](../common/.pi/background-compaction.md).
+
 ## T3 visual guide checks
 
 The aggregate Pi workspace check includes `common/.pi/test/t3-visual-guide-rpc.test.mjs`.
