@@ -292,6 +292,16 @@ file locks. An isolated actual Pi CLI invocation checks `/usage` loading.
 They do not contact providers or redeem real credits. Live quota endpoints and
 reset programs remain unverified. See the [extension notes](../common/.pi/agent/extensions/usage/README.md).
 
+## T3 visual guide checks
+
+The aggregate Pi workspace check includes `common/.pi/test/t3-visual-guide-rpc.test.mjs`.
+It runs real Pi RPC subprocesses with synthetic offline credentials and a temporary home.
+It checks that the guide is absent without `T3_MCP_URL`, appears once as its own section
+next to a T3-style section in either extension order, survives a full prompt override,
+loads through Stow leaf symlinks, and is skipped when the guide file is missing.
+The standalone import check clears `T3_MCP_URL` and requires no registration outside T3.
+They do not start T3, send model requests, or verify the Claude launch argument.
+
 ## Astra Fast usage
 
 The existing `common/.pi/agent/extensions/gpt6-sol-aliases.ts` extension handles GPT-6.1 Sol Fast, Astra Fast, and Astra Ultrafast. Do not load a second copy of its provider wrappers.

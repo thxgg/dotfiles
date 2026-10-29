@@ -46,6 +46,8 @@ common/.pi/agent/lib/*
 !common/.pi/agent/npm/package.json
 !common/.pi/agent/skills/
 !common/.pi/agent/skills/**
+!common/.pi/agent/t3/
+!common/.pi/agent/t3/**
 !common/.pi/agent/themes/
 !common/.pi/agent/themes/*.json
 

@@ -10,6 +10,8 @@ const agentDir = mkdtempSync(join(tmpdir(), 'pi-standalone-test-'));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 delete process.env.HERDR_ENV;
 delete process.env.HERDR_SOCKET_PATH;
+// T3 sets this for Pi sessions it hosts. Clear it so results do not depend on the caller.
+delete process.env.T3_MCP_URL;
 after(() => rmSync(agentDir, { recursive: true, force: true }));
 
 function harness() {
@@ -43,6 +45,8 @@ test('every standalone extension imports and registers without starting a sessio
     await extension.default(h.api);
     if (file === 'herdr-agent-state.ts') {
       assert.equal(h.handlers.size + h.registrations.length, 0, 'Herdr must stay inactive outside Herdr');
+    } else if (file === 't3-visual-guide.ts') {
+      assert.equal(h.handlers.size + h.registrations.length, 0, 'The T3 guide must stay inactive outside T3');
     } else {
       assert.ok(h.handlers.size + h.registrations.length > 0, file);
     }

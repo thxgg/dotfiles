@@ -291,6 +291,25 @@ While enabled, recap keeps its automatic focus-based refresh behavior unless
 `recap.auto` is false. `/recap on`, `/recap off`, `/recap refresh`, and `/recap clear`
 remain available. Tree navigation and compaction do not change the toggle.
 
+## T3 Code visual guide
+
+`agent/extensions/t3-visual-guide.ts` adds `agent/t3/visual-guide.md` to the system prompt
+only when T3 Code hosts Pi. T3 sets `T3_MCP_URL` for Pi sessions that receive its tools,
+including `html_render`. The TUI does not set it, so the extension registers no handler there.
+In T3, the guide is a separate `t3_visual_guide` prompt section next to T3's own instructions.
+The extension reads the guide on each run, so edits apply without `/reload`.
+Deploy both files with `./safe-stow.sh --only-pi`.
+
+Claude Code in T3 can read the same file. In T3, open Settings > Providers > Claude and set
+the launch arguments to an absolute path; T3 does not expand `~`:
+
+```text
+--append-system-prompt-file /home/<user>/.pi/agent/t3/visual-guide.md
+```
+
+T3 provider settings are machine-local, so set this on each machine. Codex in T3 has no
+file-based equivalent and does not receive the guide.
+
 ## Validate extensions
 
 ```bash

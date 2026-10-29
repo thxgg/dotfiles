@@ -17,6 +17,7 @@ Current configuration and architecture sections describe the implementation, not
 | Change shell or terminal behavior | `common/.config/fish/`, `common/.config/ghostty/`, `common/.config/herdr/` | Fish is the primary interactive shell |
 | Change Neovim | `common/.config/nvim/` | Lazy plugin specs and core/user modules |
 | Change agent instructions or skills | `common/.codex/AGENTS.md`, `common/.pi/agent/APPEND_SYSTEM.md`, `common/.agents/skills/` | Codex settings and MCP authentication remain machine-local |
+| Change T3-only visual instructions | `common/.pi/agent/t3/visual-guide.md` | Pi adds it only inside T3; see `common/.pi/README.md` |
 | Change OpenCode | `common/.config/opencode/` | MCP/UI configuration and Herdr integration |
 
 ## Repository Contracts
