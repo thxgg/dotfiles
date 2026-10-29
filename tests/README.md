@@ -25,6 +25,23 @@ and verify matching clipboard commands with an existing Wofi stylesheet.
 They do not start language servers, install editor plugins, or verify live Linux
 launcher and clipboard behavior.
 
+## Rex navigation
+
+The shared suite also runs `tests/rex-config.test.lua` with a stubbed Rex API
+and checks Fish completion with an isolated mock CLI. It does not connect to
+Rex, load inherited shell startup files, or change application settings.
+
+Check the config with the installed Rex parser without deploying or reloading:
+
+```sh
+rex --autostart=false config check "$PWD/common/.config/rex/init.lua"
+fish --no-config --no-execute common/.config/fish/completions/rex.fish
+```
+
+The parser does not validate client action names. Check them against the target
+client's `rex -C CLIENT actions` output. Live key handling and client-level
+shortcut overrides still need manual verification after authorized deployment.
+
 # Root command and deployment safety checks
 
 ```sh

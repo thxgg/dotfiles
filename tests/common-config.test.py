@@ -161,6 +161,45 @@ class CommonConfigTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout.strip(), name)
 
+    def test_rex_navigation_without_server(self):
+        lua = shutil.which('lua')
+        if not lua:
+            self.skipTest('lua unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [lua, 'tests/rex-config.test.lua'], cwd=ROOT,
+                env={'HOME': directory, 'PATH': '/usr/bin:/bin'},
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rex_completions_use_installed_cli_when_available(self):
+        fish = shutil.which('fish')
+        if not fish:
+            self.skipTest('fish unavailable')
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            bin_dir = home / 'bin'
+            bin_dir.mkdir()
+            env = {'HOME': directory, 'PATH': str(bin_dir),
+                   'XDG_CONFIG_HOME': directory + '/config'}
+            source = ROOT / 'common/.config/fish/completions/rex.fish'
+            command = f'source "{source}"; complete -C "rex "'
+            result = subprocess.run([fish, '--no-config', '-c', command], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, '')
+            executable = bin_dir / 'rex'
+            executable.write_text(
+                '#!/bin/sh\n'
+                '[ "$#" = 2 ] && [ "$1" = completion ] && [ "$2" = fish ] || exit 1\n'
+                'printf "%s\\n" "complete -c rex -f -a rex_completion_marker"\n')
+            executable.chmod(0o755)
+            result = subprocess.run([fish, '--no-config', '-c', command], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, '')
+            self.assertIn('rex_completion_marker', result.stdout.splitlines())
+
     def test_browser_themes_use_mocha_with_lavender(self):
         for name in ('soft-lavender', 'soft-lavender-helium'):
             path = ROOT / 'common/.local/share/browser-themes' / name / 'manifest.json'
