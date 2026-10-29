@@ -36,7 +36,13 @@ export interface Call {
   nested?: readonly NestedActivity[];
 }
 export interface Group { id: string; calls: Call[]; expanded: boolean }
-export interface Content { type: string; text?: string }
+export interface Content { type: string; text?: string; thinking?: string }
+
+/** Only meaningful assistant content separates adjacent tool activity. */
+export function separatesActivity(part: Content): boolean {
+  return (part.type === "thinking" && Boolean(part.thinking?.trim()))
+    || (part.type === "text" && Boolean(part.text?.trim()));
+}
 export interface Result { content: readonly Content[]; isError?: boolean; details?: unknown }
 export interface Message {
   role: string;
@@ -79,8 +85,6 @@ export class Activity {
     if (existing) { existing.label = callLabel(name, args); return existing; }
     if (this.unsupported.has(id)) return;
     if (!this.supported.has(name)) { this.unsupported.add(id); this.boundary(); return; }
-    // Scripts have their own output and errors. Never merge them into adjacent direct rows.
-    if (name === "codemode") this.boundary();
     if (!this.current) {
       this.current = { id, calls: [], expanded: false };
       this.groups.push(this.current);
@@ -88,7 +92,6 @@ export class Activity {
     const call: Call = { id, name, label: callLabel(name, args), status: "queued", outside: false, group: this.current.id };
     this.current.calls.push(call);
     this.calls.set(id, call);
-    if (name === "codemode") this.boundary();
     return call;
   }
   message(message: Message): void {
@@ -105,7 +108,7 @@ export class Activity {
     if (!Array.isArray(message.content)) return;
     for (const part of message.content) {
       if (part.type === "toolCall" && part.id && part.name) this.add(part.id, part.name, part.arguments ?? {});
-      else if (part.type === "thinking" || (part.type === "text" && part.text?.trim())) this.boundary();
+      else if (separatesActivity(part)) this.boundary();
     }
   }
   start(id: string, name: string, args: Record<string, unknown>): void {
@@ -125,6 +128,8 @@ export class Activity {
     const status = resultStatus(result, cancelled);
     call.status = call.status === "cancelled" && status === "error" ? "cancelled" : status;
     this.update(id, result);
+    // Unknown script details must retain their native row and split surrounding groups.
+    if (call.name === "codemode" && !call.nested) this.exclude(id);
   }
   exclude(id: string): void {
     const call = this.calls.get(id);
@@ -143,12 +148,12 @@ export class Activity {
   prompt(): string[] {
     const ids = [...this.calls.values()].filter(c => c.status === "queued" || c.status === "running").map(c => c.id);
     for (const id of ids) this.exclude(id);
-    this.boundary();
     return ids;
   }
   settle(): void {
     for (const call of this.calls.values()) {
       if (call.status === "running" || call.status === "queued") call.status = "interrupted";
+      if (call.name === "codemode" && !call.nested) this.exclude(call.id);
     }
     this.boundary();
   }

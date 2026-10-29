@@ -1,7 +1,7 @@
 # Verbosity level
 
 Active Pi extension. Verbosity is a global, persistent preference. Low verbosity
-groups built-in and repository web-tool rows and summarizes codemode scripts.
+groups built-in, repository web-tool, and codemode rows into adjacent activity groups.
 It uses Pi 1.0.2's `registerToolRenderer()` without changing model messages,
 tool execution, permissions, or results.
 
@@ -39,17 +39,26 @@ disable grouping and show an error; they do not terminate Pi.
 - Ctrl+O controls global expansion.
 - Pending summaries show an arrow followed by Pi's animated braille spinner.
 - Settled success has no `completed` label. Errors and cancellations stay explicit.
-- Images and input requests stay normal. Thinking blocks, assistant/user text, and
-  unsupported tools separate groups. Tool groups stay in transcript order, even
-  when thinking is hidden. Agent, workflow, and MCP tools are not adapted.
-- Each codemode script has its own summary, such as `Codemode · Explored 3 reads`.
-  Counts come from native result details, not from parsing the script. Nested tools,
-  MCP calls, and model calls appear in these counts but do not become separate rows.
-- Expand a codemode summary to see the full native script, nested-call details,
-  and output. Caught nested failures remain marked `FAILED`, even if the script
-  succeeds. Script failures and cancellations have separate status labels.
+- Images and input requests stay normal. Nonempty thinking blocks, assistant/user
+  text, and unsupported tools separate groups. Empty or whitespace-only thinking
+  does not. Nonempty thinking still separates groups when its display is hidden.
+  Agent, workflow, and MCP tools are not adapted.
+- Adjacent codemode scripts and direct tool calls share a summary. Counts combine
+  direct calls with nested calls from native result details, not parsed script text.
+  A script is not counted again when its nested calls are counted. Empty or pending
+  scripts without nested calls count as scripts. A single script keeps its
+  `Codemode · Explored 3 reads` style. Nested MCP/model calls contribute counts but
+  do not become separate transcript rows.
+- Expand a group to see every native script, nested-call detail, and output.
+  Caught nested failures remain marked `FAILED`, even if the script succeeds.
+  Script failures and cancellations have separate status labels.
+- Invisible custom metadata and legacy prompt markers do not split groups.
+  Group separation follows transcript content, including visible custom messages.
+  Opening a UI dialog alone does not split completed activity or save new markers.
+  Pending input rows stay native; saved prompt exclusions are ignored on replay.
 - Images and user-input prompts keep normal codemode rows. Missing or malformed
-  saved details fall back to native rendering instead of hiding output.
+  final details fall back to native rendering and split surrounding groups instead
+  of hiding output.
 
 ## Execution scope
 

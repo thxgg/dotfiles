@@ -14,6 +14,25 @@ function codemodeSummary(call: Call): string {
   return `Codemode · ${label}${outcome}`;
 }
 
+/** Count direct calls and nested script activity without counting a script twice. */
+export function groupSummary(calls: readonly Call[]): string {
+  const first = calls[0];
+  if (calls.length === 1 && first?.name === "codemode") return codemodeSummary(first);
+  const items = calls.flatMap(call => {
+    if (call.name !== "codemode") return [{ name: call.name, status: call.status }];
+    const busy = call.status === "running" || call.status === "queued";
+    return call.nested?.length
+      ? call.nested.map(item => item.status === "running" && !busy ? { ...item, status: "interrupted" as const } : item)
+      : [{ name: "script", status: call.status }];
+  });
+  const outcomes: string[] = [];
+  for (const [status, label] of [["error", "FAILED"], ["cancelled", "cancelled"], ["interrupted", "interrupted"]] as const) {
+    const count = calls.filter(call => call.name === "codemode" && call.nested?.length && call.status === status).length;
+    if (count) outcomes.push(`${count} script${count === 1 ? "" : "s"} ${label}`);
+  }
+  return [summary(items), ...outcomes].join(" · ");
+}
+
 function missingCodemodeDetails(call: Call): boolean {
   return call.name === "codemode" && !call.nested && call.status !== "running" && call.status !== "queued";
 }
@@ -46,17 +65,17 @@ export function activityComponent(activity: Activity, request: RenderRequest, en
       const state = grouped();
       if (!state) return request.normal.render(width);
       const { call, group, calls, host } = state;
-      if (!host) return group.expanded ? request.normal.render(width) : [];
+      const content = call.name === "codemode" ? request.expandedNormal ?? request.normal : request.normal;
+      if (!host) return group.expanded ? content.render(width) : [];
       const failed = calls.some(c => c.status === "error" || c.nested?.some(n => n.status === "error"));
       const busy = calls.some(c => c.status === "running" || c.status === "queued");
       const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
       const arrow = group.expanded ? "▾" : "▸";
       const indicator = busy ? `${arrow} ${frames[Math.floor(Date.now() / 80) % frames.length]}` : arrow;
-      const label = call.name === "codemode" ? codemodeSummary(call) : summary(calls);
+      const label = groupSummary(calls);
       const header = [truncateToWidth(request.theme.fg(failed ? "error" : "accent", `${indicator} ${label}`), Math.max(0, width))];
       const spaced = request.standaloneSpacing ? ["", ...header] : header;
       headerHeight = spaced.length;
-      const content = call.name === "codemode" ? request.expandedNormal ?? request.normal : request.normal;
       return group.expanded ? [...spaced, ...content.render(width)] : spaced;
     },
     handleMouse(event) {

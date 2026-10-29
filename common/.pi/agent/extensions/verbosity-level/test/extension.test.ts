@@ -393,7 +393,7 @@ test("streamed thinking keeps each tool batch at its own transcript position", a
       const thinking = { type: "thinking", thinking: "" };
       const tools = [0, 1].map(index => ({ type: "toolCall", id: `${batch}-${index}`, name: "read", arguments: { path: `${batch}-${index}.ts` } }));
       await h.event("message_start", { message: { role: "assistant", content: [] } });
-      // Empty thinking starts a boundary. Repeated deltas must not split siblings.
+      // Empty thinking is transparent; its first text delta starts the boundary.
       await h.event("message_update", { message: { role: "assistant", content: [thinking] } });
       thinking.thinking = "Check another pair.";
       await h.event("message_update", { message: { role: "assistant", content: [thinking, tools[0]] } });
@@ -436,11 +436,52 @@ test("nested codemode calls do not hide the next direct tool row", async () => {
     const args = { path: "direct.ts" };
     await h.event("tool_execution_start", { toolCallId: "direct", toolName: "read", args });
     const row = new ToolExecutionComponent("read", "direct", args, { showImages: false }, h.definitions.get("read"), h.ctx.ui as never, tmpdir());
-    assert.match(stripVTControlCharacters(row.render(80).join("\n")), /Exploring 1 read/);
+    assert.match(stripVTControlCharacters(row.render(80).join("\n")), /direct\.ts/); // Missing summary host: retain native output.
   } finally {
     await h.event("session_shutdown");
     if (oldEager === undefined) delete process.env.PI_VERBOSITY_BUILTINS; else process.env.PI_VERBOSITY_BUILTINS = oldEager;
   }
+});
+
+test("mixed codemode groups expand every native script and ignore empty thinking and metadata", async () => {
+  initTheme("dark", false);
+  const h = harness();
+  await h.event("session_start");
+  const rows: ToolExecutionComponent[] = [];
+  for (const [id, name] of [["first", "read"], ["script", "codemode"], ["second-script", "codemode"], ["last", "bash"]]) {
+    assert.ok(id && name);
+    const args = name === "codemode" ? { code: `return '${id}';` } : name === "bash" ? { command: "echo last" } : { path: "first.ts" };
+    const message = { role: "assistant", content: [{ type: "thinking", thinking: "  " }, { type: "toolCall", id, name, arguments: args }] };
+    await h.event("message_start", { message });
+    await h.event("message_update", { message });
+    await h.event("message_end", { message });
+    await h.event("tool_execution_start", { toolCallId: id, toolName: name, args });
+    const row = new ToolExecutionComponent(name, id, args, { showImages: false }, name === "codemode" ? h.resolve(name, codemodeDefinition()) : h.definitions.get(name), h.ctx.ui as never, tmpdir());
+    rows.push(row);
+    const result = { content: [{ type: "text", text: `OUTPUT_${id}` }], details: name === "codemode" ? { calls: [{ name: "read", status: "ok", id: `${id}/1`, args: "{}" }] } : undefined, isError: false };
+    await h.event("tool_execution_end", { toolCallId: id, result, isError: false });
+    row.updateResult(result);
+    await h.event("ui_prompt_start"); // Completed activity must not split for a dialog.
+    // SAFETY: these metadata entries only supply fields used by reconciliation.
+    h.ctx.sessionManager.getBranch = (() => [
+      { id: `${id}/metadata`, type: "custom", customType: "unknown-extension" },
+      { id, type: "custom", customType: "dotfiles:verbosity:boundary:v1" },
+    ]) as never;
+    h.ctx.sessionManager.getLeafId = (() => id) as never;
+  }
+  const lines = () => stripVTControlCharacters(rows.flatMap(row => row.render(160)).join("\n"));
+  assert.match(lines(), /Activity 3 reads, 1 command/);
+  assert.doesNotMatch(lines(), /OUTPUT_/);
+  for (const row of rows.slice(1)) assert.deepEqual(row.render(160), []);
+  const host = rows[0];
+  assert.ok(host);
+  host.handleMouse?.({ type: "click", button: "left", x: 0, y: 1, screenX: 0, screenY: 1, width: 160, height: 40, shift: false, alt: false, ctrl: false });
+  assert.match(lines(), /OUTPUT_script/);
+  assert.match(lines(), /OUTPUT_second-script/);
+  for (const row of rows) row.setExpanded(true);
+  assert.match(lines(), /OUTPUT_second-script/);
+  for (const row of rows) row.setExpanded(false);
+  assert.doesNotMatch(lines(), /OUTPUT_/);
 });
 
 test("renderer hook survives rows constructed before session_start on reload", async () => {

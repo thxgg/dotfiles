@@ -2,8 +2,8 @@ import type { ExtensionAPI, ExtensionContext, ToolRenderers } from "@earendil-wo
 import type { Component } from "@earendil-works/pi-tui";
 import { withVerbosityRenderers, type RenderRequest } from "./adapter.ts";
 import { InvalidVerbosityError, loadVerbosity, parseVerbosity, persistVerbosity, statePath, VerbosityStateError, watchVerbosity, type Verbosity } from "./config.ts";
-import { Activity, type Content } from "./model.ts";
-import { BOUNDARY_ENTRY, OUTSIDE_ENTRY, reconstruct } from "./rebuild.ts";
+import { Activity, separatesActivity, type Content } from "./model.ts";
+import { reconstruct, separatesEntry } from "./rebuild.ts";
 import { activityComponent } from "./render.ts";
 
 type ModeState =
@@ -49,10 +49,10 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     if (!refs.size) invalidators.delete(id);
   };
   let streamedParts: Set<number> | undefined;
-  const streamAssistant = (message: { content: readonly { type: string; text?: string; id?: string; name?: string; arguments?: Record<string, unknown> }[] }, ctx: ExtensionContext) => {
+  const streamAssistant = (message: { content: readonly (Content & { id?: string; name?: string; arguments?: Record<string, unknown> })[] }, ctx: ExtensionContext) => {
     message.content.forEach((part, index) => {
       if (streamedParts?.has(index)) return;
-      if (part.type === "thinking" || (part.type === "text" && part.text?.trim())) {
+      if (separatesActivity(part)) {
         activity.boundary();
         streamedParts?.add(index);
       } else if (part.type === "toolCall" && part.id && part.name) {
@@ -121,7 +121,7 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
     const entries = ctx.sessionManager.getBranch();
     const previous = entries.findIndex(entry => entry.id === lastEntry);
     for (const entry of entries.slice(previous + 1)) {
-      if (entry.type === "custom" || (entry.type === "custom_message" && entry.display) || entry.type === "branch_summary") activity.boundary();
+      if (separatesEntry(entry)) activity.boundary();
     }
     lastEntry = entries.at(-1)?.id;
   };
@@ -208,15 +208,15 @@ export default function verbosityLevel(pi: ExtensionAPI): void {
   pi.on("tool_execution_end", (event, ctx) => {
     if (!terminal || event.parentToolCallId) return;
     activity.finish(event.toolCallId, { ...event.result, isError: event.isError }, ctx.signal?.aborted);
-    if (event.result.content.some((p: Content) => p.type === "image")) redraw();
+    // Excluding a row can move following members into a new group. Invalidate
+    // those rows too, including native fallback for unavailable script details.
+    if (activity.calls.get(event.toolCallId)?.outside) redraw();
     else refreshCall(event.toolCallId);
   });
   pi.on("ui_prompt_start", () => {
     if (!terminal) return;
-    const ids = activity.prompt();
-    // One display-only entry per prompt boundary, never per progress update.
-    if (ids.length) pi.appendEntry(OUTSIDE_ENTRY, ids);
-    else pi.appendEntry(BOUNDARY_ENTRY);
+    // Keep pending input visible without saving artificial transcript boundaries.
+    activity.prompt();
     redraw();
   });
   pi.on("user_bash", () => { if (terminal) activity.boundary(); });

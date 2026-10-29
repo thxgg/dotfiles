@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Activity, resultStatus, safeLabel, summary } from "../model.ts";
-import { reconstruct, OUTSIDE_ENTRY } from "../rebuild.ts";
+import { reconstruct, OUTSIDE_ENTRY, BOUNDARY_ENTRY } from "../rebuild.ts";
+import { groupSummary } from "../render.ts";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 const supported = () => new Set(["read", "grep", "find", "ls", "webfetch", "websearch"]);
 const tool = (id: string, name = "read") => ({ type: "toolCall", id, name, arguments: { path: `路径/${id}.ts` } });
@@ -30,7 +31,7 @@ test("assistant text, user, unsupported tools, and visible custom messages split
   a.message(assistant(tool("5")));
   assert.deepEqual(a.groups.map(g => g.calls.map(c => c.id)), [["1"], ["2"], ["3"], ["4"], ["5"]]);
 });
-test("thinking separates tool batches in live messages and reconstructed history", () => {
+test("nonempty thinking separates batches but empty thinking does not, live and in history", () => {
   const messages = [
     assistant(tool("1"), tool("2")),
     { role: "toolResult", toolCallId: "2", ...ok },
@@ -44,7 +45,7 @@ test("thinking separates tool batches in live messages and reconstructed history
   const history = reconstruct(messages.map(entry), supported());
   const compacted = reconstruct([{ type: "compaction", retainedTail: messages } as unknown as SessionEntry], supported());
   for (const activity of [live, history, compacted]) {
-    assert.deepEqual(activity.groups.map(group => group.calls.map(call => call.id)), [["1", "2"], ["3", "4"], ["5", "6"]]);
+    assert.deepEqual(activity.groups.map(group => group.calls.map(call => call.id)), [["1", "2"], ["3", "4", "5", "6"]]);
   }
 });
 test("duplicate starts, final results, and delayed unsupported preflight do not reorder", () => {
@@ -95,7 +96,7 @@ test("reconstruction uses only supplied active entries, deduplicates retained ta
   const b = reconstruct(entries, supported());
   assert.deepEqual(a.groups, b.groups);
   assert.equal(a.calls.size, 3);
-  assert.equal(a.calls.get("2")!.outside, true);
+  assert.equal(a.calls.get("2")!.outside, false, "legacy prompt exclusions are ignored");
   assert.equal(a.calls.get("3")!.status, "interrupted");
   const otherBranch = reconstruct([entry(assistant(tool("other")))], supported());
   assert.deepEqual([...otherBranch.calls.keys()], ["other"]);
@@ -103,7 +104,7 @@ test("reconstruction uses only supplied active entries, deduplicates retained ta
   const compacted = reconstruct([{ type: "compaction", retainedTail: [assistant(tool("tail")), { role: "toolResult", toolCallId: "tail", ...ok }] } as unknown as SessionEntry], supported());
   assert.equal(compacted.calls.get("tail")!.status, "success");
 });
-test("codemode isolates adjacent rows, projects only nested status, and reconstructs retained history", () => {
+test("codemode joins adjacent rows, projects only nested status, and reconstructs retained history", () => {
   const names = new Set([...supported(), "codemode"]);
   const messages = [
     assistant(tool("before"), tool("script", "codemode"), tool("after")),
@@ -118,7 +119,7 @@ test("codemode isolates adjacent rows, projects only nested status, and reconstr
   const history = reconstruct(messages.map(entry), names);
   const compacted = reconstruct([{ type: "compaction", retainedTail: messages } as unknown as SessionEntry], names);
   for (const activity of [history, compacted]) {
-    assert.deepEqual(activity.groups.map(group => group.calls.map(call => call.id)), [["before"], ["script"], ["after"]]);
+    assert.deepEqual(activity.groups.map(group => group.calls.map(call => call.id)), [["before", "script", "after"]]);
     assert.deepEqual(activity.calls.get("script")?.nested, [
       { name: "read", status: "success" },
       { name: "mcp__fixture__search", status: "error" },
@@ -133,6 +134,56 @@ test("codemode isolates adjacent rows, projects only nested status, and reconstr
   assert.equal(running.calls.get("script")?.nested?.length, 1, "progress snapshots replace rather than double-count");
   running.update("script", { ...ok, details: { calls: [{ name: "read", status: "invalid" }] } });
   assert.equal(running.calls.get("script")?.nested, undefined, "unknown details fall back to native output");
+});
+
+test("metadata and legacy prompt markers do not split consecutive tools", () => {
+  // SAFETY: reconstruction only reads these entry fields; IDs/timestamps are irrelevant here.
+  const custom = (customType: string) => ({ type: "custom", customType }) as SessionEntry;
+  const a = reconstruct([
+    entry(assistant(tool("1"))), custom("extmgr-change"), custom("extmgr-auto-update"),
+    custom(BOUNDARY_ENTRY), custom(BOUNDARY_ENTRY),
+    entry(assistant(tool("2"))), custom(BOUNDARY_ENTRY),
+    entry(assistant(tool("3"))), custom("unknown-extension"), entry(assistant(tool("4"))),
+    { type: "custom", customType: OUTSIDE_ENTRY, data: ["2", "3"] } as SessionEntry,
+  ], supported());
+  assert.deepEqual(a.groups.map(g => a.members(g).map(c => c.id)), [["1", "2", "3", "4"]]);
+});
+
+test("a UI dialog between completed tools does not split activity", () => {
+  const a = new Activity(supported());
+  a.start("1", "read", {});
+  a.finish("1", ok);
+  assert.deepEqual(a.prompt(), []);
+  a.start("2", "read", {});
+  assert.deepEqual(a.groups.map(g => g.calls.map(c => c.id)), [["1", "2"]]);
+});
+
+test("mixed summaries count nested calls and retain independent script failures", () => {
+  const a = new Activity(new Set(["edit", "bash", "codemode"]));
+  a.start("edit", "edit", {});
+  a.finish("edit", ok);
+  a.start("script", "codemode", {});
+  a.finish("script", { ...ok, isError: true, details: { calls: [
+    { name: "read", status: "ok" }, { name: "bash", status: "error" },
+  ] } });
+  a.start("other-script", "codemode", {});
+  a.finish("other-script", { ...ok, details: { calls: [{ name: "read", status: "ok" }] } });
+  a.start("bash", "bash", {});
+  a.finish("bash", ok);
+  const group = a.groups[0];
+  assert.ok(group);
+  assert.equal(a.groups.length, 1);
+  assert.equal(groupSummary(group.calls), "Activity 1 edit, 2 reads, 2 commands · 1 FAILED · 1 script FAILED");
+});
+
+test("malformed and missing script details split groups and keep the script native", () => {
+  for (const details of [undefined, { calls: [{ name: "read", status: "invalid" }] }]) {
+    const a = new Activity(new Set(["read", "codemode"]));
+    a.message(assistant(tool("before"), tool("script", "codemode"), tool("after")));
+    a.finish("script", { ...ok, details });
+    assert.equal(a.calls.get("script")?.outside, true);
+    assert.deepEqual(a.groups.map(g => a.members(g).map(c => c.id)), [["before"], ["after"]]);
+  }
 });
 
 test("labels are bounded and cannot inject terminal escapes", () => {
