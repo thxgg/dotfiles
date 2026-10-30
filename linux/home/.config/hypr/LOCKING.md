@@ -77,7 +77,7 @@ render cap. Both displays use the video. UI widgets appear only on
 disconnected, reconnect it for visible password feedback (the session remains
 locked). The Mac-like layout has a large clock/date, local avatar, username,
 and rounded password field, with
-Catppuccin Mocha/Lavender colors. This is not an exact macOS animation transition.
+Merino Dark colors with blue accents. This is not an exact macOS animation transition.
 An opaque background replaces transparency and fade-in to avoid showing the
 unlocked desktop during lock startup/resume. Video failure falls back to color.
 

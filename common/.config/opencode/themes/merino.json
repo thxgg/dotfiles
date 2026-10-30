@@ -1,0 +1,265 @@
+{
+  "$schema": "https://opencode.ai/theme.json",
+  "defs": {
+    "darkRosewater": "#ffa198",
+    "darkFlamingo": "#ffa198",
+    "darkPink": "#d2a8ff",
+    "darkMauve": "#bc8cff",
+    "darkRed": "#ff7b72",
+    "darkMaroon": "#ffa198",
+    "darkPeach": "#d29922",
+    "darkYellow": "#d29922",
+    "darkGreen": "#3fb950",
+    "darkTeal": "#39c5cf",
+    "darkSky": "#39c5cf",
+    "darkSapphire": "#58a6ff",
+    "darkBlue": "#58a6ff",
+    "darkLavender": "#2f81f7",
+    "darkText": "#e6edf3",
+    "darkSubtext1": "#82878c",
+    "darkSubtext0": "#82878c",
+    "darkOverlay2": "#82878c",
+    "darkOverlay1": "#666a6f",
+    "darkOverlay0": "#666a6f",
+    "darkSurface2": "#424549",
+    "darkSurface1": "#2e3135",
+    "darkSurface0": "#1e2023",
+    "darkBase": "#0d1117",
+    "darkMantle": "#0f1319",
+    "darkCrust": "#0c0e11",
+    "lightRosewater": "#a40e26",
+    "lightFlamingo": "#a40e26",
+    "lightPink": "#a475f9",
+    "lightMauve": "#8250df",
+    "lightRed": "#cf222e",
+    "lightMaroon": "#a40e26",
+    "lightPeach": "#9d5c00",
+    "lightYellow": "#9d5c00",
+    "lightGreen": "#116329",
+    "lightTeal": "#1b7c83",
+    "lightSky": "#1b7c83",
+    "lightSapphire": "#0969da",
+    "lightBlue": "#0969da",
+    "lightLavender": "#0969da",
+    "lightText": "#1f2328",
+    "lightSubtext1": "#696d71",
+    "lightSubtext0": "#696d71",
+    "lightOverlay2": "#696d71",
+    "lightOverlay1": "#878a8e",
+    "lightOverlay0": "#878a8e",
+    "lightSurface2": "#d1d2d5",
+    "lightSurface1": "#e7e9eb",
+    "lightSurface0": "#fafbfc",
+    "lightBase": "#ffffff",
+    "lightMantle": "#f8f9fb",
+    "lightCrust": "#f6f7f9",
+    "darkAccentBg": "#142134",
+    "darkSuccessBg": "#162822",
+    "darkErrorBg": "#2e2125",
+    "lightAccentBg": "#e6effc",
+    "lightSuccessBg": "#e5ede6",
+    "lightErrorBg": "#fee9e7"
+  },
+  "theme": {
+    "primary": {
+      "dark": "darkLavender",
+      "light": "lightLavender"
+    },
+    "secondary": {
+      "dark": "darkMauve",
+      "light": "lightMauve"
+    },
+    "accent": {
+      "dark": "darkLavender",
+      "light": "lightLavender"
+    },
+    "error": {
+      "dark": "darkRed",
+      "light": "lightRed"
+    },
+    "warning": {
+      "dark": "darkYellow",
+      "light": "lightYellow"
+    },
+    "success": {
+      "dark": "darkGreen",
+      "light": "lightGreen"
+    },
+    "info": {
+      "dark": "darkTeal",
+      "light": "lightTeal"
+    },
+    "text": {
+      "dark": "darkText",
+      "light": "lightText"
+    },
+    "textMuted": {
+      "dark": "darkOverlay2",
+      "light": "lightOverlay2"
+    },
+    "background": {
+      "dark": "darkBase",
+      "light": "lightBase"
+    },
+    "backgroundPanel": {
+      "dark": "darkMantle",
+      "light": "lightMantle"
+    },
+    "backgroundElement": {
+      "dark": "darkSurface0",
+      "light": "lightSurface0"
+    },
+    "border": {
+      "dark": "darkSurface0",
+      "light": "lightSurface0"
+    },
+    "borderActive": {
+      "dark": "darkLavender",
+      "light": "lightLavender"
+    },
+    "borderSubtle": {
+      "dark": "darkSurface2",
+      "light": "lightSurface2"
+    },
+    "diffAdded": {
+      "dark": "darkGreen",
+      "light": "lightGreen"
+    },
+    "diffRemoved": {
+      "dark": "darkRed",
+      "light": "lightRed"
+    },
+    "diffContext": {
+      "dark": "darkOverlay2",
+      "light": "lightOverlay2"
+    },
+    "diffHunkHeader": {
+      "dark": "darkPeach",
+      "light": "lightPeach"
+    },
+    "diffHighlightAdded": {
+      "dark": "darkGreen",
+      "light": "lightGreen"
+    },
+    "diffHighlightRemoved": {
+      "dark": "darkRed",
+      "light": "lightRed"
+    },
+    "diffAddedBg": {
+      "dark": "darkSuccessBg",
+      "light": "lightSuccessBg"
+    },
+    "diffRemovedBg": {
+      "dark": "darkErrorBg",
+      "light": "lightErrorBg"
+    },
+    "diffContextBg": {
+      "dark": "darkMantle",
+      "light": "lightMantle"
+    },
+    "diffLineNumber": {
+      "dark": "darkSubtext0",
+      "light": "lightSubtext0"
+    },
+    "diffAddedLineNumberBg": {
+      "dark": "darkSuccessBg",
+      "light": "lightSuccessBg"
+    },
+    "diffRemovedLineNumberBg": {
+      "dark": "darkErrorBg",
+      "light": "lightErrorBg"
+    },
+    "markdownText": {
+      "dark": "darkText",
+      "light": "lightText"
+    },
+    "markdownHeading": {
+      "dark": "darkLavender",
+      "light": "lightLavender"
+    },
+    "markdownLink": {
+      "dark": "darkBlue",
+      "light": "lightBlue"
+    },
+    "markdownLinkText": {
+      "dark": "darkSky",
+      "light": "lightSky"
+    },
+    "markdownCode": {
+      "dark": "darkGreen",
+      "light": "lightGreen"
+    },
+    "markdownBlockQuote": {
+      "dark": "darkYellow",
+      "light": "lightYellow"
+    },
+    "markdownEmph": {
+      "dark": "darkYellow",
+      "light": "lightYellow"
+    },
+    "markdownStrong": {
+      "dark": "darkPeach",
+      "light": "lightPeach"
+    },
+    "markdownHorizontalRule": {
+      "dark": "darkSubtext0",
+      "light": "lightSubtext0"
+    },
+    "markdownListItem": {
+      "dark": "darkBlue",
+      "light": "lightBlue"
+    },
+    "markdownListEnumeration": {
+      "dark": "darkSky",
+      "light": "lightSky"
+    },
+    "markdownImage": {
+      "dark": "darkBlue",
+      "light": "lightBlue"
+    },
+    "markdownImageText": {
+      "dark": "darkSky",
+      "light": "lightSky"
+    },
+    "markdownCodeBlock": {
+      "dark": "darkText",
+      "light": "lightText"
+    },
+    "syntaxComment": {
+      "dark": "darkOverlay2",
+      "light": "lightOverlay2"
+    },
+    "syntaxKeyword": {
+      "dark": "darkMauve",
+      "light": "lightMauve"
+    },
+    "syntaxFunction": {
+      "dark": "darkBlue",
+      "light": "lightBlue"
+    },
+    "syntaxVariable": {
+      "dark": "darkText",
+      "light": "lightText"
+    },
+    "syntaxString": {
+      "dark": "darkGreen",
+      "light": "lightGreen"
+    },
+    "syntaxNumber": {
+      "dark": "darkPeach",
+      "light": "lightPeach"
+    },
+    "syntaxType": {
+      "dark": "darkYellow",
+      "light": "lightYellow"
+    },
+    "syntaxOperator": {
+      "dark": "darkSky",
+      "light": "lightSky"
+    },
+    "syntaxPunctuation": {
+      "dark": "darkText",
+      "light": "lightText"
+    }
+  }
+}

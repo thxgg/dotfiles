@@ -82,21 +82,27 @@ class CommonConfigTests(unittest.TestCase):
             '    match = { initial_title = "^World of Warcraft$" },\n'
             '    fullscreen = true,', lua)
 
+    def test_ghostty_merino_selection_matches_on_macos(self):
+        shared = ROOT / 'common/.config/ghostty'
+        macos = ROOT / 'macos/home/Library/Application Support/com.mitchellh.ghostty'
+        for path in (shared / 'config', macos / 'config'):
+            source = path.read_text()
+            self.assertIn('theme = light:Merino Light,dark:Merino Dark\n', source)
+            self.assertIn('window-theme = auto\n', source)
+        for variant in ('Light', 'Dark'):
+            self.assertTrue((shared / 'themes' / f'Merino {variant}').is_file())
+
     def test_shared_and_macos_dark_theme_defaults(self):
         config = ROOT / 'common/.config'
         macos = ROOT / 'macos/home/Library/Application Support'
-        for path in (config / 'ghostty/config', macos / 'com.mitchellh.ghostty/config'):
-            source = path.read_text()
-            self.assertIn('theme = Catppuccin Mocha\n', source)
-            self.assertIn('window-theme = dark\n', source)
         herdr = (config / 'herdr/config.toml').read_text()
-        self.assertIn('name = "catppuccin"\n', herdr)
-        self.assertIn('auto_switch = false\n', herdr)
+        self.assertIn('name = "terminal"\n', herdr)
+        self.assertIn('auto_switch = true\n', herdr)
         self.assertEqual(json.loads((config / 'opencode/cli.json').read_text())['theme'],
-                         {'name': 'catppuccin', 'mode': 'dark'})
-        self.assertIn('color_theme = "catppuccin_mocha"',
+                         {'name': 'merino', 'mode': 'system'})
+        self.assertIn('color_theme = "merino_dark"',
                       (config / 'btop/btop.conf').read_text())
-        self.assertTrue((config / 'btop/themes/catppuccin_mocha.theme').is_file())
+        self.assertTrue((config / 'btop/themes/merino_dark.theme').is_file())
         self.assertEqual((config / 'starship.toml').read_text(),
                          (config / 'starship-dark.toml').read_text())
         for base in (config, macos):
@@ -115,16 +121,16 @@ class CommonConfigTests(unittest.TestCase):
             self.assertIn('gtk-application-prefer-dark-theme=1\n', source)
         self.assertIn('theme=catppuccin-mocha-lavender\n',
                       (config / 'Kvantum/kvantum.kvconfig').read_text())
-        self.assertIn('source=~/.config/hypr/mocha.conf\n',
+        self.assertIn('source=~/.config/hypr/merino-dark.conf\n',
                       (config / 'hypr/hyprland.conf').read_text())
-        self.assertIn('local theme = require("mocha")',
+        self.assertIn('local theme = require("merino-dark")',
                       (config / 'hypr/hyprland.lua').read_text())
-        self.assertIn('@theme "catppuccin-dark"',
+        self.assertIn('@theme "merino-dark"',
                       (config / 'rofi/config.rasi').read_text())
-        self.assertIn('@import "catppuccin-mocha"',
-                      (config / 'rofi/catppuccin-dark.rasi').read_text())
+        self.assertIn('lavender: #2f81f7;',
+                      (config / 'rofi/merino-dark.rasi').read_text())
 
-    def test_fish_mocha_colors_in_isolated_shell(self):
+    def test_fish_merino_colors_in_isolated_shell(self):
         fish = shutil.which('fish')
         if not fish:
             self.skipTest('fish unavailable')
@@ -139,7 +145,7 @@ class CommonConfigTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.splitlines(),
-                             ['cdd6f4', 'b4befe', '--background=45475a'])
+                             ['e6edf3', '2f81f7', '--background=142134'])
 
     def test_opencode_alias_prefers_vite_plus_command(self):
         fish = shutil.which('fish')

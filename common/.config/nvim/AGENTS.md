@@ -6,6 +6,7 @@ Modular Neovim setup using `lazy.nvim`, with `core`, `plugins`, and `user` layer
 - `init.lua` loads `core`, then `user`.
 - Core loads `options`, `mappings`, `lazy`, then `diagnostics`.
 - `lua/core/lazy.lua` imports plugin specs from `lua/plugins/`. `lazy-lock.json` pins plugin revisions.
+- `colors/merino.lua` uses the existing Catppuccin highlight engine with a complete Merino palette override. `lua/user/merino_palette.lua` stores the static palettes; `background` selects light/dark. Lualine uses its matching local Merino theme.
 
 ## Configuration Rules
 - Keep plugin changes in focused files under `lua/plugins/`, editor-wide defaults in `lua/core/`, and personal behavior in `lua/user/`.

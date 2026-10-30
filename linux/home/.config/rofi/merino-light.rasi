@@ -1,0 +1,30 @@
+/* Merino light. Compatibility color roles for the existing layout. */
+* {
+  rosewater: #a40e26;
+  flamingo: #a40e26;
+  pink: #a475f9;
+  mauve: #8250df;
+  red: #cf222e;
+  maroon: #a40e26;
+  peach: #9d5c00;
+  yellow: #9d5c00;
+  green: #116329;
+  teal: #1b7c83;
+  sky: #1b7c83;
+  sapphire: #0969da;
+  blue: #0969da;
+  lavender: #0969da;
+  text: #1f2328;
+  subtext1: #696d71;
+  subtext0: #696d71;
+  overlay2: #696d71;
+  overlay1: #878a8e;
+  overlay0: #878a8e;
+  surface2: #d1d2d5;
+  surface1: #e7e9eb;
+  surface0: #fafbfc;
+  base: #ffffff;
+  mantle: #f8f9fb;
+  crust: #f6f7f9;
+}
+@import "catppuccin"

@@ -1,0 +1,70 @@
+{
+  "manifest_version": 3,
+  "name": "Merino Dark",
+  "version": "1.0.0",
+  "description": "Rex Merino dark sRGB theme for Chromium browsers, including Chrome and Helium.",
+  "theme": {
+    "colors": {
+      "frame": [
+        12,
+        14,
+        17
+      ],
+      "frame_inactive": [
+        19,
+        21,
+        25
+      ],
+      "toolbar": [
+        13,
+        17,
+        23
+      ],
+      "tab_text": [
+        230,
+        237,
+        243
+      ],
+      "tab_background_text": [
+        130,
+        135,
+        140
+      ],
+      "bookmark_text": [
+        230,
+        237,
+        243
+      ],
+      "toolbar_button_icon": [
+        47,
+        129,
+        247
+      ],
+      "omnibox_background": [
+        15,
+        19,
+        25
+      ],
+      "omnibox_text": [
+        230,
+        237,
+        243
+      ],
+      "ntp_background": [
+        13,
+        17,
+        23
+      ],
+      "ntp_text": [
+        230,
+        237,
+        243
+      ],
+      "ntp_link": [
+        47,
+        129,
+        247
+      ]
+    }
+  }
+}

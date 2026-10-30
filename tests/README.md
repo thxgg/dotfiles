@@ -17,13 +17,33 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/common-config.test.py
 
 These checks use temporary homes. They check retired Amp/theme configuration,
 Docker PATH guards, PostgreSQL history, and editor setup with stubbed LSP/DAP
-interfaces. They check shared/macOS and Linux GTK/Kvantum/Hyprland/Rofi dark theme selections, isolated Fish colors,
-and browser Mocha palette values. They do not verify application rendering or
+interfaces. They check matching shared/macOS Ghostty Merino selections, Merino
+terminal-app defaults, retained GTK/Kvantum defaults, Hyprland/Rofi selections,
+isolated Fish colors, and retained browser Mocha fallback values. They do not verify application rendering or
 installed GTK/Qt themes. They also verify that every shared skill has a relative Claude Code
 symlink to the same source directory. Static checks reject retired launcher paths in both Hyprland configurations
 and verify matching clipboard commands with an existing Wofi stylesheet.
 They do not start language servers, install editor plugins, or verify live Linux
 launcher and clipboard behavior.
+
+## Merino theme ports
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/merino-themes.test.py
+node --test tests/merino-pi.test.mjs
+```
+
+The Python suite checks both variants against the recorded Rex palette, matching
+app selections, Fish in temporary homes, and Neovim palette loading. Use Python
+3.11+ for TOML checks; older Python skips those checks. Set
+`MERINO_CATPPUCCIN_PATH` to an existing Catppuccin plugin checkout to also check
+actual Neovim highlight rendering and background switching. No plugins are
+fetched; the compiler cache stays in the temporary home.
+The Node test uses the installed Pi workspace dependency to validate and load
+both theme files. It makes no model requests and changes no Pi settings.
+These checks do not validate live desktop rendering, browser installation, or
+GTK/Kvantum/Handy, which remain outside this port. See
+[`Merino coverage`](../common/.local/share/merino/README.md).
 
 ## Rex navigation
 

@@ -30,7 +30,7 @@ Current configuration and architecture sections describe the implementation, not
 - Test deployment and removal with temporary homes and mock commands. Portable tests must not execute inherited shell startup files or live clipboard/service tools.
 - Keep secrets in untracked `~/.env.secrets`; tracked configuration may reference them. Do not commit credentials or token-bearing auth files.
 - Keep hooks enabled with `git config core.hooksPath .githooks`. Fix gitleaks detections instead of bypassing them with `SKIP_GITLEAKS=1`.
-- Keep static Catppuccin Latte/Mocha assets with Lavender accents. Do not restore repository-wide theme automation or controls that rewrite other applications' settings. Native per-application theme controls are allowed.
+- Use static Rex Merino Light/Dark ports with blue accents for supported application themes; keep existing Catppuccin assets as fallbacks. GTK/Kvantum and the private Handy build still use Catppuccin; HyprPanel keeps its OLED styling. See `common/.local/share/merino/README.md` for coverage and limits. Do not restore repository-wide theme automation or controls that rewrite other applications' settings. Native per-application theme controls are allowed.
 - Local Amp configuration is retired. Any local Amp CLI installation is managed outside this repository; the Linux web-app launcher supports remote Orbs.
 
 ## Commands

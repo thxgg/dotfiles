@@ -16,7 +16,7 @@ Homebrew bootstrap with post-install runtime and service setup. Entrypoint: `mac
 - Register the selected Homebrew JDK under `~/Library/Java/JavaVirtualMachines` so `/usr/libexec/java_home` and Fish can discover it.
 
 ## Home Payload Contracts
-- Ghostty configuration and Catppuccin themes live in `Library/Application Support/com.mitchellh.ghostty/`. Preserve machine-specific paths in that configuration.
+- Ghostty's macOS override and legacy Catppuccin themes live in `Library/Application Support/com.mitchellh.ghostty/`. Its theme selection must match `common/.config/ghostty/config`: Merino Light/Dark follows the system appearance, using the shared theme files. Preserve machine-specific paths in the macOS configuration.
 - `Library/LaunchAgents/com.thxgg.gui-path.plist` sets GUI PATH at login with user commands, Vite+, Homebrew, and system commands. Use a shell to expand `$HOME`; launchd does not expand it in plain arguments.
 - Do not restore the removed artifact-cloud or theme synchronization LaunchAgents.
 

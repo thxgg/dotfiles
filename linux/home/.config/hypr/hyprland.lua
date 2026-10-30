@@ -1,7 +1,7 @@
 -- Hyprland Lua configuration.
 -- See https://wiki.hypr.land/Configuring/Start/
 
-local theme = require("mocha")
+local theme = require("merino-dark")
 
 ----------------
 --- MONITORS ---
@@ -75,8 +75,8 @@ hl.config({
         gaps_in = 5,
         gaps_out = 10,
         col = {
-            inactive_border = theme.overlay0,
-            active_border = theme.lavender,
+            inactive_border = theme.muted,
+            active_border = theme.accent,
         },
         layout = "dwindle",
         resize_on_border = true,
