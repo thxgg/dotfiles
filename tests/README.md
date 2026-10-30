@@ -166,6 +166,11 @@ It uses synthetic images and temporary output. It does not read Apple assets,
 install a theme, or connect to the desktop. See
 [`CURSORS.md`](../linux/home/.config/hypr/CURSORS.md) for private-build checks.
 
+`lua tests/linux-cursor-scale.test.lua` checks pointer-monitor sizing, unchanged
+size deduplication, missing/unknown outputs, reload, headless timer suppression,
+and safe fixed commands with a mocked compositor. It starts no processes and
+changes no desktop settings.
+
 # Hyprland exclusive workspace checks
 
 ```sh

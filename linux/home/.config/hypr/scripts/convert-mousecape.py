@@ -10,6 +10,7 @@ from pathlib import Path
 import plistlib
 import re
 import shutil
+import struct
 import subprocess
 
 from PIL import Image
@@ -50,7 +51,7 @@ ALIASES = {
     "com.apple.cursor.42": ["zoom-in"],
     "com.apple.cursor.43": ["zoom-out"],
 }
-SIZES = (24, 32, 48, 64)
+SIZES = (24, 32, 36, 48, 64)
 
 
 class XImage(C.Structure):
@@ -80,6 +81,11 @@ def xcursor_library():
 
 def rounded(value):
     return math.floor(value + 0.5)
+
+
+def float32(value):
+    """Match libhyprcursor's single-precision geometry calculations."""
+    return struct.unpack("f", struct.pack("f", value))[0]
 
 
 def argb(pixel):
@@ -150,14 +156,20 @@ def render_frame(frame, shape, size):
     # At nominal size 24, preserve Apple's point dimensions and relative sizes.
     scale = size / 24
     # Hyprcursor clamps nominal_size at 2; pad tiny shapes without enlarging them.
-    side = rounded(max(12, shape["PointsWide"], shape["PointsHigh"]) * scale)
+    base_side = max(12, shape["PointsWide"], shape["PointsHigh"])
+    nominal = float32(float(f"{24 / base_side:.10f}"))
+    side = rounded(float32(size / nominal))
     dims = (rounded(shape["PointsWide"] * scale), rounded(shape["PointsHigh"] * scale))
     im = frame.resize(dims, Image.Resampling.LANCZOS)
     square = Image.new("RGBA", (side, side))
+    # A float-rounded canvas can differ by one pixel from the ideal dimensions.
+    if im.width > side or im.height > side:
+        im = im.resize((min(im.width, side), min(im.height, side)), Image.Resampling.LANCZOS)
     square.paste(im, (0, 0))
-    base_side = max(12, shape["PointsWide"], shape["PointsHigh"])
-    # Match Hyprcursor's rounding after its square canvas is rounded to pixels.
-    return square, rounded(shape["HotSpotX"] / base_side * side), rounded(shape["HotSpotY"] / base_side * side)
+    def hotspot(key):
+        fraction = float32(float(f"{shape[key] / base_side:.10f}"))
+        return rounded(float32(fraction * side))
+    return square, hotspot("HotSpotX"), hotspot("HotSpotY")
 
 
 def build(source, output):

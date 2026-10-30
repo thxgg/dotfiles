@@ -65,6 +65,7 @@ hl.env("XCURSOR_THEME", "macOS-27")
 hl.env("HYPRCURSOR_THEME", "macOS-27")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
+require("cursor-scale").setup(hl)
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 hl.env("QT_STYLE_OVERRIDE", "kvantum")
 

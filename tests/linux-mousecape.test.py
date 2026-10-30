@@ -24,6 +24,12 @@ class ConverterTests(unittest.TestCase):
         self.assertEqual(im.getpixel((0, 0)), (255, 0, 0, 128))
         self.assertEqual(im.getpixel((39, 39)), (0, 0, 0, 0))
 
+    def test_size_36_matches_hyprcursor_float_rounding(self):
+        shape = dict(PointsWide=16, PointsHigh=21, HotSpotX=11, HotSpotY=3)
+        im, x, y = converter.render_frame(Image.new("RGBA", (32, 42), "white"), shape, 36)
+        self.assertEqual((im.size, x, y), ((31, 31), 16, 4))
+        self.assertIn(36, converter.SIZES)
+
     def test_tiny_cursors_are_padded_not_enlarged(self):
         shape = dict(PointsWide=4, PointsHigh=4, HotSpotX=1, HotSpotY=1)
         im, x, y = converter.render_frame(Image.new("RGBA", (4, 4), "white"), shape, 24)

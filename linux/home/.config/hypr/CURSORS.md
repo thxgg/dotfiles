@@ -1,6 +1,6 @@
 # Private macOS 27 cursors
 
-Hyprland and GTK select `macOS-27` at size 24. The generated theme lives at
+Hyprland and GTK select `macOS-27`, with size 24 as the startup fallback. The generated theme lives at
 `~/.local/share/icons/macOS-27`. It contains both Hyprcursor and Xcursor files.
 The Apple artwork is machine-local, not vendored or licensed by this repository.
 A fresh machine must build/install it separately; the configuration alone does
@@ -46,11 +46,30 @@ selection. Edit repository files, not independent home copies. If those configs
 are not already linked, use `safe-stow.sh --only-config hypr,gtk-3.0,gtk-4.0`
 from the repository root after checking local differences.
 
+## Cursor-only monitor sizing
+
+`cursor-scale.lua` selects size 36 while the pointer is on DP-3 (4K), and 24
+on other monitors, including HDMI-A-1 (1080p). It leaves monitor scale, layout,
+windows, text, and panels unchanged. It checks in-process pointer state every
+250 ms and starts an asynchronous command only when the size changes or the
+configuration reloads. No timer runs during headless configuration verification.
+The timer belongs to the Lua config and is discarded when that config reloads.
+
+The command updates the compositor cursor and GNOME's cursor-size setting for
+applications that follow it. This is a global size switched by pointer location,
+not native per-output cursor scaling. Custom/cached application cursors may not
+follow it. Environment and GTK file defaults stay at 24. Legacy `.conf` cannot
+run the Lua policy and stays at 24.
+
+To disable automatic switching, remove `require("cursor-scale").setup(hl)` from
+`hyprland.lua`, reload, then select a fixed size with `hyprctl setcursor` and
+`gsettings`. Disable the policy before using the rollback commands below.
+
 ## Conversion details and limits
 
 - All 52 entries and 5 animations are retained. Standard Linux names map to
   their Mousecape equivalents. Other entries retain Apple-name aliases.
-- Nominal sizes 24, 32, 48 and 64 preserve the relative macOS point dimensions.
+- Nominal sizes 24, 32, 36, 48 and 64 preserve the relative macOS point dimensions.
   Size 24 is not a strict 24-pixel canvas: Apple's arrow has transparent padding.
 - Square transparent padding satisfies Hyprcursor's format. Normalized hotspots
   and rounded pixel coordinates match across both formats.
@@ -70,11 +89,14 @@ From the repository root:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-mousecape.test.py
+lua tests/linux-cursor-scale.test.lua
 Hyprland --verify-config -c "$PWD/linux/home/.config/hypr/hyprland.lua"
 ```
 
-The initial installed build is `~/.local/share/macos-27-cursor/build-v4`.
-A separate libhyprcursor/libXcursor check compared 612 name/size combinations,
+The current build is `~/.local/share/macos-27-cursor/build-v6`; the original
+size-24 build remains at `build-v4`. The previous installed theme is also saved
+at `~/.local/share/macos-27-cursor/installed-before-scaling`.
+A separate libhyprcursor/libXcursor check compared 765 name/size combinations,
 including frame counts, dimensions, hotspots and animation delays. It does not
 verify every application's rendering or interaction.
 
