@@ -169,6 +169,22 @@ It runs no shell or live desktop commands. The parser check requires Hyprland
 routing and Wine window timing still require a desktop check. See
 [`EXCLUSIVE-WORKSPACE.md`](../linux/home/.config/hypr/EXCLUSIVE-WORKSPACE.md).
 
+# Flameshot placement checks
+
+```sh
+lua tests/linux-flameshot-placement.test.lua
+Hyprland --verify-config -c "$PWD/linux/home/.config/hypr/hyprland.lua"
+```
+
+The Lua suite mocks the compositor. It checks deferred placement of desktop-wide
+captures, closed and non-floating windows, unrelated apps, and repeated captures.
+It runs no desktop commands. The workaround leaves window size, focus, workspace,
+fullscreen state, and global floating-window constraints unchanged.
+On Linux, open Flameshot with Print and check `hyprctl -j clients`: the overlay
+must start at `(0, 0)`, not `(-1920, 0)`, on the configured dual-monitor layout.
+Check selection and copying on both monitors, plus opening and closing over WoW.
+Mocked tests do not verify capture pixels, clipboard contents, or panel stacking.
+
 # Linux locking checks
 
 ```sh

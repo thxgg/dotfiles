@@ -305,3 +305,5 @@ flameshotRule("move-flameshot", { move = "0 0" })
 flameshotRule("pin-flameshot", { pin = true })
 flameshotRule("place-flameshot", { monitor = "DP-3" })
 flameshotRule("fullscreen-flameshot", { fullscreen = true })
+
+require("flameshot-placement").setup(hl)
