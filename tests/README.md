@@ -153,6 +153,19 @@ changed or duplicated keyboard patch targets must trigger fallback.
 It does not verify real Astal signal timing, GTK rendering, menu placement, or
 Wayland input regions.
 
+# Mousecape cursor conversion checks
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-mousecape.test.py
+```
+
+Requires Python, a recent Pillow, and libXcursor. Checks transparent padding,
+hotspot rounding, animation frame order, alias uniqueness, premultiplied pixels,
+refusal to overwrite an existing build, and a real Xcursor write/read round trip.
+It uses synthetic images and temporary output. It does not read Apple assets,
+install a theme, or connect to the desktop. See
+[`CURSORS.md`](../linux/home/.config/hypr/CURSORS.md) for private-build checks.
+
 # Hyprland exclusive workspace checks
 
 ```sh

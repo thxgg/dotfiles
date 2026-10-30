@@ -60,6 +60,9 @@ end)
 --- ENVIRONMENT VARIABLES ---
 -----------------------------
 
+-- Private cursor assets: see CURSORS.md.
+hl.env("XCURSOR_THEME", "macOS-27")
+hl.env("HYPRCURSOR_THEME", "macOS-27")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
