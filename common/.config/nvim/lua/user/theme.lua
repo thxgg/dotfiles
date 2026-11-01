@@ -1,54 +1,32 @@
 local M = {}
 
--- No shared runtime state. :set background=light selects Merino Light.
+-- Static default. Select a different variant in this file, not shared runtime state.
+local function read_mode()
+	return "dark"
+end
+
+M.mode = read_mode
+
 function M.background()
-	return vim.o.background
+	return read_mode() == "light" and "light" or "dark"
 end
 
-function M.palette()
-	return require("user.merino_palette")[M.background()]
+function M.catppuccin_flavour()
+	return read_mode() == "light" and "latte" or "mocha"
 end
 
-function M.color_overrides()
-	local palettes = require("user.merino_palette")
-	return { latte = palettes.light, mocha = palettes.dark }
+function M.catppuccin_color_overrides()
+	return {}
 end
 
-function M.highlights(colors)
+function M.catppuccin_custom_highlights(colors)
 	return {
-		Cursor = { fg = colors.cursorText, bg = colors.accent },
-		CursorLineNr = { fg = colors.accent, bold = true },
-		FloatBorder = { fg = colors.surface1 },
-		Search = { fg = colors.onAccent, bg = colors.accent },
-		IncSearch = { fg = colors.onAccent, bg = colors.accent },
-		Visual = { fg = colors.selectionForeground, bg = colors.selectionBackground },
-		DiffAdd = { bg = colors.successBg },
-		DiffDelete = { bg = colors.errorBg },
-		DiffChange = { bg = colors.accentBg },
-		DiffText = { fg = colors.onAccent, bg = colors.accent },
-	}
-end
-
-function M.lualine()
-	local c = M.palette()
-	local function section(color)
-		return {
-			a = { fg = c.base, bg = color, gui = "bold" },
-			b = { fg = c.text, bg = c.surface0 },
-			c = { fg = c.text, bg = c.mantle },
-		}
-	end
-	return {
-		normal = section(c.accent),
-		insert = section(c.green),
-		visual = section(c.mauve),
-		replace = section(c.red),
-		command = section(c.yellow),
-		inactive = {
-			a = { fg = c.subtext0, bg = c.mantle },
-			b = { fg = c.subtext0, bg = c.mantle },
-			c = { fg = c.subtext0, bg = c.mantle },
-		},
+		Cursor = { fg = colors.base, bg = colors.lavender },
+		CursorLineNr = { fg = colors.lavender, bold = true },
+		FloatBorder = { fg = colors.lavender },
+		Search = { fg = colors.base, bg = colors.lavender },
+		IncSearch = { fg = colors.crust, bg = colors.lavender },
+		Visual = { bg = colors.surface1 },
 	}
 end
 

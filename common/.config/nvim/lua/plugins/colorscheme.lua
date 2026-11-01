@@ -5,10 +5,9 @@ return {
 		"catppuccin/nvim",
 		name = "catppuccin",
 		priority = 1000,
-		lazy = false,
 		opts = {
-			color_overrides = theme.color_overrides(),
-			custom_highlights = theme.highlights,
+			color_overrides = theme.catppuccin_color_overrides(),
+			custom_highlights = theme.catppuccin_custom_highlights,
 			integrations = {
 				aerial = true,
 				blink_cmp = {
@@ -20,9 +19,9 @@ return {
 				which_key = true,
 			},
 		},
-		config = function(_, opts)
-			require("catppuccin").setup(opts)
-			vim.cmd.colorscheme("merino")
+		init = function()
+			vim.opt.background = theme.background()
+			vim.cmd.colorscheme("catppuccin-" .. theme.catppuccin_flavour())
 		end,
 	},
 }
