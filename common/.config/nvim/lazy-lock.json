@@ -1,6 +1,6 @@
 {
   "aerial.nvim": { "branch": "master", "commit": "28fe6e822ae344544c379d60fcb13c9519a1f08a" },
-  "blink.cmp": { "branch": "main", "commit": "d4318ec75309a37e09757de0f16faa67bf22b890" },
+  "blink.cmp": { "branch": "main", "commit": "eece1c590dc575d489589c95499ec3acbf004e42" },
   "blink.lib": { "branch": "main", "commit": "fd9a48ebbe6ec30d5dfcc5b42c243941ccdca1aa" },
   "catppuccin": { "branch": "main", "commit": "edefef779ab08ce1a4a404713e3012b0d202bd35" },
   "cloak.nvim": { "branch": "main", "commit": "648aca6d33ec011dc3166e7af3b38820d01a71e4" },
