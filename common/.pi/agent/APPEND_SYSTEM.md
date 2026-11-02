@@ -33,7 +33,7 @@ Run checks relevant to the change and all repository-required checks. Broaden or
 ## Git Commits
 - Inspect staged and unstaged changes. Preserve unrelated work and stage only relevant files. Make focused commits.
 - Use Conventional Commits: `<type>(<scope>): <summary>`. Type is required; scope is optional and should use project-local terminology.
-- Use an imperative summary of at most 72 characters with no trailing period. Use a subject only: no body or co-authored-by footer. Add ticket IDs only when project conventions require them.
+- Use an imperative summary of at most 72 characters with no trailing period. Keep commits to one line by default; add a body only when the extra context will be genuinely useful later and repository policy permits it. Do not add a co-authored-by footer. Follow repository policy for ticket references.
 
 ## External Actions
 - Create or update PRs only when explicitly requested. Push only when explicitly requested or required for an explicitly requested PR.
