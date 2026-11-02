@@ -273,6 +273,14 @@ Shell subprocesses use `zsh -f`, a temporary `HOME`, and a minimal environment.
 They do not inherit `BASH_ENV`, `ZDOTDIR`, or live Pi configuration. User shell
 startup files are not loaded.
 
+## Pi review prompt and update preferences
+
+The aggregate Pi suite checks `/pi-review` discovery and argument expansion with Pi's
+native template loader. It also checks `scripts/configure-pi-updates.mjs` with temporary
+agent directories: preference preservation, invalid input, symlink refusal, and repeat runs.
+It does not update packages or change live settings. Native Anthropic SDK/RPC tests stop
+before network transmission or use a scripted provider; live checks remain opt-in.
+
 ## Centered TUI layout checks
 
 ```sh
@@ -405,7 +413,7 @@ model metadata, OpenAI subscription auth registration, and the unchanged legacy
 provider used by Painter. It also verifies Pi 1.0 grammar-call replay after switching
 from Anthropic or a gateway through our alias wrapper. The codemode SDK tests check
 safe tool-presence probes, missing-member recovery hints, and preservation of the
-codemode documentation path after Anthropic sanitation. They also exercise native
+native Anthropic documentation and codemode documentation paths without a sanitizer. They also exercise native
 codemode execution through the verbosity renderer hook, caught-error summaries,
 expansion, and HTML export. The headless subagent tests use a real Pi RPC subprocess with a synthetic offline
 provider and temporary home. They check settlement, structured output, provider failure,

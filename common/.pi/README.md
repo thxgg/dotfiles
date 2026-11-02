@@ -14,9 +14,41 @@ vp install --frozen-lockfile
 
 Vite+ honors the pinned npm version in `package.json`. `setup.sh` and `dot update` run this automatically.
 
-The workspace targets Pi `1.4.0`. Vite+ owns the CLI installation.
+The workspace targets Pi `1.5.0`. Vite+ owns the CLI installation.
 Keep workspace pins aligned with the CLI when validating upgrades;
 a successful check against older workspace dependencies does not validate a newer CLI.
+
+## Manual release reviews
+
+`agent/prompts/pi-review.md` is a native prompt template, not an agent-invocable skill.
+After Pi deployment and `/reload`, type `/pi-review` for the latest stable release,
+or `/pi-review 1.5.0` (also accepts a release range). It requests breaking changes,
+native replacements for workarounds, and useful workflow features. It stays read-only
+and does not authorize paid probes, live updates, deployment, commits, or subagents.
+
+## Native update commands and changelogs
+
+Run `node scripts/configure-pi-updates.mjs` from the repository root to merge these
+preferences into machine-local `~/.pi/agent/settings.json`:
+
+```json
+{
+  "selfUpdateCommand": ["vp", "install", "--global", "{installSpec}"],
+  "collapseChangelog": false
+}
+```
+
+The helper preserves other settings and refuses a symlinked settings file. An optional
+argument selects an isolated agent directory. It does not run an update. `pi update`
+uses Vite+ only for Pi itself when a newer release is available; it does not run
+`dot update` or update unrelated global packages. `PI_SELF_UPDATE_COMMAND`, if set,
+takes precedence. Workspace pins still need a separate compatibility review.
+
+Native extension changelog notices need no extra extension. On fresh launches Pi reads
+`CHANGELOG.md` (or the package author's `pi.changelogPath`) for packages with a version
+increase. The first sighting records a baseline without a notice. Full notices are enabled
+above; packages without a changelog/version increase cannot show release notes. Our local
+source-only extensions do not manufacture version bumps merely to produce a notice.
 
 ## External packages and Pi Voice
 
@@ -135,18 +167,20 @@ nested execution events never create separate rows.
 The aggregate check runs an offline SDK test with a scripted provider, real codemode,
 local tools, and these hooks. It does not contact providers or start MCP servers.
 
-Anthropic prompt sanitation uses `context_with_system` and a final `before_provider_request`
-check. The final check covers full prompt overrides, such as T3's orchestration instructions,
-which Pi can project after the context hook. It removes the Pi documentation from request-local
-system content and section updates, preserving tool declarations, non-system messages,
-cache metadata on retained blocks, and saved session history. The codemode tool's own documentation
-path remains available. Codemode scripts must test tool presence with `"name" in tools`;
-Pi 1.0 throws when a script reads an unknown member, including through `typeof`.
+Anthropic now uses Pi's native system prompt without a sanitizer. On 2 November 2026,
+small live Pi 1.5.0 probes passed for Claude Fable 5 and Claude Opus 5.5 with the native
+documentation section and a T3-style full prompt override intact. These were short,
+tool-disabled requests, not exhaustive model/session coverage. Offline SDK and RPC tests
+preserve the documentation, tool declarations, user messages, and session history.
+The retired `anthropic-prompt-sanitizer.ts` must not remain as a dangling deployment link.
+
+Codemode scripts must test tool presence with `"name" in tools`; Pi throws when a script
+reads an unknown member, including through `typeof`.
 
 Pi 1.0 compatibility checks also cover grammar-call history replay through our OpenAI
 alias wrapper after switching from Anthropic or a gateway. Keep the WebSocket wrapper,
 Painter's ChatGPT-backed image path, child-session extension isolation, and static themes:
-Pi 1.4.0 does not replace these behaviors. Native image generation is an additional provider
+Pi 1.5.0 does not replace these behaviors. Native image generation is an additional provider
 path. Codemode `image()` now saves images to user-private temporary files and returns their
 paths; this does not replace Painter's persistent artifact storage or subscription-backed image path.
 
@@ -373,8 +407,10 @@ npm --prefix common/.pi run check
 ```
 
 The aggregate check type-checks standalone extensions, `pi-cloak`, and extension workspaces.
-It also runs isolated standalone import/registration checks, masking and prompt-sanitation tests,
-and each workspace's available tests. Herdr-managed source retains its upstream `@ts-nocheck`;
+It also runs isolated standalone import/registration checks, masking and native Anthropic prompt tests,
+and each workspace's available tests. TypeBox tool schemas use typed JSON string enums (`Type.Unsafe` with matching enum values),
+not pi-ai's pi-schema `StringEnum`, so SDK types and host-loaded tools agree. Web tool
+renderers use the host-injected keybinding hints. Herdr-managed source retains its upstream `@ts-nocheck`;
 its import and inactive-outside-Herdr behavior are checked without editing that integration.
 After changing extension code, reload Pi with `/reload`.
 

@@ -46,6 +46,8 @@ common/.pi/agent/lib/*
 !common/.pi/agent/lib/pi-centered/**
 !common/.pi/agent/npm/
 !common/.pi/agent/npm/package.json
+!common/.pi/agent/prompts/
+!common/.pi/agent/prompts/*.md
 !common/.pi/agent/skills/
 !common/.pi/agent/skills/**
 !common/.pi/agent/t3/

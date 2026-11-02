@@ -5,7 +5,6 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 
@@ -20,7 +19,7 @@ const PUBLIC_GIT_HOSTS = new Set([
 ]);
 
 const RepoCacheSchema = Type.Object({
-  action: Type.Optional(StringEnum([...ACTIONS], {
+  action: Type.Optional(Type.Unsafe<(typeof ACTIONS)[number]>({ type: "string", enum: [...ACTIONS],
     description: "Operation to run. Default: ensure_repo.",
     default: "ensure_repo",
   })),

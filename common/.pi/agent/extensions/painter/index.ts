@@ -1,5 +1,5 @@
 import { formatSize, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { StringEnum, type Api, type ImageContent, type Model, type TextContent } from "@earendil-works/pi-ai";
+import type { Api, ImageContent, Model, TextContent } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import { saveGeneratedImageArtifacts } from "./artifacts.ts";
@@ -30,13 +30,13 @@ const GenerateImageSchema = Type.Object({
 		description: "Optional local image/reference/edit inputs. Max 5 files, 50MB each.",
 		maxItems: MAX_INPUT_IMAGES,
 	})),
-	aspectRatio: Type.Optional(StringEnum([...ASPECT_RATIO_VALUES], {
+	aspectRatio: Type.Optional(Type.Unsafe<(typeof ASPECT_RATIO_VALUES)[number]>({ type: "string", enum: [...ASPECT_RATIO_VALUES],
 		description: "Optional aspect-ratio shorthand. Do not provide together with size.",
 	})),
 	size: Type.Optional(Type.String({
 		description: "Optional image size: auto or WIDTHxHEIGHT. Dimensions must be multiples of 16, max edge <= 3840, ratio <= 3:1, and 655,360–8,294,400 total pixels. Do not provide together with aspectRatio.",
 	})),
-	quality: Type.Optional(StringEnum([...QUALITY_VALUES], {
+	quality: Type.Optional(Type.Unsafe<(typeof QUALITY_VALUES)[number]>({ type: "string", enum: [...QUALITY_VALUES],
 		description: "Optional quality. Defaults to auto; use low for drafts and high for final/text-heavy/identity-sensitive images.",
 	})),
 	basename: Type.Optional(Type.String({

@@ -1,4 +1,4 @@
-import { keyHint } from "@earendil-works/pi-coding-agent";
+import type { KeybindingHints } from "@earendil-works/pi-coding-agent";
 
 export function getTextContent(content: Array<{ type: string; text?: string }> | undefined): string {
 	if (!content) return "";
@@ -28,7 +28,8 @@ export function appendExpandedPreview(
 	return base;
 }
 
-export function appendExpandHint(base: string, expanded: boolean): string {
+/** Use the host renderer’s current keybindings, not a separate SDK singleton. */
+export function appendExpandHint(base: string, expanded: boolean, context: Pick<KeybindingHints, "keyHint">): string {
 	if (expanded) return base;
-	return `${base} ${keyHint("app.tools.expand" as any, "for details")}`;
+	return `${base} ${context.keyHint("app.tools.expand", "for details")}`;
 }

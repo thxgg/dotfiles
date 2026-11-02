@@ -3,7 +3,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { WorkflowController } from "./controller.ts";
 import { showWorkflowDashboard } from "./dashboard.ts";
@@ -25,7 +24,7 @@ function truncateNotificationResult(result: unknown): string {
   return `${output}\n… [truncated; use workflow action=result for the full result]`;
 }
 const Params = Type.Object({
-  action: Type.Optional(StringEnum([...ACTIONS], { description: "Run, inspect, control, restart, or save a workflow. Defaults to run when script is provided, otherwise list." })),
+  action: Type.Optional(Type.Unsafe<(typeof ACTIONS)[number]>({ type: "string", enum: [...ACTIONS], description: "Run, inspect, control, restart, or save a workflow. Defaults to run when script is provided, otherwise list." })),
   script: Type.Optional(Type.String({ description: "JavaScript workflow using phase(), agent(), parallel(), args, and a final return." })),
   args: Type.Optional(Type.String({ description: "Optional JSON arguments; raw string when not valid JSON." })),
   background: Type.Optional(Type.Boolean({ description: "Return immediately and notify the parent when complete. Default true." })),

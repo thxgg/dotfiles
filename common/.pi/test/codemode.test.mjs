@@ -24,14 +24,13 @@ const { fauxProvider, fauxAssistantMessage, fauxToolCall } = await import('@eare
 const { default: gitGuard } = await import('../agent/extensions/git-interceptor.ts');
 const { default: cloak } = await import('../agent/extensions/pi-cloak/index.ts');
 const { default: verbosity } = await import('../agent/extensions/verbosity-level/index.ts');
-const { default: sanitizeAnthropic } = await import('../agent/extensions/anthropic-prompt-sanitizer.ts');
 
-test('Anthropic request sanitation preserves the canonical session and tool declarations', async () => {
+test('native Anthropic context preserves documentation, session history and tool declarations', async () => {
   const settingsManager = SettingsManager.inMemory({ defaultTools: ['+codemode'], cacheWarming: 'off', retry: { enabled: false } });
   const resourceLoader = new DefaultResourceLoader({
     cwd, agentDir, settingsManager, noExtensions: true, noSkills: true,
     noPromptTemplates: true, noThemes: true, noContextFiles: true,
-    extensionFactories: [createCodemodeExtension({ mode: 'on' }), sanitizeAnthropic],
+    extensionFactories: [createCodemodeExtension({ mode: 'on' })],
   });
   await resourceLoader.reload();
   const faux = fauxProvider({ provider: 'anthropic' });
@@ -48,10 +47,10 @@ test('Anthropic request sanitation preserves the canonical session and tool decl
     await session.prompt('Fixture');
     assert.ok(request);
     assert.equal(request.messages[0].role, 'system');
-    assert.doesNotMatch(JSON.stringify(request), /Pi documentation/);
+    assert.match(JSON.stringify(request), /Pi documentation/);
     assert.ok(request.messages[0].toolsAdded.some(tool => tool.name === 'read'));
     const codemode = request.messages[0].toolsAdded.find(tool => tool.name === 'codemode');
-    assert.ok(codemode, 'keep codemode available after sanitation');
+    assert.ok(codemode, 'keep codemode available in native context');
     assert.match(codemode.description, /codemode\.md/, 'preserve the native models API documentation path');
     assert.match(JSON.stringify(session.sessionManager.getBranch()), /Pi documentation/);
   } finally {

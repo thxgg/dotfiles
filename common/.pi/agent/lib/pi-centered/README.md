@@ -25,7 +25,7 @@ The saved width and `PI_CENTERED_WIDTH` override remain compatible with upstream
   These wrappers remain inert when centering is removed. Pi upgrades must verify
   these lifecycle boundaries as well as the component rendering internals.
 
-This remains a TUI-internal workaround, tested against Pi 1.4.0. It affects only
+This remains a TUI-internal workaround, tested against Pi 1.5.0. It affects only
 rendering, not model context or saved messages. Only top-level Mermaid blocks
 participate, matching Pi's own Mermaid transform. `/maxwidth off` restores native
 full-width rendering, including native diagram alignment.

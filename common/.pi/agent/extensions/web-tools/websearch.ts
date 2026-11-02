@@ -1,4 +1,4 @@
-import { StringEnum } from "@earendil-works/pi-ai";
+import type { KeybindingHints } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { createOperationSignal, isOperationTimeoutError } from "./network.ts";
@@ -45,7 +45,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			"After picking a promising result, use webfetch on that URL for deeper inspection.",
 		],
 		parameters: Type.Object({
-			livecrawl: Type.Optional(StringEnum([...SEARCH_LIVECRAWL], {
+			livecrawl: Type.Optional(Type.Unsafe<(typeof SEARCH_LIVECRAWL)[number]>({ type: "string", enum: [...SEARCH_LIVECRAWL],
 				description: "Live crawl mode: fallback (default) or preferred.",
 			})),
 			contextMaxCharacters: Type.Optional(Type.Number({
@@ -58,7 +58,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 				}),
 			),
 			depth: Type.Optional(
-				StringEnum([...SEARCH_DEPTHS], {
+				Type.Unsafe<(typeof SEARCH_DEPTHS)[number]>({ type: "string", enum: [...SEARCH_DEPTHS],
 					description:
 						"Search depth. Overrides the web-tools search default depth setting. 'deep' is accepted as a compatibility alias and mapped to 'fast' for the current Exa provider.",
 				}),
@@ -134,6 +134,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			result: { content: Array<{ type: string; text?: string }>; details?: WebSearchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			context: Pick<KeybindingHints, "keyHint">,
 		) {
 			if (options.isPartial) {
 				return new Text(theme.fg("warning", "Searching..."), 0, 0);
@@ -150,7 +151,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			if (details?.truncated) {
 				text += theme.fg("warning", " [truncated]");
 			}
-			text = appendExpandHint(text, options.expanded);
+			text = appendExpandHint(text, options.expanded, context);
 
 			if (options.expanded) {
 				text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 16, maxColumns: 220 });

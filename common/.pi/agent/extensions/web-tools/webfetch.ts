@@ -1,5 +1,5 @@
 import { formatSize } from "@earendil-works/pi-coding-agent";
-import { StringEnum } from "@earendil-works/pi-ai";
+import type { KeybindingHints } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { FetchPage, type FetchPageError } from "./fetch-page.ts";
@@ -52,7 +52,7 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 		parameters: Type.Object({
 			url: Type.String({ description: "The http:// or https:// URL to fetch." }),
 			format: Type.Optional(
-				StringEnum([...WEB_FETCH_FORMATS], {
+				Type.Unsafe<(typeof WEB_FETCH_FORMATS)[number]>({ type: "string", enum: [...WEB_FETCH_FORMATS],
 					description: "Return format. Defaults to the web-tools fetch default format setting.",
 				}),
 			),
@@ -122,6 +122,7 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			result: { content: Array<{ type: string; text?: string }>; details?: WebFetchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			context: Pick<KeybindingHints, "keyHint">,
 		) {
 			if (options.isPartial) {
 				return new Text(theme.fg("warning", "Fetching..."), 0, 0);
@@ -144,7 +145,7 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			if (details?.image) {
 				text += theme.fg("muted", " [image]");
 			}
-			text = appendExpandHint(text, options.expanded);
+			text = appendExpandHint(text, options.expanded, context);
 
 			if (options.expanded) {
 				if (details?.image) {
