@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=ChatGPT (Codex)
+Comment=ChatGPT and Codex by OpenAI
+GenericName=AI assistant
+Exec=sh -c "exec \\"\\$HOME/Applications/ChatGPT/codex-launcher\\" \\"\\$@\\"" chatgpt %U
+Icon=chatgpt
+Type=Application
+Terminal=false
+StartupNotify=true
+StartupWMClass=Chatgpt
+Categories=Development;
+Keywords=Codex;OpenAI;ChatGPT;AI;
+MimeType=x-scheme-handler/codex;
