@@ -4,6 +4,7 @@ claude-desktop
 dropbox
 discord
 obsidian
+dux-calendar-bin
 slack-desktop
 google-chrome
 helium-browser-bin
