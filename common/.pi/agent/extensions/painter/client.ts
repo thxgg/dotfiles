@@ -76,7 +76,7 @@ export function buildImageRequestBody(params: {
 		tools: [tool],
 		text: { verbosity: "low" },
 		include: ["reasoning.encrypted_content"],
-		tool_choice: "auto",
+		tool_choice: { type: "image_generation" },
 		parallel_tool_calls: true,
 	};
 }
@@ -235,11 +235,14 @@ export function parseDirectImageResponse(json: unknown, context: {
 	}
 
 	if (images.length === 0) {
-		throw new DirectImageEndpointError("GPT Image 2.5 Sunburst response did not contain any valid images.", {
+		const summary = summarizeMissingImages(metadataSource, warnings);
+		const responseId = context.responseId ?? responseIdFromJson(metadataSource);
+		throw new DirectImageEndpointError(`GPT Image 2.5 Sunburst response did not contain any valid images. ${summary}`, {
 			endpointType: context.endpointType,
 			requestId: context.requestId,
-			responseId: context.responseId,
+			responseId,
 			retryCount: context.retryCount,
+			body: summary,
 		});
 	}
 	if (images.length < context.requestedCount) {
@@ -332,7 +335,15 @@ async function callSingleResponsesImage(request: DirectImageClientRequest & {
 				});
 			}
 
-			const events = await readResponsesSse(response, request.signal);
+			const events = await readResponsesSse(response, attemptSignal.signal);
+			if (!events.some((event) => isRecord(event) && ["response.completed", "response.done", "response.incomplete"].includes(String(event.type)))) {
+				throw new DirectImageEndpointError("Codex Responses stream ended before a terminal response event (empty or truncated stream).", {
+					endpointType: request.endpointType,
+					requestId,
+					responseId: getResponseId(response.headers, undefined),
+					retryCount: attempt,
+				});
+			}
 			const terminal = terminalResponseEvent(events);
 			const responseId = getResponseId(response.headers, terminal) ?? responseIdFromJson(terminal);
 			return parseDirectImageResponse(events, {
@@ -396,10 +407,10 @@ async function readResponsesSse(response: Response, signal: AbortSignal | undefi
 			gotHeaders = true;
 			if (done) break;
 			buffer += decoder.decode(value, { stream: true });
-			let idx = buffer.indexOf("\n\n");
-			while (idx !== -1) {
-				const chunk = buffer.slice(0, idx);
-				buffer = buffer.slice(idx + 2);
+			let boundary = /\r?\n\r?\n/.exec(buffer);
+			while (boundary) {
+				const chunk = buffer.slice(0, boundary.index);
+				buffer = buffer.slice(boundary.index + boundary[0].length);
 				const data = chunk
 					.split("\n")
 					.filter((line) => line.startsWith("data:"))
@@ -416,7 +427,7 @@ async function readResponsesSse(response: Response, signal: AbortSignal | undefi
 					throwIfResponseFailed(event);
 					events.push(event);
 				}
-				idx = buffer.indexOf("\n\n");
+				boundary = /\r?\n\r?\n/.exec(buffer);
 			}
 		}
 	} finally {
@@ -428,7 +439,26 @@ async function readResponsesSse(response: Response, signal: AbortSignal | undefi
 			reader.releaseLock();
 		} catch { }
 	}
+	throwIfAborted(signal);
 	return events;
+}
+
+function summarizeMissingImages(value: unknown, warnings: string[]): string {
+	const response = isRecord(value) ? value : {};
+	const parts = [`Status: ${stringField(response.status) ?? "unknown"}.`];
+	if (isRecord(response.incomplete_details)) {
+		parts.push(`Incomplete reason: ${stringField(response.incomplete_details.reason) ?? "unknown"}.`);
+	}
+	for (const item of Array.isArray(response.output) ? response.output : []) {
+		if (!isRecord(item)) continue;
+		parts.push(`Output: ${stringField(item.type) ?? "unknown"} (${stringField(item.status) ?? "unknown"}).`);
+		for (const block of Array.isArray(item.content) ? item.content : []) {
+			if (!isRecord(block)) continue;
+			if (block.type === "output_text" && typeof block.text === "string") parts.push(block.text);
+			if (block.type === "refusal" && typeof block.refusal === "string") parts.push(`Refusal: ${block.refusal}`);
+		}
+	}
+	return sanitizeErrorText([...parts, ...warnings].join(" "));
 }
 
 function throwIfResponseFailed(event: unknown): void {
@@ -600,6 +630,9 @@ function buildEndpointError(params: {
 function sanitizeErrorText(text: string): string {
 	return text
 		.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+		.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted JWT]")
+		.replace(/\bsk-[A-Za-z0-9_-]+\b/g, "[redacted key]")
+		.replace(/data:image\/[^\s"']+/gi, "[redacted image]")
 		.replace(/chatgpt-account-id[\"':=\s]+[A-Za-z0-9_-]+/gi, "chatgpt-account-id [redacted]")
 		.replace(/authorization[\"':=\s]+[^,}\]\s]+/gi, "authorization [redacted]")
 		.slice(0, ERROR_BODY_LIMIT);

@@ -56,7 +56,7 @@ export interface DirectImageRequestBody {
 	tools: Array<Record<string, unknown>>;
 	text: { verbosity: "low" };
 	include: string[];
-	tool_choice: "auto";
+	tool_choice: { type: "image_generation" };
 	parallel_tool_calls: true;
 }
 

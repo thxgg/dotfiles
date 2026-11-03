@@ -132,7 +132,7 @@ function fakeClientResult(images: GeneratedImage[]): DirectImageClientResult {
 			tools: [{ type: "image_generation", model: "gpt-image-2", quality: "auto", size: "1024x1024" }],
 			text: { verbosity: "low" },
 			include: ["reasoning.encrypted_content"],
-			tool_choice: "auto",
+			tool_choice: { type: "image_generation" },
 			parallel_tool_calls: true,
 		},
 		responseMetadata: { created: 123, usage: { input_tokens: 1 } },

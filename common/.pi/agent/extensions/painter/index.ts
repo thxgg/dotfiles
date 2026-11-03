@@ -154,7 +154,17 @@ export default function painterExtension(pi: ExtensionAPI) {
 					content: [textContent(`Image generation failed: ${message}`)],
 					details: { status: "error", error: message },
 				});
-				throw new Error(message);
+				const details: GenerateImageDetails = {
+					status: "error",
+					error: message,
+					...(error instanceof DirectImageEndpointError ? {
+						endpointType: error.endpointType,
+						requestId: error.requestId,
+						responseId: error.responseId,
+						retryCount: error.retryCount,
+					} : {}),
+				};
+				return { content: [textContent(message)], details, isError: true };
 			}
 		},
 

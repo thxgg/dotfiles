@@ -22,6 +22,59 @@ function fakeCodexJwt(accountId = "acct_test"): string {
 	return `${base64UrlJson({ alg: "none" })}.${base64UrlJson({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })}.sig`;
 }
 
+async function requestStream(body: string, chunkSize = body.length) {
+	const bytes = new TextEncoder().encode(body);
+	return callDirectImageEndpoint({
+		token: fakeCodexJwt(), model: "gpt-6.1-sol", prompt: "test", inputImages: [],
+		count: 1, quality: "low", background: "auto", size: "auto", maxRetries: 0,
+		fetchFn: async () => new Response(new ReadableStream({
+			start(controller) {
+				for (let offset = 0; offset < bytes.length; offset += Math.max(1, chunkSize)) {
+					controller.enqueue(bytes.slice(offset, offset + Math.max(1, chunkSize)));
+				}
+				controller.close();
+			},
+		}), { headers: { "content-type": "text/event-stream" } }),
+	});
+}
+
+for (const newline of ["\n", "\r\n"]) {
+	test(`parses SSE with ${JSON.stringify(newline)} across byte boundaries`, async () => {
+		const event = { type: "response.completed", response: { id: "resp_lines", status: "completed", output: [
+			{ type: "image_generation_call", id: "img_lines", result: PNG_BYTES.toString("base64") },
+		] } };
+		const result = await requestStream(`data: ${JSON.stringify(event)}${newline}${newline}`, 1);
+		assert.equal(result.images.length, 1);
+	});
+}
+
+test("reports text-only output and redacts credentials", async () => {
+	await assert.rejects(requestStream(sseEvent({ type: "response.completed", response: {
+		id: "resp_text", status: "completed", output: [{ type: "message", content: [
+			{ type: "output_text", text: "Image tool unavailable. Bearer secret-token sk-secret123" },
+		] }],
+	} })), (error: unknown) => {
+		assert.ok(error instanceof Error);
+		assert.match(error.message, /Image tool unavailable/);
+		assert.match(error.message, /Status: completed/);
+		assert.doesNotMatch(error.message, /secret-token|sk-secret123/);
+		return true;
+	});
+});
+
+test("reports incomplete reason and missing image warnings", async () => {
+	await assert.rejects(requestStream(sseEvent({ type: "response.incomplete", response: {
+		status: "incomplete", incomplete_details: { reason: "max_output_tokens" },
+		output: [{ type: "image_generation_call", id: "img_missing" }],
+	} })), /max_output_tokens.*Skipped image 1/);
+});
+
+for (const body of ["", sseEvent({ type: "response.created", response: { id: "resp_cut" } }), 'data: {"type":"response.completed"}']) {
+	test(`rejects empty or truncated stream: ${body.length} bytes`, async () => {
+		await assert.rejects(requestStream(body), /before a terminal response event/);
+	});
+}
+
 function sseEvent(event: unknown): string {
 	return `data: ${JSON.stringify(event)}\n\n`;
 }
@@ -34,7 +87,7 @@ test("buildImageRequestBody declares Codex Responses image_generation tool", () 
 	assert.deepEqual(body.tools, [{ type: "image_generation", model: "gpt-image-2.5-sunburst", quality: "auto", size: "auto" }]);
 	assert.equal(body.input[0]!.role, "user");
 	assert.deepEqual(body.input[0]!.content[0], { type: "input_text", text: "p" });
-	assert.equal(body.tool_choice, "auto");
+	assert.deepEqual(body.tool_choice, { type: "image_generation" });
 
 	const editBody = buildImageRequestBody({
 		prompt: "edit",
