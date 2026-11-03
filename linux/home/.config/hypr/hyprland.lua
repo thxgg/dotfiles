@@ -257,6 +257,13 @@ hl.window_rule({
     tile = true,
 })
 
+-- Keep fullscreen Helium in SDR to avoid monitor HDR mode-switch blackouts.
+hl.window_rule({
+    name = "disable-helium-auto-hdr",
+    match = { class = "^helium$" },
+    no_auto_hdr = true,
+})
+
 hl.window_rule({
     name = "float-bitwarden-popouts",
     match = { class = ".*nngceckbapebfimnlniiiahkandclblb.*" },
