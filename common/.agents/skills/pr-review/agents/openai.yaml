@@ -1,0 +1,6 @@
+interface:
+  display_name: "PR review"
+  short_description: "Concise PR review and approval recommendation"
+  default_prompt: "Use $pr-review to review this PR and tell me whether we can approve it."
+policy:
+  allow_implicit_invocation: false
