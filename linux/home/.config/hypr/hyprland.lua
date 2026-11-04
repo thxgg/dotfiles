@@ -40,7 +40,6 @@ hl.on("hyprland.start", function()
         os.getenv("HOME") .. "/.config/hypr/scripts/start-hyprpanel.sh",
         "bash -lc 'QT_QPA_PLATFORM=wayland XDG_CURRENT_DESKTOP=Hyprland flameshot'",
         "dropbox",
-        os.getenv("HOME") .. "/.config/handy-launcher/launch --start-hidden",
         "wl-clip-persist --clipboard regular",
         "wl-paste --type text --watch cliphist store",
         "wl-paste --type image --watch cliphist store",
@@ -145,7 +144,6 @@ local home = os.getenv("HOME")
 local exclusive = require("exclusive-workspace").setup(hl, mainMonitor)
 
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
-hl.bind(mainMod .. " + O", hl.dsp.exec_cmd(home .. "/.config/handy-launcher/launch --toggle-transcription"))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser))
 hl.bind(mainMod .. " + SHIFT + B", hl.dsp.exec_cmd(browser2))
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
@@ -158,6 +156,12 @@ hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd('cliphist list | wofi --style
 hl.bind(mainMod .. " + C", hl.dsp.window.center())
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
 hl.bind("CTRL + ALT + SPACE", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/switch-keyboard-layout.sh"), { locked = true })
+
+-- Hex's portal registers actions; Hyprland assigns their physical keys.
+-- Match the right-hand keysym only; the portal action name still uses Hex's saved chord.
+hl.bind("CTRL + Control_R", hl.dsp.global("anomaly.hex:dictation-ALT-space"))
+hl.bind("CTRL + ALT + V", hl.dsp.global("anomaly.hex:paste-last-CTRL-ALT-v"))
+hl.bind("F9", hl.dsp.global("anomaly.hex:capture-F9"))
 
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))

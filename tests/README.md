@@ -66,21 +66,6 @@ old-version preservation, idempotency, and failure cleanup. It does not launch
 Electron or download a release. A live download does not verify desktop rendering
 or the next-launch CLI-wrapper refresh.
 
-# Handy launcher checks
-
-```sh
-shellcheck linux/home/.config/handy-launcher/{launch,build-catppuccin}
-PYTHONDONTWRITEBYTECODE=1 python3 tests/linux-handy-launcher.test.py
-```
-
-Linux only. Requires `cc`, `desktop-file-validate`, and system Python with
-PyGObject/Gio. Uses temporary homes, a mock Handy executable, and a C probe.
-Checks the renderer shim, environment isolation, cache reuse, failure cleanup,
-opt-out, private-build selection and package fallback, desktop entry parsing,
-and matching Hyprland commands. It never starts
-Handy or accesses the desktop/audio bus. Overlay rendering still needs a live
-check; see `linux/home/.config/handy-launcher/README.md`.
-
 # Linux offline checks
 
 Run from the repository root:
