@@ -122,7 +122,8 @@ collect_expected_entries() {
 
     root_paths=()
     if [[ $CONFIG_ONLY_MODE -eq 0 && $LIST_CONFIG_ONLY -eq 0 ]]; then
-        root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
+        root_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' -o -path './.agents/skills' -o -path './.claude/skills' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
+        root_paths+=(${(@f)"$(dotfiles_skill_entries "$package_root")"})
     fi
     for item in "${root_paths[@]}"; do
         [[ -n "$item" ]] || continue

@@ -1,6 +1,7 @@
 """Isolated stow safety checks. All scripts run in a temporary repo and HOME.
 
-Stow and dependency tools are mocks. These tests do not deploy live dotfiles.
+Dependency tools are mocks; one optional test uses GNU Stow in the temporary home.
+These tests do not deploy live dotfiles.
 Run: python3 tests/stow-safety.test.py
 """
 from pathlib import Path
@@ -12,6 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 ZSH = shutil.which('zsh')
+STOW = shutil.which('stow')
 SCRIPTS = ('safe-stow.sh', 'unstow.sh', 'doctor.sh')
 
 
@@ -185,6 +187,8 @@ class StowSafety(unittest.TestCase):
         unrelated = self.put(self.home / '.config/nvim/init.lua', 'local editor')
         old_skill = self.put(self.home / '.agents/skills/example/SKILL.md', 'old skill')
         self.run_script('safe-stow.sh', '--only-skills')
+        self.assertTrue(old_skill.parent.is_symlink())
+        self.assertFalse(old_skill.is_symlink())
         self.assertEqual(old_skill.resolve(), source / 'SKILL.md')
         self.assertEqual(self.backup('.agents/skills/example/SKILL.md').read_text(), 'old skill')
         self.assertEqual((self.home / '.agents/skills/example/references/example.md').resolve(),
@@ -197,6 +201,114 @@ class StowSafety(unittest.TestCase):
         self.assertFalse((self.home / '.local/bin/dot').exists())
         before = self.snapshot(self.base)
         self.run_script('safe-stow.sh', '--only-skills')
+        self.assertEqual(self.snapshot(self.base), before)
+        self.assert_no_tools()
+
+    def skill_fixture(self):
+        source = self.repo / 'common/.agents/skills/example'
+        self.put(source / 'SKILL.md', '---\nname: example\ndescription: Fixture\n---\n')
+        self.put(source / 'agents/openai.yaml',
+                 'policy:\n  allow_implicit_invocation: false\n')
+        self.put(source / 'references/example.txt', 'reference\n')
+        self.link(self.repo / 'common/.claude/skills/example',
+                  '../../.agents/skills/example')
+        return source
+
+    def test_skills_only_migrates_leaf_links_and_preserves_local_files(self):
+        source = self.skill_fixture()
+        for prefix in ('.agents', '.claude'):
+            target = self.home / prefix / 'skills/example'
+            for relative in ('SKILL.md', 'agents/openai.yaml', 'references/example.txt'):
+                link = target / relative
+                original = self.repo / 'common' / prefix / 'skills/example' / relative
+                self.link(link, os.path.relpath(original, link.parent))
+            self.put(target / 'local-notes.txt', 'keep local notes\n')
+        source_before = self.snapshot(self.repo / 'common/.agents')
+        self.run_script('safe-stow.sh', '--only-skills')
+        for prefix in ('.agents', '.claude'):
+            target = self.home / prefix / 'skills/example'
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(target.resolve(), source)
+            self.assertFalse((target / 'SKILL.md').is_symlink())
+            self.assertFalse((target / 'agents/openai.yaml').is_symlink())
+            backup = self.backup(prefix + '/skills/example')
+            self.assertEqual((backup / 'local-notes.txt').read_text(), 'keep local notes\n')
+            self.assertTrue((backup / 'SKILL.md').is_symlink())
+        self.assertEqual(self.snapshot(self.repo / 'common/.agents'), source_before)
+        before = self.snapshot(self.base)
+        self.run_script('safe-stow.sh', '--only-skills')
+        self.assertEqual(self.snapshot(self.base), before)
+        self.assert_no_tools()
+
+    def test_full_deploy_keeps_skill_directory_links_and_unstow_preserves_foreign_links(self):
+        source = self.skill_fixture()
+        self.put(self.repo / 'common/.agents/skills/LICENSE.fixture', 'license\n')
+        self.run_script('safe-stow.sh')
+        for prefix in ('.agents', '.claude'):
+            target = self.home / prefix / 'skills/example'
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(target.resolve(), source)
+            self.assertFalse((target / 'SKILL.md').is_symlink())
+        license = self.home / '.agents/skills/LICENSE.fixture'
+        self.assertTrue(license.is_symlink())
+        self.assertEqual(license.read_text(), 'license\n')
+        self.assert_no_backups()
+        before = (self.snapshot(self.home / '.agents'), self.snapshot(self.home / '.claude'))
+        self.run_script('safe-stow.sh')
+        self.assertEqual((self.snapshot(self.home / '.agents'),
+                          self.snapshot(self.home / '.claude')), before)
+        # A locally repointed skill is never removed by unstow.
+        foreign = self.put(self.base / 'foreign-skill/SKILL.md', 'private\n').parent
+        claude = self.home / '.claude/skills/example'
+        claude.unlink()
+        self.link(claude, foreign)
+        self.run_script('unstow.sh')
+        self.assertFalse((self.home / '.agents/skills/example').is_symlink())
+        self.assertFalse(license.is_symlink())
+        self.assertEqual(claude.resolve(), foreign)
+        self.assertEqual((source / 'SKILL.md').read_text(),
+                         '---\nname: example\ndescription: Fixture\n---\n')
+
+    @unittest.skipUnless(STOW, 'GNU Stow is required')
+    def test_real_stow_does_not_unfold_skill_directory_links(self):
+        source = self.skill_fixture()
+        stow = self.bin / 'stow'
+        stow.unlink()
+        stow.symlink_to(STOW)
+        local = self.put(self.home / '.agents/skills/local/SKILL.md', 'local skill\n')
+        for _ in range(2):
+            self.run_script('safe-stow.sh')
+            for prefix in ('.agents', '.claude'):
+                target = self.home / prefix / 'skills/example'
+                self.assertTrue(target.is_symlink())
+                self.assertFalse(os.path.isabs(os.readlink(target)))
+                self.assertEqual(target.resolve(), source)
+                self.assertFalse((target / 'SKILL.md').is_symlink())
+        self.assert_no_backups()
+        self.run_script('unstow.sh')
+        for prefix in ('.agents', '.claude'):
+            target = self.home / prefix / 'skills/example'
+            self.assertFalse(target.is_symlink())
+            self.assertFalse(target.exists())
+        self.assertEqual(local.read_text(), 'local skill\n')
+        self.assertTrue((source / 'SKILL.md').is_file())
+
+    def test_doctor_flags_leaf_linked_skill_directory(self):
+        source = self.skill_fixture()
+        self.put(self.repo / 'common/.ssh/config', '# fixture\n')
+        (self.home / '.ssh').mkdir()
+        self.link(self.home / '.agents/skills/example/SKILL.md', source / 'SKILL.md')
+        before = (self.snapshot(self.home), self.snapshot(self.repo))
+        result = self.run_script('doctor.sh', expected=1)
+        self.assertIn('.agents/skills/example exists but is not a symlink', result.stdout, result.stdout + result.stderr)
+        self.assertEqual((self.snapshot(self.home), self.snapshot(self.repo)), before)
+
+    def test_skills_only_rejects_duplicate_skill_directories_before_mutation(self):
+        self.skill_fixture()
+        for root in ('macos/home', 'linux/home'):
+            self.put(self.repo / root / '.agents/skills/example/SKILL.md', 'duplicate\n')
+        before = self.snapshot(self.base)
+        self.run_script('safe-stow.sh', '--only-skills', expected=1)
         self.assertEqual(self.snapshot(self.base), before)
         self.assert_no_tools()
 

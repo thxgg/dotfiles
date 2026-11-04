@@ -69,7 +69,7 @@ if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
 fi
 
 source "$STOW_ROOTS_HELPER"
-STOW_IGNORE_REGEX="$DOTFILES_STOW_IGNORE_REGEX"
+STOW_IGNORE_REGEX="$DOTFILES_STOW_IGNORE_REGEX|$DOTFILES_STOW_SKILL_IGNORE_REGEX"
 
 collect_config_children() {
     local root="$1"
@@ -99,11 +99,13 @@ collect_config_children() {
 
 collect_special_leaf_entries() {
     local root item package_root
+    local -a entries
 
     for root in "${package_roots[@]}"; do
         package_root="$SCRIPT_DIR/$root"
 
-        for item in "${SPECIAL_LEAF_TARGETS[@]}"; do
+        entries=("${SPECIAL_LEAF_TARGETS[@]}" ${(@f)"$(dotfiles_skill_entries "$package_root")"})
+        for item in "${entries[@]}"; do
             [[ -e "$package_root/$item" || -L "$package_root/$item" ]] || continue
 
             if [[ -n "${special_leaf_sources[$item]-}" ]]; then

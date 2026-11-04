@@ -90,7 +90,7 @@ if [[ ! -f "$STOW_ROOTS_HELPER" ]]; then
 fi
 
 source "$STOW_ROOTS_HELPER"
-STOW_IGNORE_REGEX="$DOTFILES_STOW_IGNORE_REGEX"
+STOW_IGNORE_REGEX="$DOTFILES_STOW_IGNORE_REGEX|$DOTFILES_STOW_SKILL_IGNORE_REGEX"
 
 collect_package_entries() {
     local root="$1"
@@ -99,7 +99,8 @@ collect_package_entries() {
     local root_deploy_paths root_config_children
 
     if [[ $include_deploy_paths -eq 1 ]]; then
-        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
+        root_deploy_paths=(${(@f)"$(cd "$package_root" && find . -mindepth 1 \( -name 'node_modules' -o -name '.git' -o -path './.agents/skills' -o -path './.claude/skills' \) -prune -o \( -type f -o -type l \) ! -path './.config/*' -print | sed 's|^./||')"})
+        root_deploy_paths+=(${(@f)"$(dotfiles_skill_entries "$package_root")"})
 
         for item in "${root_deploy_paths[@]}"; do
             [[ -n "$item" ]] || continue
@@ -115,6 +116,9 @@ collect_package_entries() {
 
             deploy_sources[$item]="$root"
             deploy_paths+=("$item")
+            if [[ "$item" == .agents/skills/* || "$item" == .claude/skills/* ]]; then
+                special_leaf_paths+=("$item")
+            fi
         done
     fi
 
@@ -674,7 +678,7 @@ link_config_children() {
 }
 
 link_special_leaf_paths() {
-    local item source_root source_path source_path_abs target_path target_dir
+    local item source_root source_path source_path_abs target_path target_dir link_target
 
     for item in "${special_leaf_paths[@]}"; do
         source_root="${deploy_sources[$item]}"
@@ -694,7 +698,11 @@ link_special_leaf_paths() {
         fi
 
         mkdir -p "$target_dir"
-        ln -s "$source_path_abs" "$target_path"
+        link_target="$source_path_abs"
+        if [[ "$item" == .agents/skills/* || "$item" == .claude/skills/* ]]; then
+            link_target="$(relative_path_from "$target_dir" "$source_path_abs")"
+        fi
+        ln -s "$link_target" "$target_path"
     done
 }
 

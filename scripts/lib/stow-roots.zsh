@@ -6,6 +6,24 @@ typeset -g DOTFILES_STOW_LINUX_ROOT="linux/home"
 typeset -g DOTFILES_PI_RUNTIME_REGEX='^\.pi/(\.pi/)?todos(/|$)|^\.pi/(\.pi/)?agent/(settings(-extensions)?\.json|pi-(transcribe|voice)\.json|auth\.json|mcp-auth\.json|mcp-cache\.json|mcp-npx-cache\.json|trust\.json|[^/]+\.local\.jsonc?)$|^\.pi/(\.pi/)?agent/(git|mcp-oauth|history|sessions|\.cache)(/|$)'
 typeset -g DOTFILES_STOW_IGNORE_REGEX="^\\.config(/|$)|(^|/)AGENTS\\.md$|(^|/)\\.gitignore$|(^|/)node_modules(/|$)|$DOTFILES_PI_RUNTIME_REGEX"
 
+# Stow's --no-folding would create SKILL.md file symlinks, which Codex skips.
+# Skill roots are deployed separately, one direct child directory at a time.
+typeset -g DOTFILES_STOW_SKILL_IGNORE_REGEX='(^|/)\.(agents|claude)/skills(/|$)'
+
+dotfiles_skill_entries() {
+    local package_root="$1"
+    local skill_root entry
+
+    for skill_root in .agents/skills .claude/skills; do
+        [[ -d "$package_root/$skill_root" ]] || continue
+        while IFS= read -r entry; do
+            [[ -n "$entry" ]] || continue
+            dotfiles_is_stow_ignored_path "$skill_root/$entry" && continue
+            print -r -- "$skill_root/$entry"
+        done < <(cd "$package_root/$skill_root" && find . -mindepth 1 -maxdepth 1 \( -type f -o -type l -o \( -type d ! -empty \) \) -print | sed 's|^./||')
+    done
+}
+
 typeset -ga DOTFILES_ACTIVE_STOW_ROOTS
 typeset -g DOTFILES_STOW_RESOLVE_WARNING=""
 typeset -g DOTFILES_STOW_RESOLVE_ERROR=""

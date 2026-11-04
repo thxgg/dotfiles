@@ -52,8 +52,9 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/stow-safety.test.py
 ```
 
 These checks use temporary homes and mock commands. They verify scoped deployment,
-read-only listing, link ownership and backups, and root CLI behavior without changing
-the live deployment. The update suite uses temporary Git repositories and a local
+read-only listing, link ownership and backups, whole-directory skill deployment and removal,
+and root CLI behavior without changing the live deployment. When GNU Stow is
+installed, an isolated round trip checks that it preserves skill directory links. The update suite uses temporary Git repositories and a local
 bare remote. It checks scoped dependency commits, preservation of unrelated staging,
 dirty-file guards, post-pull Stow ordering, hooks, failure handling, CLI routing,
 skip flags, and a final
