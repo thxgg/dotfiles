@@ -114,6 +114,10 @@ The following skills and their complete supporting files match
 - `break-ui`
 - `mobile-native`
 
+`gestures` matches
+[`emilkowalski/skills@5206a95`](https://github.com/emilkowalski/skills/commit/5206a950b715e0cabe7043ea0b2304332b91494e).
+It refers to `pick-ui-library`, `animation-accessibility`, and `debug-animation`, which are not installed.
+
 `remove-animations` matches
 [`emilkowalski/skills@a81dbca`](https://github.com/emilkowalski/skills/commit/a81dbca07f2217b7103e510c0f13f8d5b017afc9),
 except for the local `disable-model-invocation: true` flag. It is manual-only.
