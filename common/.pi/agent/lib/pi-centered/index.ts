@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AgentSession, AgentSessionRuntime, AssistantMessageComponent, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { AgentSession, AgentSessionRuntime, AssistantMessageComponent, getAgentDir, getPackageDir } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Marked, type Component, type TUI, type TuiMouseEvent, type MarkdownOptions, type MarkdownTheme, type DefaultTextStyle } from "@earendil-works/pi-tui";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -139,9 +139,13 @@ let renderMermaid: ((src: string) => { width: number } | undefined) | undefined;
 async function loadMermaid(): Promise<boolean> {
 	if (renderMermaid) return true;
 	try {
-		// grok-mermaid is Pi's own dependency; resolve it from Pi's install.
-		const req = createRequire(realpathSync(process.argv[1]!));
-		const mod = await import(pathToFileURL(req.resolve("grok-mermaid")).href);
+		// Use the host package, not argv[1] (which may be an SDK launcher).
+		const req = createRequire(join(getPackageDir(), "package.json"));
+		// Pi 1.5.2 renamed its renderer; keep the pinned 1.5.0 workspace working.
+		let rendererPath: string;
+		try { rendererPath = req.resolve("lovely-mermaid"); }
+		catch { rendererPath = req.resolve("grok-mermaid"); }
+		const mod = await import(pathToFileURL(rendererPath).href);
 		if (typeof mod.render === "function") renderMermaid = mod.render;
 	} catch {}
 	return !!renderMermaid;
@@ -298,7 +302,7 @@ export default function (pi: ExtensionAPI) {
 		for (const child of state.tui?.children ?? []) hook(child);
 		state.tui?.requestRender(true);
 		if (!(await loadMermaid())) {
-			ctx.ui.notify("pi-centered: grok-mermaid not found; wide diagrams stay in the column", "warning");
+			ctx.ui.notify("pi-centered: Mermaid renderer unavailable; wide diagrams stay in the column", "warning");
 		}
 		// A frame can render while Mermaid loads. Rebuild any cached plain parts.
 		for (const child of state.tui?.children ?? []) child.invalidate?.();

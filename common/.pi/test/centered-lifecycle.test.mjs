@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { stripVTControlCharacters } from 'node:util';
@@ -11,7 +10,6 @@ const root = mkdtempSync(join(tmpdir(), 'centered-lifecycle-'));
 process.env.PI_CODING_AGENT_DIR = root;
 process.env.PI_OFFLINE = '1';
 process.env.PI_CENTERED_WIDTH = '110';
-process.argv[1] = fileURLToPath(new URL('../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js', import.meta.url));
 after(() => rmSync(root, { recursive: true, force: true }));
 const { createAgentSession, createAgentSessionRuntime, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, initTheme } = await import('@earendil-works/pi-coding-agent');
 const { Container, Text } = await import('@earendil-works/pi-tui');
@@ -46,7 +44,7 @@ async function fixture() {
     await resources.reload();
     const created = await createAgentSession({ cwd: root, agentDir: root, resourceLoader: resources,
       settingsManager, modelRuntime, model: faux.getModel(), sessionManager, sessionStartEvent });
-    return { ...created, services: { agentDir: root, resourceLoader: resources }, diagnostics: [] };
+    return { ...created, services: { agentDir: root, resourceLoader: resources, modelRuntime }, diagnostics: [] };
   };
   const runtime = await createAgentSessionRuntime(create, { cwd: root, agentDir: root, sessionManager: SessionManager.inMemory(root) });
   const bind = session => session.bindExtensions({ mode: 'tui', uiContext: ui });

@@ -13,8 +13,8 @@ import { createMermaidMarkdownTransformer } from '../node_modules/@earendil-work
 const agentDir = mkdtempSync(join(tmpdir(), 'pi-centered-test-'));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 process.env.PI_CENTERED_WIDTH = '110';
-// Use the same dependency lookup as a real Pi launch, not the Node test runner.
-process.argv[1] = fileURLToPath(new URL('../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js', import.meta.url));
+// Keep the real test-runner argv: SDK hosts need package-based renderer lookup.
+const cliPath = fileURLToPath(new URL('../node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js', import.meta.url));
 const { default: extension } = await import('../agent/extensions/pi-centered.ts');
 initTheme('dark', false);
 after(() => rmSync(agentDir, { recursive: true, force: true }));
@@ -164,7 +164,7 @@ test('real Pi CLI loads the local entry through a leaf symlink', () => {
     symlinkSync(fileURLToPath(new URL('../agent/extensions/pi-centered.ts', import.meta.url)), entry);
     const probe = join(dir, 'probe.js');
     writeFileSync(probe, 'export default function(pi) { pi.registerCommand("probe", {description:"Offline probe", handler:async()=>{console.log("CENTERED_LOAD_OK")}}); }');
-    const result = spawnSync(process.execPath, [process.argv[1], '-ne', '-e', entry, '-e', probe,
+    const result = spawnSync(process.execPath, [cliPath, '-ne', '-e', entry, '-e', probe,
       '-ns', '-np', '-nc', '--no-session', '--no-approve', '--offline', '--no-tools', '-p', '/probe'], {
       cwd: dir, env: { ...process.env, HOME: dir, PI_CODING_AGENT_DIR: dir }, encoding: 'utf8', timeout: 20_000,
     });

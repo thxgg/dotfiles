@@ -12,6 +12,9 @@ The saved width and `PI_CENTERED_WIDTH` override remain compatible with upstream
 
 ## Local changes
 
+- Resolve Mermaid from the host Pi package, not the process entry point. Prefer
+  `lovely-mermaid` (Pi 1.5.2), with `grok-mermaid` fallback for the pinned Pi 1.5.0.
+  SDK hosts and test runners do not need to impersonate the Pi CLI.
 - Center each rendered Mermaid diagram independently of the text column.
 - Use the actual terminal content width, including Markdown padding and the
   fullscreen scrollbar, to decide whether a diagram fits.
@@ -25,7 +28,7 @@ The saved width and `PI_CENTERED_WIDTH` override remain compatible with upstream
   These wrappers remain inert when centering is removed. Pi upgrades must verify
   these lifecycle boundaries as well as the component rendering internals.
 
-This remains a TUI-internal workaround, tested against Pi 1.5.0. It affects only
+This remains a TUI-internal workaround, tested against Pi 1.5.0 and 1.5.2. It affects only
 rendering, not model context or saved messages. Only top-level Mermaid blocks
 participate, matching Pi's own Mermaid transform. `/maxwidth off` restores native
 full-width rendering, including native diagram alignment.
@@ -48,5 +51,7 @@ transforms, and fullscreen scroll-width calculation. They cover fit boundaries,
 source fallback, mixed blocks, small diagrams, resize, rendering modes, reload,
 and `/maxwidth off`. Lifecycle tests use real Pi SDK replacement operations and
 check delayed loading, resizing, cancellation, removal, failed loads, and quit.
+The layout and lifecycle suites also passed in an isolated fixture using the
+installed Pi 1.5.2 packages; the full workspace check still targets Pi 1.5.0.
 They make no model calls. Visual selection/copy, IME, and
 terminal-protocol image rendering still need interactive verification.
